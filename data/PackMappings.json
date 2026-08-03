@@ -1,0 +1,36 @@
+{
+  "pack_mappings": [
+    {
+      "pack_id": "myth_drannor",
+      "keywords": ["Myth Drannor", "Cormyr", "Attack on Myth Drannor"]
+    },
+    {
+      "pack_id": "vecna",
+      "keywords": ["Vecna Unleashed", "Vecna", "Macabre", "The Final Draw"]
+    },
+    {
+      "pack_id": "iod",
+      "keywords": ["Isle of Dread", "Dread saga", "Skeletons in the Closet", "Fall of the Truth"]
+    },
+    {
+      "pack_id": "saltmarsh",
+      "keywords": ["Saltmarsh", "Sinister Secret of Saltmarsh", "Danger at Dunwater"]
+    },
+    {
+      "pack_id": "feywild",
+      "keywords": ["Feywild", "Fables of the Feywild", "Dryad and the Demigod"]
+    },
+    {
+      "pack_id": "sharn",
+      "keywords": ["Sharn", "Masterminds of Sharn", "Project Nemesis", "Too Hot to Handle"]
+    },
+    {
+      "pack_id": "ravenloft",
+      "keywords": ["Ravenloft", "Curse of Strahd", "Old Baba's Hut", "Death House", "Mists of Ravenloft"]
+    },
+    {
+      "pack_id": "base",
+      "keywords": ["Base Game", "None"]
+    }
+  ]
+}
