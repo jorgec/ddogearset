@@ -2,7 +2,7 @@ export namespace main {
 	
 	export class OptimizationPayload {
 	    gearset_name: string;
-	    max_levels: number[];
+	    max_level: number;
 	    build_type: string;
 	    weapon_style: string;
 	    swashbuckling: boolean;
@@ -31,7 +31,7 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.gearset_name = source["gearset_name"];
-	        this.max_levels = source["max_levels"];
+	        this.max_level = source["max_level"];
 	        this.build_type = source["build_type"];
 	        this.weapon_style = source["weapon_style"];
 	        this.swashbuckling = source["swashbuckling"];

@@ -66,7 +66,7 @@
   
   async function fetchItems(slot: string, query: string) {
       isFetchingItems = true;
-      const maxLvl = ($configStore.max_levels && $configStore.max_levels.length > 0) ? $configStore.max_levels[0] : 32;
+      const maxLvl = $configStore.max_level || 34;
       
       try {
           const res = await GetAvailableItems(slot, maxLvl, query);
@@ -183,7 +183,7 @@
   
   async function fetchAugments(type: string, query: string) {
       isFetchingAugments = true;
-      const maxLvl = ($configStore.max_levels && $configStore.max_levels.length > 0) ? $configStore.max_levels[0] : 32;
+      const maxLvl = $configStore.max_level || 34;
       try {
           availableAugments = await GetAvailableAugments(type, maxLvl, query) || [];
       } catch (e) {
@@ -288,6 +288,8 @@
           $configStore.calculate_only = true;
           const res = await RunOptimization($configStore);
           if (res && res.success) {
+              // Ensure we don't destructively overwrite the manually curated gearset!
+              res.gearSet = $resultStore.gearSet;
               $resultStore = res;
           }
       } catch (e) {

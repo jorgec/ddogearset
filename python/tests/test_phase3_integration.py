@@ -15,7 +15,7 @@ def test_parse_json_payload():
     1. Validates parsing the new JSON payload format correctly.
     """
     payload_json = {
-        "max_levels": [32],
+        "max_level": 32,
         "build_type": "Melee", 
         "weapon_style": "Two Weapon Fighting", 
         "swashbuckling": False, 

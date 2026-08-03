@@ -20,7 +20,7 @@ def main():
         
     parsed_data = parse_payload(payload)
     
-    levels = parsed_data.get('max_levels', [32])
+    cap = parsed_data.get('max_level', 34)
     b_type = parsed_data.get('build_type', 'Melee')
     stat_priorities = parsed_data.get('stat_priorities', {})
     armor_input = parsed_data.get('armor_restriction', '')
@@ -132,32 +132,31 @@ def main():
         out_file.write(f"Excluded Packs: {', '.join(excluded_packs) if excluded_packs else 'None'}\n")
         out_file.write(f"Raid Item Limit: {raid_item_limit}\n\n")
         
-        for cap in levels:
-            print(f"\nParsing Items (ML 29-{cap})...")
-            pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
-            items = optimizer.parse_items(base_dir, cap, stat_priorities, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names)
-            print(f"Loaded {len(items)} items")
-            
-            print(f"Parsing Augments (ML 29-{cap})...")
-            augments = optimizer.parse_augments(base_dir, cap, stat_priorities)
-            print(f"Loaded {len(augments)} augments")
-            
-            filigrees = []
-            if cap >= 34:
-                print(f"Parsing Filigrees...")
-                filigrees, filigree_sets = optimizer.parse_filigrees(base_dir, stat_priorities)
-                print(f"Loaded {len(filigrees)} filigrees")
-                for k, v in filigree_sets.items():
-                    if k not in sets:
-                        sets[k] = v
-                    else:
-                        for count, buffs in v.items():
-                            sets[k][count] = buffs
-                            
-            print(f"Solving ILP for max level {cap} (this may take a minute)...")
-            equipped_simple = optimizer.run_optimization(items, sets, augments, filigrees, stat_priorities, out_file, cap, art_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
-            if equipped_simple:
-                final_gearset = equipped_simple
+        print(f"\nParsing Items (ML 29-{cap})...")
+        pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
+        items = optimizer.parse_items(base_dir, cap, stat_priorities, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names)
+        print(f"Loaded {len(items)} items")
+        
+        print(f"Parsing Augments (ML 29-{cap})...")
+        augments = optimizer.parse_augments(base_dir, cap, stat_priorities)
+        print(f"Loaded {len(augments)} augments")
+        
+        filigrees = []
+        if cap >= 34:
+            print(f"Parsing Filigrees...")
+            filigrees, filigree_sets = optimizer.parse_filigrees(base_dir, stat_priorities)
+            print(f"Loaded {len(filigrees)} filigrees")
+            for k, v in filigree_sets.items():
+                if k not in sets:
+                    sets[k] = v
+                else:
+                    for count, buffs in v.items():
+                        sets[k][count] = buffs
+                        
+        print(f"Solving ILP for max level {cap} (this may take a minute)...")
+        equipped_simple = optimizer.run_optimization(items, sets, augments, filigrees, stat_priorities, out_file, cap, art_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
+        if equipped_simple:
+            final_gearset = equipped_simple
             
     # Print the json to stdout so the Go app can easily parse it
     print(f"JSON_RESULT:{json.dumps(final_gearset)}")

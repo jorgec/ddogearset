@@ -95,7 +95,7 @@ func (a *App) extractSolver() error {
 
 type OptimizationPayload struct {
 	GearsetName                string              `json:"gearset_name"`
-	MaxLevels                  []int               `json:"max_levels"`
+	MaxLevel                   int                 `json:"max_level"`
 	BuildType                  string              `json:"build_type"`
 	WeaponStyle                string              `json:"weapon_style"`
 	Swashbuckling              bool                `json:"swashbuckling"`

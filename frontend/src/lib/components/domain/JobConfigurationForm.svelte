@@ -84,11 +84,11 @@
     }
   }
 
-  // Helper for max_levels since it's an array but UI treats it as a single number (Character Level)
-  $: characterLevel = $configStore.max_levels && $configStore.max_levels.length > 0 ? $configStore.max_levels[0] : 32;
+  // Helper for max_level (Character Level)
+  $: characterLevel = $configStore.max_level || 34;
   function updateCharacterLevel(e: Event) {
     const target = e.target as HTMLInputElement;
-    $configStore.max_levels = [parseInt(target.value) || 32];
+    $configStore.max_level = parseInt(target.value) || 34;
   }
 
   $: {

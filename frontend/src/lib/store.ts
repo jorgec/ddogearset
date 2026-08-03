@@ -3,7 +3,7 @@ import type { main } from '../../wailsjs/go/models';
 
 export const configStore = writable<main.OptimizationPayload>({
     gearset_name: "",
-    max_levels: [34],
+    max_level: 34,
     build_type: "Melee",
     weapon_style: "Two Weapon Fighting",
     swashbuckling: false,
