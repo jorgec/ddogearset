@@ -1,6 +1,6 @@
 <script lang="ts">
   import { configStore, isOptimizing, resultStore } from '$lib/store';
-  import { RunOptimization } from '../../../wailsjs/go/main/App';
+  import { RunOptimization } from '../../../../wailsjs/go/main/App';
   
   let newPack = '';
   let newStatName = '';

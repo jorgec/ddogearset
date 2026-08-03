@@ -15,3 +15,9 @@
 - Designed and implemented a new JSON payload schema for seamless Go-Python communication.
 - Implemented constraint-solving models using the Pulp library.
 - Rewrote the objective function to accurately reflect optimization goals.
+
+## Phase 4
+- Completed Phase 4 Svelte UI implementation.
+- Integrated Wails bindings to bridge Go domain models with the frontend.
+- Styled the frontend using Tailwind CSS and Shadcn, applying Glassmorphism design principles as specified.
+- Corrected and aligned the Go domain models for robust frontend consumption.

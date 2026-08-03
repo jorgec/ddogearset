@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { GetSystemLogs } from '../../../wailsjs/go/main/App';
+  import { GetSystemLogs } from '../../../../wailsjs/go/main/App';
   import { logsStore } from '$lib/store';
 
   let consoleRef: HTMLDivElement;
