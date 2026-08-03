@@ -1,21 +1,21 @@
 <script lang="ts">
   import { configStore, isOptimizing, resultStore } from '$lib/store';
-  import { RunOptimization } from '../../../../wailsjs/go/main/App';
-  
+  import { onMount } from 'svelte';
+
   let newStatName = '';
   let newStatWeight = 100;
 
-  const expansions = [
-    "Menace of the Underdark",
-    "The Shadowfell Conspiracy",
-    "Mists of Ravenloft", 
-    "Masterminds of Sharn", 
-    "Fables of the Feywild", 
-    "Sinister Secret of Saltmarsh",
-    "Isle of Dread", 
-    "Vecna Unleashed", 
-    "Myth Drannor"
-  ];
+  let expansions: string[] = [];
+
+  onMount(async () => {
+    try {
+      const res = await fetch('/expansions.json');
+      const data = await res.json();
+      expansions = data.expansions ?? [];
+    } catch (e) {
+      console.error('Failed to load expansions.json', e);
+    }
+  });
 
   function togglePack(pack: string) {
     if (!$configStore.excluded_packs) {
