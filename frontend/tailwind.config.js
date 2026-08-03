@@ -20,7 +20,7 @@ export default {
         },
         destructive: {
           DEFAULT: "#d1495b",
-          foreground: "#0d131c",
+          foreground: "#c59da1",
         },
         muted: {
           DEFAULT: "#d9dde1",
