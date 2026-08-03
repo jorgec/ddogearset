@@ -91,9 +91,15 @@ def main():
 
     allow_gomf = not parsed_data.get('exclude_gem_of_many_facets', False)
     art_slot_input = parsed_data.get('reserved_minor_artifact_slot', '')
+    if parsed_data.get('is_dino_artifact', False):
+        art_slot_input += ' (dino)'
     art_slots = parsed_data.get('minor_artifact_filigree_slots', 4)
     excluded_packs = parsed_data.get('excluded_packs', [])
     raid_item_limit = parsed_data.get('raid_item_limit', None)
+    pre_equipped = parsed_data.get('pre_equipped', {})
+    pre_filled_augments = parsed_data.get('pre_filled_augments', {})
+    pre_filled_filigrees = parsed_data.get('pre_filled_filigrees', {})
+    calculate_only = parsed_data.get('calculate_only', False)
     
     base_dir = "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles"
     if not os.path.exists(base_dir):
@@ -107,8 +113,13 @@ def main():
     sets = optimizer.parse_sets(base_dir, stat_priorities)
     print(f"Loaded {len(sets)} sets.")
     
-    filename = "gearset_output.txt"
-    with open(filename, 'w') as out_file:
+    filename = parsed_data.get('output_filename', 'gearset_output.json')
+    if not filename.endswith('.json'):
+        filename += '.json'
+    
+    log_filename = "gearset_output.txt"
+    final_gearset = {}
+    with open(log_filename, 'w') as out_file:
         out_file.write("======================================\n")
         out_file.write("           USER INPUTS\n")
         out_file.write("======================================\n")
@@ -143,8 +154,12 @@ def main():
                             sets[k][count] = buffs
                             
             print(f"Solving ILP for max level {cap} (this may take a minute)...")
-            optimizer.run_optimization(items, sets, augments, filigrees, stat_priorities, out_file, cap, art_slots, raid_item_limit)
+            equipped_simple = optimizer.run_optimization(items, sets, augments, filigrees, stat_priorities, out_file, cap, art_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
+            if equipped_simple:
+                final_gearset = equipped_simple
             
+    # Print the json to stdout so the Go app can easily parse it
+    print(f"JSON_RESULT:{json.dumps(final_gearset)}")
     print(f"\nSuccess! Results written to {filename}")
 
 if __name__ == "__main__":

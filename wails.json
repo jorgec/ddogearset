@@ -1,13 +1,21 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "goGearset",
-  "outputfilename": "goGearset",
+  "name": "DDO Gearset Optimizer",
+  "outputfilename": "DDOGearsetOptimizer",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "version": "0.1.0",
+  "info": {
+    "companyName": "Jorge Cosgayon",
+    "productName": "DDO Gearset Optimizer",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 Jorge Cosgayon",
+    "comments": "Mathematically optimal gear solver for Dungeons & Dragons Online"
+  },
   "author": {
     "name": "Jorge Cosgayon",
-    "email": "jorcos1@five9.com"
+    "email": "jorge.cosgayon@gmail.com"
   }
 }

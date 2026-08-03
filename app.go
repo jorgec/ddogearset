@@ -9,7 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
+
+	"goGearset/internal/models"
+	"goGearset/internal/services"
 )
 
 //go:embed python/dist/solver
@@ -19,8 +24,11 @@ var solverBinary []byte
 type App struct {
 	ctx        context.Context
 	logs       []string
-	solverPath string
-	initOnce   sync.Once
+	solverPath    string
+	itemsCache     []models.XMLItem
+	augmentsCache  []models.XMLAugment
+	filigreesCache []models.XMLFiligree
+	initOnce       sync.Once
 }
 
 // NewApp creates a new App application struct
@@ -34,7 +42,35 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.addLog("System started.")
+	a.logs = make([]string, 0)
+	
+	// Load item cache for UI dropdowns
+	go func() {
+		items, err := services.ParseItems("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Items")
+		if err == nil {
+			a.itemsCache = items
+			a.addLog(fmt.Sprintf("Cached %d items for Gearset Editor", len(items)))
+		} else {
+			a.addLog("Failed to cache items: " + err.Error())
+		}
+		
+		augments, errAugs := services.ParseAugments("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Augments")
+		if errAugs == nil {
+			a.augmentsCache = augments
+			a.addLog(fmt.Sprintf("Cached %d augments for Gearset Editor", len(augments)))
+		} else {
+			a.addLog("Failed to cache augments: " + errAugs.Error())
+		}
+		
+		filigrees, errFils := services.ParseFiligrees("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/FiligreeSets")
+		if errFils == nil {
+			a.filigreesCache = filigrees
+			a.addLog(fmt.Sprintf("Cached %d filigrees for Gearset Editor", len(filigrees)))
+		} else {
+			a.addLog("Failed to cache filigrees: " + errFils.Error())
+		}
+	}()
+
 	a.initOnce.Do(func() {
 		if err := a.extractSolver(); err != nil {
 			a.addLog("Warning: failed to extract bundled solver: " + err.Error())
@@ -58,28 +94,39 @@ func (a *App) extractSolver() error {
 }
 
 type OptimizationPayload struct {
-	MaxLevels                  []int          `json:"max_levels"`
-	BuildType                  string         `json:"build_type"`
-	WeaponStyle                string         `json:"weapon_style"`
-	Swashbuckling              bool           `json:"swashbuckling"`
-	OffhandStyle               string         `json:"offhand_style"`
-	CasterSpellpowers          []string       `json:"caster_spellpowers"`
-	CasterSchools              []string       `json:"caster_schools"`
-	StatPriorities             map[string]int `json:"stat_priorities"`
-	ArmorRestriction           string         `json:"armor_restriction"`
-	ReservedMinorArtifactSlot  string         `json:"reserved_minor_artifact_slot"`
-	MinorArtifactFiligreeSlots int            `json:"minor_artifact_filigree_slots"`
-	ExcludeGemOfManyFacets     bool           `json:"exclude_gem_of_many_facets"`
-	RunearmUse                 bool           `json:"runearm_use"`
-	ExcludedPacks              []string       `json:"excluded_packs"`
-	RaidItemLimit              int            `json:"raid_item_limit"`
+	GearsetName                string              `json:"gearset_name"`
+	MaxLevels                  []int               `json:"max_levels"`
+	BuildType                  string              `json:"build_type"`
+	WeaponStyle                string              `json:"weapon_style"`
+	Swashbuckling              bool                `json:"swashbuckling"`
+	OffhandStyle               string              `json:"offhand_style"`
+	CasterSpellpowers          []string            `json:"caster_spellpowers"`
+	CasterSchools              []string            `json:"caster_schools"`
+	StatPriorities             map[string]int      `json:"stat_priorities"`
+	ArmorRestriction           string              `json:"armor_restriction"`
+	ReservedMinorArtifactSlot  string              `json:"reserved_minor_artifact_slot"`
+	MinorArtifactFiligreeSlots int                 `json:"minor_artifact_filigree_slots"`
+	ExcludeGemOfManyFacets     bool                `json:"exclude_gem_of_many_facets"`
+	RunearmUse                 bool                `json:"runearm_use"`
+	ExcludedPacks              []string            `json:"excluded_packs"`
+	RaidItemLimit              int                 `json:"raid_item_limit"`
+	IsDinoArtifact             bool                `json:"is_dino_artifact"`
+	OutputFilename             string              `json:"output_filename"`
+	PreEquipped                map[string]string   `json:"pre_equipped"`
+	PreFilledAugments          map[string][]string `json:"pre_filled_augments"`
+	PreFilledFiligrees         map[string][]string `json:"pre_filled_filigrees"`
+	CalculateOnly              bool                `json:"calculate_only"`
 }
 
 type ResultPayload struct {
-	Success      bool                   `json:"success"`
-	TimeTaken    float64                `json:"timeTaken"`
-	GearSet      map[string]interface{} `json:"gearSet"`
-	ErrorMessage string                 `json:"errorMessage,omitempty"`
+	Success       bool                   `json:"success"`
+	TimeTaken     float64                `json:"timeTaken"`
+	GearSet       map[string]interface{} `json:"gearSet"`
+	RealizedStats map[string]interface{} `json:"realizedStats,omitempty"`
+	ActiveSets    []string               `json:"activeSets,omitempty"`
+	Filigrees     map[string][]string    `json:"filigrees,omitempty"`
+	AllEffects    map[string]interface{} `json:"allEffects,omitempty"`
+	ErrorMessage  string                 `json:"errorMessage,omitempty"`
 }
 
 func (a *App) addLog(msg string) {
@@ -121,19 +168,186 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 	if err := cmd.Start(); err != nil {
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
+	var richResult ResultPayload
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
-		a.addLog(scanner.Text())
+		line := scanner.Text()
+		if strings.HasPrefix(line, "JSON_RESULT:") {
+			jsonStr := strings.TrimPrefix(line, "JSON_RESULT:")
+			json.Unmarshal([]byte(jsonStr), &richResult)
+			
+			// Ensure gearsets folder exists and save the json file
+			os.MkdirAll("gearsets", 0755)
+			outName := config.OutputFilename
+			if outName == "" {
+				outName = "gearset_output.json"
+			}
+			if !strings.HasSuffix(outName, ".json") {
+				outName += ".json"
+			}
+			outPath := filepath.Join("gearsets", outName)
+			formattedJson, _ := json.MarshalIndent(richResult, "", "  ")
+			os.WriteFile(outPath, formattedJson, 0644)
+		} else {
+			a.addLog(line)
+		}
 	}
 	if err := cmd.Wait(); err != nil {
 		a.addLog("Solver exited with error: " + err.Error())
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
 	a.addLog("Solver completed successfully.")
-	return ResultPayload{Success: true, TimeTaken: 0}, nil
+	
+	richResult.Success = true
+	richResult.TimeTaken = 0
+	return richResult, nil
 }
 
 // GetSystemLogs retrieves real-time execution logs.
 func (a *App) GetSystemLogs() []string {
 	return a.logs
+}
+
+// GetAvailableItems returns items for a given slot, maxLevel, and artifact filter
+func (a *App) GetAvailableItems(slot string, maxLevel int, searchTerm string) []models.XMLItem {
+	results := make([]models.XMLItem, 0)
+	minLvl := maxLevel - 6
+	searchTermLower := strings.ToLower(searchTerm)
+	for _, item := range a.itemsCache {
+		if item.MinLevel >= minLvl && item.MinLevel <= maxLevel {
+			for _, s := range item.EquipmentSlot.Slots {
+				slotName := s.Local
+				if slotName == slot || (slot == "Ring_1" && slotName == "Ring") || (slot == "Ring_2" && slotName == "Ring") {
+					if searchTermLower == "" || strings.Contains(strings.ToLower(item.Name), searchTermLower) || strings.Contains(strings.ToLower(item.RawXML), searchTermLower) {
+						results = append(results, item)
+					}
+					break
+				}
+			}
+		}
+	}
+	
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].MinLevel > results[j].MinLevel
+	})
+	
+	return results
+}
+
+// GetItemDetails returns the full XMLItem for a given item name
+func (a *App) GetItemDetails(itemName string) models.XMLItem {
+	for _, item := range a.itemsCache {
+		if item.Name == itemName {
+			return item
+		}
+	}
+	return models.XMLItem{}
+}
+
+// GetAvailableAugments returns augments matching a given slot type (e.g. Green), maxLevel, and search term
+func (a *App) GetAvailableAugments(slotType string, maxLevel int, searchTerm string) []models.XMLAugment {
+	results := make([]models.XMLAugment, 0)
+	searchTermLower := strings.ToLower(searchTerm)
+	
+	// DDO Rules mapping - green takes yellow or blue, purple takes clear or blue, etc.
+	// But in DDOBuilder, augments specify which types they can fit into via multiple <Type> elements!
+	// E.g. <Type>Blue</Type>, <Type>Green</Type>
+	
+	for _, aug := range a.augmentsCache {
+		if aug.MinLevel <= maxLevel {
+			matchType := false
+			for _, t := range aug.Types {
+				if t == slotType {
+					matchType = true
+					break
+				}
+			}
+			
+			if matchType {
+				if searchTermLower == "" || strings.Contains(strings.ToLower(aug.Name), searchTermLower) || strings.Contains(strings.ToLower(aug.RawXML), searchTermLower) {
+					results = append(results, aug)
+				}
+			}
+		}
+	}
+	
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].MinLevel > results[j].MinLevel
+	})
+	
+	return results
+}
+
+// GetAvailableFiligrees returns filigrees matching a search term (by Name, Menu, or SetName)
+func (a *App) GetAvailableFiligrees(searchTerm string) []models.XMLFiligree {
+	results := make([]models.XMLFiligree, 0)
+	searchTermLower := strings.ToLower(searchTerm)
+	
+	for _, fil := range a.filigreesCache {
+		if searchTermLower == "" || 
+			strings.Contains(strings.ToLower(fil.Name), searchTermLower) || 
+			strings.Contains(strings.ToLower(fil.SetName), searchTermLower) ||
+			strings.Contains(strings.ToLower(fil.Menu), searchTermLower) ||
+			strings.Contains(strings.ToLower(fil.RawXML), searchTermLower) {
+			results = append(results, fil)
+		}
+	}
+	
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Name < results[j].Name
+	})
+	
+	return results
+}
+
+// UpdateExternalSources runs a git pull on the DDOBuilderV2 repo and reloads the cache
+func (a *App) UpdateExternalSources() (string, error) {
+	a.addLog("Updating external sources from DDOBuilderV2...")
+	
+	cmd := exec.Command("git", "pull")
+	cmd.Dir = "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2"
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		a.addLog(fmt.Sprintf("Failed to update DDOBuilderV2: %s", string(out)))
+		return string(out), err
+	}
+	
+	a.addLog(fmt.Sprintf("Git Pull Result: %s", string(out)))
+	
+	// Reload caches
+	a.addLog("Reloading item and augment caches...")
+	items, errItems := services.ParseItems("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Items")
+	if errItems == nil {
+		a.itemsCache = items
+		a.addLog(fmt.Sprintf("Successfully reloaded %d items.", len(items)))
+	} else {
+		a.addLog("Failed to reload items: " + errItems.Error())
+	}
+	
+	augments, errAugs := services.ParseAugments("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Augments")
+	if errAugs == nil {
+		a.augmentsCache = augments
+		a.addLog(fmt.Sprintf("Successfully reloaded %d augments.", len(augments)))
+	} else {
+		a.addLog("Failed to reload augments: " + errAugs.Error())
+	}
+	
+	filigrees, errFils := services.ParseFiligrees("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/FiligreeSets")
+	if errFils == nil {
+		a.filigreesCache = filigrees
+		a.addLog(fmt.Sprintf("Successfully reloaded %d filigrees.", len(filigrees)))
+	} else {
+		a.addLog("Failed to reload filigrees: " + errFils.Error())
+	}
+	
+	return string(out), nil
+}
+
+// OpenFile opens a file using the default OS application.
+func (a *App) OpenFile(filePath string) error {
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return err
+	}
+	return exec.Command("open", absPath).Start()
 }

@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import JobConfigurationForm from '$lib/components/domain/JobConfigurationForm.svelte';
-  import ResultsDataGrid from '$lib/components/domain/ResultsDataGrid.svelte';
+  import GearsetEditor from '$lib/components/domain/GearsetEditor.svelte';
+  import FiligreeEditor from '$lib/components/domain/FiligreeEditor.svelte';
+  import Summary from '$lib/components/domain/Summary.svelte';
   import StatusConsole from '$lib/components/domain/StatusConsole.svelte';
   import { ParseMetadata } from '../wailsjs/go/main/App';
-  import { isParsing } from '$lib/store';
+  import { isParsing, currentTab } from '$lib/store';
 
   onMount(async () => {
     // Optionally trigger an initial parse if needed based on Phase 4 Spec
@@ -31,6 +33,13 @@
         <p class="text-xs text-muted-foreground">Go + Python + Svelte Architecture</p>
       </div>
     </div>
+    <div class="flex items-center space-x-2">
+      <button on:click={() => $currentTab = 'solver'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'solver' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Auto-Solver</button>
+      <button on:click={() => $currentTab = 'editor'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'editor' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Gearset Editor</button>
+      <button on:click={() => $currentTab = 'filigrees'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'filigrees' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Filigrees</button>
+      <button on:click={() => $currentTab = 'summary'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'summary' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Summary Breakdown</button>
+    </div>
+    
     <div class="flex items-center space-x-4 text-sm font-medium">
       {#if $isParsing}
         <span class="flex items-center text-amber-500">
@@ -50,19 +59,32 @@
   </header>
 
   <!-- Main Content Area -->
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
-    <!-- Left Column: Config -->
-    <div class="lg:col-span-4 flex flex-col space-y-6">
-      <JobConfigurationForm />
-    </div>
-
-    <!-- Right Column: Results & Logs -->
-    <div class="lg:col-span-8 flex flex-col space-y-6">
-      <div class="flex-1 min-h-[400px]">
-        <ResultsDataGrid />
+  <div class="flex-1 overflow-hidden relative flex flex-col">
+    {#if $currentTab === 'solver'}
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full flex-1">
+      <!-- Left Column: Config -->
+      <div class="lg:col-span-4 flex flex-col space-y-6">
+        <JobConfigurationForm />
       </div>
-      <StatusConsole />
+
+      <!-- Right Column: Status Console -->
+      <div class="lg:col-span-8 flex flex-col space-y-6">
+        <StatusConsole />
+      </div>
     </div>
+    {:else if $currentTab === 'editor'}
+      <div class="h-full flex-1">
+        <GearsetEditor />
+      </div>
+    {:else if $currentTab === 'filigrees'}
+      <div class="h-full flex-1">
+        <FiligreeEditor />
+      </div>
+    {:else if $currentTab === 'summary'}
+      <div class="h-full flex-1">
+        <Summary />
+      </div>
+    {/if}
   </div>
 </main>
 
