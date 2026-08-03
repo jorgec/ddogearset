@@ -1,3 +1,9 @@
 build/bin
 node_modules
 frontend/dist
+
+# Python - ignore the venv and pyinstaller temp files, but KEEP python/dist/solver (needed for go:embed)
+python/.venv/
+python/__pycache__/
+python/*.pyc
+/tmp/pyinstaller_build/

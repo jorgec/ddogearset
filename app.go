@@ -3,16 +3,24 @@ package main
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sync"
 )
+
+//go:embed python/dist/solver
+var solverBinary []byte
 
 // App struct
 type App struct {
-	ctx  context.Context
-	logs []string
+	ctx        context.Context
+	logs       []string
+	solverPath string
+	initOnce   sync.Once
 }
 
 // NewApp creates a new App application struct
@@ -27,6 +35,26 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.addLog("System started.")
+	a.initOnce.Do(func() {
+		if err := a.extractSolver(); err != nil {
+			a.addLog("Warning: failed to extract bundled solver: " + err.Error())
+		}
+	})
+}
+
+// extractSolver writes the embedded solver binary to a temp path and makes it executable.
+func (a *App) extractSolver() error {
+	tmpDir, err := os.MkdirTemp("", "ddo-solver-*")
+	if err != nil {
+		return err
+	}
+	solverPath := filepath.Join(tmpDir, "solver")
+	if err := os.WriteFile(solverPath, solverBinary, 0755); err != nil {
+		return err
+	}
+	a.solverPath = solverPath
+	a.addLog(fmt.Sprintf("Solver extracted to %s", solverPath))
+	return nil
 }
 
 type OptimizationPayload struct {
@@ -66,24 +94,30 @@ func (a *App) ParseMetadata(filePath string) error {
 	return nil
 }
 
-// RunOptimization triggers the Phase 3 Python script using the Pulp library.
+// RunOptimization triggers the bundled solver binary with the given payload.
 func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error) {
+	if a.solverPath == "" {
+		err := a.extractSolver()
+		if err != nil {
+			return ResultPayload{Success: false, ErrorMessage: "Solver not available: " + err.Error()}, err
+		}
+	}
+
 	a.addLog("Serializing payload...")
 	payloadBytes, err := json.Marshal(config)
 	if err != nil {
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
-	tmpFile := "/tmp/ddo_payload.json"
+	tmpFile := filepath.Join(os.TempDir(), "ddo_payload.json")
 	if err := os.WriteFile(tmpFile, payloadBytes, 0644); err != nil {
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
-	a.addLog("Invoking Python solver...")
-	cmd := exec.Command("/Users/jorgecosgayon/dev/ddo/venv/bin/python3",
-		"/Users/jorgecosgayon/dev/ddo/goGearset/python/solver.py",
-		tmpFile)
-	cmd.Dir = "/Users/jorgecosgayon/dev/ddo/goGearset/python"
+
+	a.addLog("Invoking solver...")
+	cmd := exec.Command(a.solverPath, tmpFile)
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = cmd.Stdout
+
 	if err := cmd.Start(); err != nil {
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
