@@ -34,6 +34,10 @@ export function RunOptimization(arg1) {
   return window['go']['main']['App']['RunOptimization'](arg1);
 }
 
+export function SaveGearset(arg1, arg2) {
+  return window['go']['main']['App']['SaveGearset'](arg1, arg2);
+}
+
 export function UpdateExternalSources() {
   return window['go']['main']['App']['UpdateExternalSources']();
 }

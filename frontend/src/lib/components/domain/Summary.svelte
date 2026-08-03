@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing } from '$lib/store';
-  import { RunOptimization } from '../../../../wailsjs/go/main/App';
+  import { RunOptimization, SaveGearset } from '../../../../wailsjs/go/main/App';
   
   // Sort priority stats based on their weight (descending)
   $: sortedPriorities = Object.entries($configStore.stat_priorities)
@@ -61,38 +61,14 @@
       }
   }
   
-  function saveGearset() {
-      const timestamp = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
-      const bt = ($configStore.build_type || '').replace(/\s+/g, '');
-      const ws = ($configStore.weapon_style || '').replace(/\s+/g, '');
-      const name = ($configStore.gearset_name || '').replace(/\s+/g, '_').replace(/[^\w-]/g, '');
-      
-      let baseName: string;
-      if (name) {
-          baseName = `${name}_${bt}${ws}Gearset_${timestamp}`;
-      } else {
-          baseName = `${bt}${ws}Gearset_${timestamp}`;
+  async function saveGearset() {
+      try {
+          const path = await SaveGearset($configStore, $resultStore);
+          alert("Saved successfully to " + path);
+      } catch (e) {
+          console.error(e);
+          alert("Failed to save gearset: " + e);
       }
-      
-      const saveData = {
-          version: "1.2",
-          gearset_name: $configStore.gearset_name || baseName,
-          saved_at: new Date().toISOString(),
-          config: {
-              ...$configStore,
-              calculate_only: false,   // never persist this flag
-              output_filename: "",     // let next save re-generate
-          },
-          result: $resultStore
-      };
-      
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(saveData, null, 2));
-      const downloadAnchorNode = document.createElement('a');
-      downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", baseName + ".ddogearset");
-      document.body.appendChild(downloadAnchorNode);
-      downloadAnchorNode.click();
-      downloadAnchorNode.remove();
   }
 </script>
 

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"goGearset/internal/models"
 	"goGearset/internal/services"
@@ -175,19 +176,6 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 		if strings.HasPrefix(line, "JSON_RESULT:") {
 			jsonStr := strings.TrimPrefix(line, "JSON_RESULT:")
 			json.Unmarshal([]byte(jsonStr), &richResult)
-			
-			// Ensure gearsets folder exists and save the json file
-			os.MkdirAll("gearsets", 0755)
-			outName := config.OutputFilename
-			if outName == "" {
-				outName = "gearset_output.json"
-			}
-			if !strings.HasSuffix(outName, ".json") {
-				outName += ".json"
-			}
-			outPath := filepath.Join("gearsets", outName)
-			formattedJson, _ := json.MarshalIndent(richResult, "", "  ")
-			os.WriteFile(outPath, formattedJson, 0644)
 		} else {
 			a.addLog(line)
 		}
@@ -350,4 +338,40 @@ func (a *App) OpenFile(filePath string) error {
 		return err
 	}
 	return exec.Command("open", absPath).Start()
+}
+
+// SaveGearset writes the payload and result to a .ddogearset file in the gearsets/ directory
+func (a *App) SaveGearset(payload OptimizationPayload, result ResultPayload) (string, error) {
+	timestamp := time.Now().Format("20060102150405")
+	bt := strings.ReplaceAll(payload.BuildType, " ", "")
+	ws := strings.ReplaceAll(payload.WeaponStyle, " ", "")
+	name := strings.ReplaceAll(payload.GearsetName, " ", "_")
+	
+	var filename string
+	if name != "" {
+		filename = fmt.Sprintf("%s_%s%s_%s.ddogearset", name, bt, ws, timestamp)
+	} else {
+		filename = fmt.Sprintf("%s%s_%s.ddogearset", bt, ws, timestamp)
+	}
+	
+	dir := "gearsets"
+	os.MkdirAll(dir, 0755)
+	
+	path := filepath.Join(dir, filename)
+	
+	saveData := map[string]interface{}{
+		"version": "1.2",
+		"gearset_name": payload.GearsetName,
+		"saved_at": time.Now().Format(time.RFC3339),
+		"config": payload,
+		"result": result,
+	}
+	
+	bytes, err := json.MarshalIndent(saveData, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	
+	err = os.WriteFile(path, bytes, 0644)
+	return path, err
 }

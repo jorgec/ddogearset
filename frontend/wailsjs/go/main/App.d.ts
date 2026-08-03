@@ -19,4 +19,6 @@ export function ParseMetadata(arg1:string):Promise<void>;
 
 export function RunOptimization(arg1:main.OptimizationPayload):Promise<main.ResultPayload>;
 
+export function SaveGearset(arg1:main.OptimizationPayload,arg2:main.ResultPayload):Promise<string>;
+
 export function UpdateExternalSources():Promise<string>;
