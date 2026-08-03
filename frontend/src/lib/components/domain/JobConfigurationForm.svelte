@@ -2,19 +2,28 @@
   import { configStore, isOptimizing, resultStore } from '$lib/store';
   import { RunOptimization } from '../../../../wailsjs/go/main/App';
   
-  let newPack = '';
   let newStatName = '';
   let newStatWeight = 100;
 
-  function addPack() {
-    if (newPack.trim()) {
-      $configStore.excluded_packs = [...$configStore.excluded_packs, newPack.trim()];
-      newPack = '';
-    }
-  }
+  const expansions = [
+    "Isle of Dread", 
+    "Fables of the Feywild", 
+    "Masterminds of Sharn", 
+    "Mists of Ravenloft", 
+    "Vecna Unleashed", 
+    "Myth Drannor", 
+    "Sinister Secret of Saltmarsh"
+  ];
 
-  function removePack(index: number) {
-    $configStore.excluded_packs = $configStore.excluded_packs.filter((_, i) => i !== index);
+  function togglePack(pack: string) {
+    if (!$configStore.excluded_packs) {
+      $configStore.excluded_packs = [];
+    }
+    if ($configStore.excluded_packs.includes(pack)) {
+      $configStore.excluded_packs = $configStore.excluded_packs.filter(p => p !== pack);
+    } else {
+      $configStore.excluded_packs = [...$configStore.excluded_packs, pack];
+    }
   }
 
   function addStatPriority() {
@@ -50,6 +59,26 @@
     const target = e.target as HTMLInputElement;
     $configStore.max_levels = [parseInt(target.value) || 32];
   }
+
+  $: {
+    if ($configStore.build_type === 'Melee' || $configStore.build_type === 'Tank') {
+      if (!['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'].includes($configStore.weapon_style)) {
+        $configStore.weapon_style = 'Two Weapon Fighting';
+      }
+    } else if ($configStore.build_type === 'Ranged') {
+      if (!['Bow', 'Crossbow', 'Thrown'].includes($configStore.weapon_style)) {
+        $configStore.weapon_style = 'Bow';
+      }
+    } else if ($configStore.build_type === 'Caster') {
+      if ($configStore.weapon_style !== 'None') {
+        $configStore.weapon_style = 'None';
+      }
+    }
+  }
+
+  $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Crossbow', 'Thrown'] : 
+                    $configStore.build_type === 'Caster' ? ['None'] :
+                    ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'];
 </script>
 
 <div class="glass-panel p-6 space-y-6">
@@ -72,11 +101,9 @@
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="weapon-style">Weapon Style</label>
       <select id="weapon-style" bind:value={$configStore.weapon_style} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-        <option value="Two Weapon Fighting" class="bg-background text-foreground">Two Weapon Fighting</option>
-        <option value="Two Handed Fighting" class="bg-background text-foreground">Two Handed Fighting</option>
-        <option value="Single Weapon Fighting" class="bg-background text-foreground">Single Weapon Fighting</option>
-        <option value="Sword and Board" class="bg-background text-foreground">Sword and Board</option>
-        <option value="Unarmed" class="bg-background text-foreground">Unarmed</option>
+        {#each weaponStyles as style}
+          <option value={style} class="bg-background text-foreground">{style}</option>
+        {/each}
       </select>
     </div>
 
@@ -92,30 +119,20 @@
   </div>
 
   <div class="space-y-2 border-t border-border pt-4">
-    <label class="text-sm font-medium leading-none" for="pack-input">Excluded Expansion Packs</label>
-    <div class="flex space-x-2">
-      <input 
-        id="pack-input"
-        type="text" 
-        bind:value={newPack}
-        on:keydown={(e) => e.key === 'Enter' && addPack()}
-        placeholder="e.g. Isle of Dread"
-        class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      />
-      <button on:click={addPack} class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-        Add
-      </button>
+    <label class="text-sm font-medium leading-none">Excluded Expansion Packs</label>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+      {#each expansions as pack}
+        <label class="flex items-center space-x-2 text-sm cursor-pointer">
+          <input 
+            type="checkbox" 
+            checked={$configStore.excluded_packs?.includes(pack) ?? false}
+            on:change={() => togglePack(pack)}
+            class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+          />
+          <span class="text-foreground">{pack}</span>
+        </label>
+      {/each}
     </div>
-    {#if $configStore.excluded_packs && $configStore.excluded_packs.length > 0}
-      <ul class="flex flex-wrap gap-2 mt-3">
-        {#each $configStore.excluded_packs as pack, i}
-          <li class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/80">
-            {pack}
-            <button class="ml-1 hover:text-destructive focus:outline-none" on:click={() => removePack(i)} aria-label="Remove">&times;</button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
   </div>
 
   <div class="space-y-2 border-t border-border pt-4">
