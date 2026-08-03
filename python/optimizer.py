@@ -513,7 +513,7 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
     delta = {}
     
     for slot in required_slots:
-        prob += pulp.lpSum([x[(i, s)] for (i, s) in x.keys() if s == slot]) == 1
+        prob += pulp.lpSum([x[(i, s)] for (i, s) in x.keys() if s == slot]) <= 1
         
     if calculate_only:
         # Force all unequipped slots to be empty
@@ -688,7 +688,11 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
             if bias_terms:
                 objective_terms.append(FILIGREE_BIAS_SCALE * pulp.lpSum(bias_terms))
             
-    prob += pulp.lpSum(objective_terms)
+    # Add a tiny penalty for every item equipped. This forces the solver to consolidate
+    # stats onto fewer dense items, naturally prioritizing augments on existing gear
+    # over wasting entire item slots for a single stat.
+    item_vars = [x_var for x_var in x.values()]
+    prob += pulp.lpSum(objective_terms) - 0.001 * pulp.lpSum(item_vars)
     
     return prob, x, y, fw, fm, w_vars, z, sources_tracking
 
