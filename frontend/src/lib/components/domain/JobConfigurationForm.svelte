@@ -1,5 +1,6 @@
 <script lang="ts">
   import { configStore, isOptimizing, resultStore } from '$lib/store';
+  import { RunOptimization } from '../../../../wailsjs/go/main/App';
   import { onMount } from 'svelte';
 
   let newStatName = '';

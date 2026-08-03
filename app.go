@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 )
 
 // App struct
@@ -64,17 +68,35 @@ func (a *App) ParseMetadata(filePath string) error {
 
 // RunOptimization triggers the Phase 3 Python script using the Pulp library.
 func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error) {
-	a.addLog("Running optimization...")
-	// Mock implementation
-	a.addLog("Optimization completed successfully.")
-	return ResultPayload{
-		Success:   true,
-		TimeTaken: 1.2,
-		GearSet: map[string]interface{}{
-			"Head":   "Crown of Butterflies",
-			"Weapon": "Tail of the Suulomades",
-		},
-	}, nil
+	a.addLog("Serializing payload...")
+	payloadBytes, err := json.Marshal(config)
+	if err != nil {
+		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+	}
+	tmpFile := "/tmp/ddo_payload.json"
+	if err := os.WriteFile(tmpFile, payloadBytes, 0644); err != nil {
+		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+	}
+	a.addLog("Invoking Python solver...")
+	cmd := exec.Command("python3",
+		"/Users/jorgecosgayon/dev/ddo/goGearset/python/solver.py",
+		tmpFile)
+	cmd.Dir = "/Users/jorgecosgayon/dev/ddo/goGearset/python"
+	stdout, _ := cmd.StdoutPipe()
+	cmd.Stderr = cmd.Stdout
+	if err := cmd.Start(); err != nil {
+		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+	}
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		a.addLog(scanner.Text())
+	}
+	if err := cmd.Wait(); err != nil {
+		a.addLog("Solver exited with error: " + err.Error())
+		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+	}
+	a.addLog("Solver completed successfully.")
+	return ResultPayload{Success: true, TimeTaken: 0}, nil
 }
 
 // GetSystemLogs retrieves real-time execution logs.

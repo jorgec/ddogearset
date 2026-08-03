@@ -26,11 +26,70 @@ def main():
     armor_input = parsed_data.get('armor_restriction', '')
     
     weapon_style = parsed_data.get('weapon_style', 'Two Weapon Fighting')
-    # Basic mapping for w1_list, w2_list based on payload (simplified for solver)
-    w1_list = None
-    w2_list = None
-    
-    allow_gomf = parsed_data.get('allow_gomf', True)
+    runearm_use = parsed_data.get('runearm_use', False)
+
+    twf_weapons = ['dagger', 'kukri', 'rapier', 'scimitar', 'longsword', 'khopesh', 'handwraps', 'shortsword', 'kama', 'sickle', 'battle axe', 'hand axe', 'dwarven waraxe', 'bastard sword', 'heavy mace', 'light mace', 'morningstar', 'club', 'light pick', 'heavy pick', 'warhammer']
+    thf_weapons = ['great sword', 'falchion', 'great axe', 'maul', 'quarterstaff', 'great club']
+    swash_weapons = ['dagger', 'kukri', 'rapier', 'shortsword', 'hand axe', 'kama', 'sickle', 'light mace', 'light pick', 'heavy pick', 'throwing dagger', 'throwing axe', 'dart']
+    shields = ['buckler', 'small shield', 'large shield', 'tower shield']
+    caster_1h = ['club', 'dagger', 'sickle', 'heavy mace', 'light mace', 'morningstar', 'scepter', 'shortsword']
+    runearm_offhand = ['rune arm', 'runearm']
+
+    if weapon_style == 'Two Handed Fighting':
+        w1_list = thf_weapons
+        w2_list = ['none']
+    elif weapon_style == 'Two Weapon Fighting':
+        w1_list = twf_weapons
+        w2_list = twf_weapons
+    elif weapon_style == 'Single Weapon Fighting':
+        swashbuckling = parsed_data.get('swashbuckling', False)
+        w1_list = swash_weapons if swashbuckling else twf_weapons
+        offhand_style = parsed_data.get('offhand_style', 'Empty')
+        if offhand_style == 'Buckler':
+            w2_list = ['buckler']
+        elif offhand_style == 'Shield':
+            w2_list = shields
+        elif offhand_style == 'Orb':
+            w2_list = ['orb']
+        elif offhand_style == 'Runearm':
+            w2_list = runearm_offhand
+        else:
+            w2_list = ['none']
+    elif weapon_style == 'Sword and Board':
+        w1_list = twf_weapons
+        w2_list = shields
+    elif weapon_style == 'Bow':
+        w1_list = ['longbow', 'shortbow']
+        w2_list = ['none']
+    elif weapon_style == 'Repeating Crossbow':
+        w1_list = ['repeating light crossbow', 'repeating heavy crossbow']
+        w2_list = runearm_offhand if runearm_use else ['none']
+    elif weapon_style == 'Great Crossbow':
+        w1_list = ['great crossbow']
+        w2_list = ['none']
+    elif weapon_style == 'Dual Crossbow':
+        w1_list = ['light crossbow', 'heavy crossbow']
+        w2_list = runearm_offhand if runearm_use else ['none']
+    elif weapon_style == 'Thrown':
+        w1_list = ['throwing dagger', 'throwing axe', 'dart']
+        w2_list = runearm_offhand if runearm_use else ['none']
+    elif weapon_style == 'Shuriken':
+        w1_list = ['shuriken']
+        w2_list = runearm_offhand if runearm_use else ['none']
+    elif weapon_style == 'Dual Caster':
+        w1_list = caster_1h
+        w2_list = caster_1h
+    elif weapon_style == 'Stick and Orb':
+        w1_list = caster_1h
+        w2_list = ['orb']
+    elif weapon_style == 'Quarterstaff':
+        w1_list = ['quarterstaff']
+        w2_list = ['none']
+    else:  # None / fallback
+        w1_list = None
+        w2_list = None
+
+    allow_gomf = not parsed_data.get('exclude_gem_of_many_facets', False)
     art_slot_input = parsed_data.get('reserved_minor_artifact_slot', '')
     art_slots = parsed_data.get('minor_artifact_filigree_slots', 4)
     excluded_packs = parsed_data.get('excluded_packs', [])
