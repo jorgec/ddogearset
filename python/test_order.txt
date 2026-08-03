@@ -1,0 +1,73 @@
+
+======================================
+       RUNNING FOR MAX LEVEL 34
+======================================
+
+Status: Optimal
+
+=== EQUIPPED ITEMS ===
+Helmet: Legendary Lamordian Top Hat (ML: Legendary Lamordian Top Hat.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Wisdom (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Cold Spell Critical Damage (Legendary)
+  + Augment [Sun]: Solar Gem of Wisdom (Legendary)
+Necklace: Legendary Pendant of Crippling Strikes (ML: Legendary Pendant of Crippling Strikes.item)
+  + Augment [Moon]: Lunar Gem of Wisdom (Legendary)
+Trinket: The Bloodstained Letter (ML: The Bloodstained Letter.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Constitution (Legendary)
+  + Augment [Miserable Slot (Accessory)]: Miserable Cold Spell Critical Damage (Legendary)
+  + Augment [Woeful Slot (Accessory)]: Woeful Cold Spell Crit Chance (Legendary)
+Cloak: Page Regalia: Blasphemer's Manuscript (ML: Page Regalia Blasphemer's Manuscript.item)
+Belt: Legendary Pyrefang's Collar (ML: Legendary Pyrefang's Collar.item)
+Ring_1: Legendary Argonnessen Eye Band (ML: Legendary Argonnessen Eye Band.item)
+Ring_2: The Autumn Equinox (Minor Artifact) (ML: The Autumn Equinox.item)
+Gloves: Legendary Gloves of the Glacier (ML: Legendary Gloves of the Glacier.item)
+Boots: Legendary Coldlight Runners (ML: Legendary Coldlight Runners.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Cold Spell Critical Damage (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Quality Constitution (Legendary)
+  + Augment [Moon]: Lunar Gem of Constitution (Legendary)
+Bracers: Legendary Bracers of the Glacier (ML: Legendary Bracers of the Glacier.item)
+Armor: Light Armor of the Artblade's Reflection (ML: Light Armor of the Artblade's Reflection.item)
+  + Augment [Sun]: Solar Gem of Constitution (Legendary)
+Goggles: Legendary Goggles of Dusk (ML: Legendary Goggles of Dusk.item)
+Weapon1: Legendary Cataclysmic Shortsword (ML: Legendary Cataclysmic Shortsword.item)
+  + Augment [Miserable Slot (Weapon)]: Miserable Arcana: Cold (Legendary)
+Weapon2: Legendary Death's Anchor (ML: Legendary Death's Anchor.item)
+  + Augment [Dolorous Slot (Weapon)]: Dolorous Arcana: Cold (Legendary)
+
+  [Weapon1 Alternatives]:
+    Alt 1: Legendary Calamitous Dagger (ML: Legendary Calamitous Dagger.item)
+    Alt 2: Legendary Cataclysmic Dagger (ML: Legendary Cataclysmic Dagger.item)
+
+  [Weapon2 Alternatives]:
+    Alt 1: Legendary The Cold of Night (ML: Legendary The Cold of Night.item)
+    Alt 2: Legendary Arcane Contraption (ML: Legendary Arcane Contraption.item)
+
+=== WEAPON FILIGREES ===
+  + Frozen Wanderer: +9 Cold Spell Power
+  + Embraced by Light: +1 Wisdom
+  + Celerity/Vigilance +2 Wisdom
+  + Final Burial/Coalesced Magic +2 Wisdom
+  + Abiding Path/Elemental Avatar +2 Wisdom
+  + The Enlightened Step: +1 Wisdom
+  + Ultimate Fury: +1 Attack and Damage
+  + Snowpeak's Gifts: +9 Cold Spell Power
+  + Elemental Avatar: +9 Cold Spell Power
+  + Soulweaver: +1 Wisdom
+
+=== MINOR ARTIFACT FILIGREES ===
+  + Frozen Wanderer: +9 Cold Spell Power
+  + Celerity/Vigilance +2 Wisdom
+  + Snowpeak's Gifts: +9 Cold Spell Power
+  + Elemental Avatar: +9 Cold Spell Power
+
+=== ACTIVE SET BONUSES ===
+Anger of the Avalanche (2-piece)
+Frozen Wanderer (2-piece)
+
+=== REALIZED STATS ===
+Cold Spell Power: 322.0 (159.0 Equipment, 79.0 Insightful, 54.0 Stacking, 30.0 Artifact)
+Cold Spell Lore: 34.0 (23.0 Equipment, 6.0 Artifact, 5.0 Stacking)
+Cold Spell Critical Damage: 41.0 (23.0 Enhancement, 12.0 Insightful, 6.0 Quality)
+Evocation DC: 19.0 (2.0 Quality, 8.0 Equipment, 3.0 Sacred, 4.0 Insightful, 2.0 Profane)
+Wisdom: 45.0 (7.0 Insightful, 3.0 Quality, 15.0 Enhancement, 4.0 Artifact, 4.0 Profane, 12.0 Stacking)
+Constitution: 33.0 (15.0 Enhancement, 3.0 Quality, 7.0 Insightful, 4.0 Artifact, 4.0 Profane)

@@ -1,0 +1,50 @@
+
+======================================
+       RUNNING FOR MAX LEVEL 36
+======================================
+
+Status: Optimal
+
+=== EQUIPPED ITEMS ===
+Helmet: Legendary Flame Priest's Focus (ML: Legendary Flame Priest's Focus.item)
+Necklace: Legendary Rust-Laden Pendant (ML: Legendary Rust-Laden Pendant.item)
+Trinket: Legendary Tail of the Demogorgon (ML: Legendary Tail of the Demogorgon.item)
+Cloak: Cloak of Summer's End (level 36) (ML: Cloak of Summer's End (level 36).item)
+  + Augment [Sun]: Solar Gem of Doubleshot (Legendary)
+Belt: Legendary Black Dragonscale Tasset (ML: Legendary Black Dragonscale Tasset.item)
+Gloves: Trifalny, Gauntlet of Grace (ML: Trifalny, Gauntlet of Grace.item)
+Boots: Legendary Coldlight Runners (ML: Legendary Coldlight Runners.item)
+  + Augment [Moon]: Lunar Gem of Ranged Power (Legendary)
+Bracers: Legendary Bracelets of Subtle Life (ML: Legendary Bracelets of Subtle Life.item)
+Armor: Legendary Utility Vest (ML: Legendary Utility Vest.item)
+Goggles: Legendary Corroded Iron Lenses (ML: Legendary Corroded Iron Lenses.item)
+Weapon1: Legendary Calamitous Heavy Crossbow (ML: Legendary Calamitous Heavy Crossbow.item)
+  + Augment [Woeful Slot (Weapon)]: Woeful Shadow (Legendary)
+Weapon2: Legendary Trial by Fire (ML: Legendary Trial by Fire.item)
+
+  [Weapon1 Alternatives]:
+    Alt 1: Legendary Cataclysmic Light Crossbow (ML: Legendary Cataclysmic Light Crossbow.item)
+    Alt 2: Legendary Cataclysmic Heavy Crossbow (ML: Legendary Cataclysmic Heavy Crossbow.item)
+
+  [Weapon2 Alternatives]:
+    Alt 1: Legendary Suppressive Fire (ML: Legendary Suppressive Fire.item)
+    Alt 2: Legendary Prototype VII: Flash Transferal (ML: Legendary Prototype VII Flash Transferal.item)
+
+=== WEAPON FILIGREES ===
+  + Spines of the Manticore/The Wreath of Flame +6 Ranged Power
+  + Zephyr: +2% Doubleshot
+  + Spines of the Manticore: +3 Ranged Power
+
+=== MINOR ARTIFACT FILIGREES ===
+  + Spines of the Manticore/The Wreath of Flame +6 Ranged Power
+  + Wildhunter: +2 Deception
+  + Spines of the Manticore: +3 Ranged Power
+
+=== ACTIVE SET BONUSES ===
+Legendary Temple's Tide (2-piece)
+Legendary Temple's Inferno (2-piece)
+Spines of the Manticore (4-piece)
+
+=== REALIZED STATS ===
+Ranged Power: 40.0 (15.0 Artifact, 15.0 Profane, 10.0 Stacking)
+Doubleshot: 38.0 (10.0 Enhancement, 5.0 Insightful, 3.0 Profane, 3.0 Quality, 15.0 Artifact, 2.0 Stacking)

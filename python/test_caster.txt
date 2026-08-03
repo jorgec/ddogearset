@@ -1,0 +1,77 @@
+
+======================================
+       RUNNING FOR MAX LEVEL 34
+======================================
+
+Status: Optimal
+
+=== EQUIPPED ITEMS ===
+Helmet: Legendary Flame Priest's Focus (ML: Legendary Flame Priest's Focus.item)
+Necklace: Legendary Black Dynamo (ML: Legendary Black Dynamo.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Constitution (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Quality Constitution (Legendary)
+Trinket: Legendary Gem of Many Facets (ML: Legendary Gem of Many Facets.item)
+Cloak: Legendary Gravekeeper's Mystic Cloak (ML: Legendary Gravekeeper's Mystic Cloak.item)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Fire Spell Critical Damage (Legendary)
+  + Augment [Sun]: Solar Gem of Charisma (Legendary)
+Belt: Legendary Pyrefang's Collar (ML: Legendary Pyrefang's Collar.item)
+Ring_1: The Band of Binding (Minor Artifact) (ML: The Band of Binding.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Charisma (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Quality Charisma (Legendary)
+  + Augment [Miserable Slot (Accessory)]: Miserable Fire Spell Critical Damage (Legendary)
+Ring_2: Legendary Argonnessen Eye Band (ML: Legendary Argonnessen Eye Band.item)
+Gloves: Legendary Hands of Waste (ML: Legendary Hands of Waste.item)
+  + Augment [Moon]: Lunar Gem of Charisma (Legendary)
+Boots: The Final Climb (ML: The Final Climb.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Fire Spell Critical Damage (Legendary)
+  + Augment [Woeful Slot (Accessory)]: Woeful Fire Spell Crit Chance (Legendary)
+  + Augment [Moon]: Lunar Gem of Constitution (Legendary)
+Bracers: Legendary Bracers of the Hunter (ML: Legendary Bracers of the Hunter.item)
+Armor: Legendary Light Armor of the Eternal Flame (ML: Legendary Light Armor of the Eternal Flame.item)
+Goggles: Red Wizard's Sight (ML: Red Wizard's Sight.item)
+  + Augment [Sealed in Undeath]: Insightful Charisma +7
+  + Augment [Sun]: Solar Gem of Constitution (Legendary)
+Weapon1: Legendary Cataclysmic Shortsword (ML: Legendary Cataclysmic Shortsword.item)
+  + Augment [Dolorous Slot (Weapon)]: Dolorous Arcana: Fire (Legendary)
+  + Augment [Miserable Slot (Weapon)]: Miserable Acid (Legendary)
+Weapon2: Legendary Alchemical Orb (ML: Legendary Alchemical Orb.item)
+  + Augment [Red]: Legendary Ruby of Implements's Flame
+
+  [Weapon1 Alternatives]:
+    Alt 1: Legendary Calamitous Dagger (ML: Legendary Calamitous Dagger.item)
+    Alt 2: Legendary Cataclysmic Dagger (ML: Legendary Cataclysmic Dagger.item)
+
+  [Weapon2 Alternatives]:
+    Alt 1: Legendary The Cold of Night (ML: Legendary The Cold of Night.item)
+    Alt 2: Legendary Arcane Contraption (ML: Legendary Arcane Contraption.item)
+
+=== WEAPON FILIGREES ===
+  + Snake Bite/Grandfather's Shield +2 Constitution
+  + Soulweaver/Splendid Cacophony +2 Constitution
+  + Technomage/Unbreakable +2 Constitution
+  + The Blood Feast: +1 Constitution
+  + Elemental Avatar: +1 Constitution
+  + Soulweaver: +1 Constitution
+  + To Hell and Back: +1 Constitution
+  + Final Burial: +1 Constitution
+  + Divinity: +1 Constitution
+  + The Wreath of Flame: +1 Constitution
+
+=== MINOR ARTIFACT FILIGREES ===
+  + Snake Bite/Grandfather's Shield +2 Constitution
+  + Soulweaver/Splendid Cacophony +2 Constitution
+  + Technomage/Unbreakable +2 Constitution
+  + The Blood Feast: +1 Constitution
+
+=== ACTIVE SET BONUSES ===
+The Legendary Desert's Burning Sun (2-piece)
+Legendary Temple's Inferno (2-piece)
+The Blood Feast (2-piece)
+
+=== REALIZED STATS ===
+Constitution: 56.0 (15.0 Enhancement, 3.0 Quality, 7.0 Insightful, 4.0 Artifact, 2.0 Exceptional, 4.0 Profane, 21.0 Stacking)
+Charisma: 33.0 (7.0 Insightful, 15.0 Enhancement, 3.0 Quality, 4.0 Artifact, 4.0 Profane)
+Fire Spell Power: 255.0 (146.0 Equipment, 79.0 Insightful, 30.0 Artifact)
+Fire Spell Lore: 29.0 (23.0 Equipment, 6.0 Artifact)
+Fire Spell Critical Damage: 41.0 (23.0 Enhancement, 12.0 Insightful, 6.0 Quality)
+Evocation DC: 19.0 (2.0 Quality, 8.0 Equipment, 3.0 Sacred, 4.0 Insightful, 2.0 Profane)

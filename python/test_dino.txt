@@ -1,0 +1,89 @@
+======================================
+           USER INPUTS
+======================================
+Build Type: Caster
+Caster Spellpowers: Cold
+Caster Schools: Evocation
+Final Priorities: Cold Spell Power, Cold Spell Lore, Cold Spell Critical Damage, Evocation DC, Wisdom, Constitution
+Armor Restriction: Light
+Reserved Minor Artifact Slot: bracers (dino)
+Minor Artifact Filigree Slots: 4
+Allow Gem of Many Facets: True
+
+
+======================================
+       RUNNING FOR MAX LEVEL 34
+======================================
+
+Status: Optimal
+
+=== EQUIPPED ITEMS ===
+Helmet: The Anguished Mind (ML: The Anguished Mind.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Cold Spell Critical Damage (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Cold Spell Critical Damage (Legendary)
+  + Augment [Miserable Slot (Accessory)]: Miserable Cold Spell Critical Damage (Legendary)
+  + Augment [Woeful Slot (Accessory)]: Woeful Cold Spell Crit Chance (Legendary)
+Necklace: Legendary Hruvayah's Medallion (ML: Legendary Hruvayah's Medallion.item)
+Trinket: Bauble of Draconic Resistance (ML: Bauble of Draconic Resistance.item)
+  + Augment [Sealed in Undeath]: Insightful Constitution +7
+  + Augment [Sun]: Solar Gem of Wisdom (Legendary)
+Cloak: Page Regalia: Unsanctioned Arcana (ML: Page Regalia Unsanctioned Arcana.item)
+Belt: Legendary Waistwrap of Wild Wisdom (ML: Legendary Waistwrap of Wild Wisdom.item)
+  + Augment [Moon]: Lunar Gem of Wisdom (Legendary)
+Ring_1: Legendary The Flame and the Frost (ML: Legendary The Flame and the Frost.item)
+Ring_2: Legendary Argonnessen Eye Band (ML: Legendary Argonnessen Eye Band.item)
+Gloves: Legendary Gloves of the Graverobber (ML: Legendary Gloves of the Graverobber.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Constitution (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Quality Wisdom (Legendary)
+  + Augment [Moon]: Lunar Gem of Constitution (Legendary)
+Boots: Legendary Deepsnow Boots (ML: Legendary Deepsnow Boots.item)
+Bracers: Dinosaur Bone Bracers (Minor Artifact) (ML: Dinosaur Bone Bracers.item)
+  + Augment [IoD: Accessory: Artifact Scale Slot]: Scale: +15 Wisdom
+Armor: Legendary Light Armor of the Crushing Wave (ML: Legendary Light Armor of the Crushing Wave.item)
+Goggles: Red Wizard's Sight (ML: Red Wizard's Sight.item)
+  + Augment [Sealed in Undeath]: Insightful Wisdom +7
+  + Augment [Sun]: Solar Gem of Constitution (Legendary)
+Weapon1: Legendary Calamitous Dagger (ML: Legendary Calamitous Dagger.item)
+  + Augment [Miserable Slot (Weapon)]: Miserable Arcana: Cold (Legendary)
+Weapon2: Legendary Death's Anchor (ML: Legendary Death's Anchor.item)
+  + Augment [Dolorous Slot (Weapon)]: Dolorous Arcana: Cold (Legendary)
+
+  [Weapon1 Alternatives]:
+    Alt 1: Legendary Cataclysmic Dagger (ML: Legendary Cataclysmic Dagger.item)
+    Alt 2: The Slayer of the Living (ML: The Slayer of the Living.item)
+
+  [Weapon2 Alternatives]:
+    Alt 1: Legendary The Cold of Night (ML: Legendary The Cold of Night.item)
+    Alt 2: Legendary Arcane Contraption (ML: Legendary Arcane Contraption.item)
+
+=== WEAPON FILIGREES ===
+  + Frozen Wanderer: +9 Cold Spell Power
+  + Embraced by Light: +1 Wisdom
+  + Celerity/Vigilance +2 Wisdom
+  + Final Burial/Coalesced Magic +2 Wisdom
+  + Abiding Path/Elemental Avatar +2 Wisdom
+  + The Enlightened Step: +1 Wisdom
+  + Ultimate Fury: +1 Attack and Damage
+  + Snowpeak's Gifts: +9 Cold Spell Power
+  + Elemental Avatar: +9 Cold Spell Power
+  + Soulweaver: +1 Wisdom
+
+=== MINOR ARTIFACT FILIGREES ===
+  + Frozen Wanderer: +9 Cold Spell Power
+  + Celerity/Vigilance +2 Wisdom
+  + Snowpeak's Gifts: +9 Cold Spell Power
+  + Elemental Avatar: +9 Cold Spell Power
+
+=== ACTIVE SET BONUSES ===
+Legendary Temple's Tide (2-piece)
+  + 30.0 Artifact bonus to Cold Spell Power
+Frozen Wanderer (2-piece)
+  + 5.0 Stacking bonus to Cold Spell Lore
+
+=== REALIZED STATS ===
+Cold Spell Power: 322.0 (159.0 Equipment, 79.0 Insightful, 54.0 Stacking, 30.0 Artifact)
+Cold Spell Lore: 28.0 (23.0 Equipment, 5.0 Stacking)
+Cold Spell Critical Damage: 41.0 (23.0 Enhancement, 12.0 Insightful, 6.0 Quality)
+Evocation DC: 19.0 (2.0 Quality, 8.0 Equipment, 3.0 Sacred, 4.0 Insightful, 2.0 Profane)
+Wisdom: 45.0 (7.0 Insightful, 3.0 Quality, 15.0 Enhancement, 4.0 Artifact, 4.0 Profane, 12.0 Stacking)
+Constitution: 33.0 (15.0 Enhancement, 3.0 Quality, 7.0 Insightful, 4.0 Artifact, 4.0 Profane)

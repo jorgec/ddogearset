@@ -1,0 +1,104 @@
+======================================
+           USER INPUTS
+======================================
+Build Type: Ranged
+Final Priorities: Ranged Power, Doubleshot, Intelligence, Seeker, Constitution, Dodge [12], PRR, MRR, Sneak Attack Dice
+Armor Restriction: Docent
+Reserved Minor Artifact Slot: Any
+Minor Artifact Filigree Slots: 5
+Allow Gem of Many Facets: False
+
+
+======================================
+       RUNNING FOR MAX LEVEL 34
+======================================
+
+Status: Optimal
+
+=== EQUIPPED ITEMS ===
+Helmet: The Anguished Mind (ML: The Anguished Mind.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Doubleshot (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Quality Intelligence (Legendary)
+  + Augment [Sun]: Solar Gem of Constitution (Legendary)
+Necklace: Legendary Memento of Flame (ML: Legendary Memento of Flame.item)
+  + Augment [Moon]: Lunar Gem of Constitution (Legendary)
+Trinket: Legendary Golden Souvenir Coin (ML: Legendary Golden Souvenir Coin.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Constitution (Legendary)
+  + Augment [Miserable Slot (Accessory)]: Miserable Physical Resistance Rating (Legendary)
+  + Augment [Sun]: Solar Gem of Intelligence (Legendary)
+Cloak: Legendary Cloak of the Forest's Arrow (ML: Legendary Cloak of the Forest's Arrow.item)
+  + Augment [Sun]: Solar Gem of Doubleshot (Legendary)
+Belt: Ophael's Cincture (ML: Ophael's Cincture.item)
+  + Augment [Sealed in Undeath]: Insightful Intelligence +7
+  + Augment [Moon]: Lunar Gem of Physical Protection (Legendary)
+Ring_1: Legendary Lionheart Ring (ML: Legendary Lionheart Ring.item)
+Ring_2: Legendary The Earth and the Sky (ML: Legendary The Earth and the Sky.item)
+Gloves: The Cruel Hands of Fate (ML: The Cruel Hands of Fate.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Intelligence (Legendary)
+  + Augment [Miserable Slot (Accessory)]: Miserable Magical Resistance Rating (Legendary)
+  + Augment [Moon]: Lunar Gem of Intelligence (Legendary)
+Boots: Death's Deferral (ML: Death's Deferral.item)
+  + Augment [Sealed in Undeath]: Insightful Constitution +7
+  + Augment [Moon]: Lunar Gem of Ranged Power (Legendary)
+Bracers: Rocard, Champion's Cuffs (Minor Artifact) (ML: Rocard, Champion's Cuffs.item)
+  + Augment [Green]: Weaverwisp Melody
+  + Augment [Moon]: Lunar Gem of Magical Protection (Legendary)
+Armor: Legendary Brightsun (ML: Legendary Brightsun.item)
+Goggles: Legendary Black Earth Guardian's Lenses (ML: Legendary Black Earth Guardian's Lenses.item)
+Weapon1: Legendary Cataclysmic Repeating Light Crossbow (ML: Legendary Cataclysmic Repeating Light Crossbow.item)
+  + Augment [Miserable Slot (Weapon)]: Miserable Acid (Legendary)
+  + Augment [Woeful Slot (Weapon)]: Woeful Shadow (Legendary)
+Weapon2: Legendary Frozen Contraption (ML: Legendary Frozen Contraption.item)
+  + Augment [Miserable Slot (Weapon)]: Miserable Dimlight (Legendary)
+
+  [Weapon1 Alternatives]:
+    Alt 1: Legendary Calamitous Repeating Light Crossbow (ML: Legendary Calamitous Repeating Light Crossbow.item)
+    Alt 2: Legendary Calamitous Repeating Heavy Crossbow (ML: Legendary Calamitous Repeating Heavy Crossbow.item)
+
+  [Weapon2 Alternatives]:
+    Alt 1: Dinosaur Bone Runearm (ML: Dinosaur Bone Runearm.item)
+    Alt 2: Toven's Prototype (ML: Toven's Prototype.item)
+
+=== WEAPON FILIGREES ===
+  + Through the Mists: +3 Ranged Power
+  + Spines of the Manticore/The Wreath of Flame +6 Ranged Power
+  + Shattered Device: +3 Ranged Power
+  + Wildhunter: +3 Ranged Power
+  + Spines of the Manticore: +3 Ranged Power
+  + The Beast's Mantle: +3 Ranged Power
+  + The Long Shadow: +3 Ranged Power
+  + The Wreath of Flame: +3 Ranged Power
+  + Dreadbringer: +3 Ranged Power
+  + Deadly Rain: +3 Ranged Power
+
+=== MINOR ARTIFACT FILIGREES ===
+  + Spines of the Manticore/The Wreath of Flame +6 Ranged Power
+  + Wildhunter: +3 Ranged Power
+  + Spines of the Manticore: +3 Ranged Power
+  + Dreadbringer: +3 Ranged Power
+  + Deadly Rain: +3 Ranged Power
+
+=== ACTIVE SET BONUSES ===
+Eminence of Summer (2-piece)
+  + 30.0 Artifact bonus to MRR
+Legendary Temple's Monolith (2-piece)
+  + 15.0 Artifact bonus to Ranged Power
+  + 30.0 Artifact bonus to PRR
+Wildhunter (2-piece)
+  + 5.0 Stacking bonus to Ranged Power
+Spines of the Manticore (4-piece)
+  + 10.0 Stacking bonus to Ranged Power
+Dreadbringer (2-piece)
+  + 5.0 Stacking bonus to Ranged Power
+Deadly Rain (2-piece)
+  + 5.0 Stacking bonus to Ranged Power
+
+=== REALIZED STATS ===
+Ranged Power: 140.0 (15.0 Artifact, 15.0 Profane, 110.0 Stacking)
+Doubleshot: 35.0 (9.0 Enhancement, 5.0 Insightful, 3.0 Profane, 3.0 Quality, 15.0 Artifact)
+Intelligence: 35.0 (3.0 Quality, 7.0 Insightful, 15.0 Enhancement, 4.0 Artifact, 4.0 Profane, 2.0 Exceptional)
+Seeker: 30.0 (15.0 Enhancement, 7.0 Insightful, 3.0 Quality, 5.0 Exceptional)
+Constitution: 35.0 (15.0 Enhancement, 3.0 Quality, 7.0 Insightful, 4.0 Artifact, 4.0 Profane, 2.0 Exceptional)
+Dodge [12]: 15.0 (15.0 Enhancement)
+PRR: 101.0 (3.0 Exceptional, 30.0 Artifact, 38.0 Enhancement, 30.0 Profane)
+MRR: 98.0 (30.0 Artifact, 38.0 Enhancement, 30.0 Profane)
