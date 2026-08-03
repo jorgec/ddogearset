@@ -6,13 +6,15 @@
   let newStatWeight = 100;
 
   const expansions = [
-    "Isle of Dread", 
-    "Fables of the Feywild", 
-    "Masterminds of Sharn", 
+    "Menace of the Underdark",
+    "The Shadowfell Conspiracy",
     "Mists of Ravenloft", 
+    "Masterminds of Sharn", 
+    "Fables of the Feywild", 
+    "Sinister Secret of Saltmarsh",
+    "Isle of Dread", 
     "Vecna Unleashed", 
-    "Myth Drannor", 
-    "Sinister Secret of Saltmarsh"
+    "Myth Drannor"
   ];
 
   function togglePack(pack: string) {
@@ -135,7 +137,28 @@
 
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="reserved-minor-artifact">Reserved Minor Artifact Slot</label>
-      <input id="reserved-minor-artifact" type="text" bind:value={$configStore.reserved_minor_artifact_slot} placeholder="e.g. Ring, Trinket (Dino)" class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+      <select id="reserved-minor-artifact" bind:value={$configStore.reserved_minor_artifact_slot} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+        <option value="" class="bg-background text-foreground">Any</option>
+        <option value="Helmet" class="bg-background text-foreground">Helmet</option>
+        <option value="Necklace" class="bg-background text-foreground">Necklace</option>
+        <option value="Trinket" class="bg-background text-foreground">Trinket</option>
+        <option value="Cloak" class="bg-background text-foreground">Cloak</option>
+        <option value="Belt" class="bg-background text-foreground">Belt</option>
+        <option value="Ring" class="bg-background text-foreground">Ring</option>
+        <option value="Gloves" class="bg-background text-foreground">Gloves</option>
+        <option value="Boots" class="bg-background text-foreground">Boots</option>
+        <option value="Bracers" class="bg-background text-foreground">Bracers</option>
+        <option value="Goggles" class="bg-background text-foreground">Goggles</option>
+        <option value="Armor" class="bg-background text-foreground">Armor</option>
+        <option value="Trinket (Dino)" class="bg-background text-foreground">Trinket (Dino)</option>
+        <option value="Cloak (Dino)" class="bg-background text-foreground">Cloak (Dino)</option>
+        <option value="Belt (Dino)" class="bg-background text-foreground">Belt (Dino)</option>
+        <option value="Ring (Dino)" class="bg-background text-foreground">Ring (Dino)</option>
+        <option value="Gloves (Dino)" class="bg-background text-foreground">Gloves (Dino)</option>
+        <option value="Boots (Dino)" class="bg-background text-foreground">Boots (Dino)</option>
+        <option value="Bracers (Dino)" class="bg-background text-foreground">Bracers (Dino)</option>
+        <option value="Helmet (Dino)" class="bg-background text-foreground">Helmet (Dino)</option>
+      </select>
     </div>
 
     <div class="space-y-2 flex flex-col justify-center pt-6">
