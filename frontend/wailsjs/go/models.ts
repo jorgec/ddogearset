@@ -1,5 +1,19 @@
 export namespace main {
 	
+	export class StatPriorityEntry {
+	    stat: string;
+	    value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StatPriorityEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stat = source["stat"];
+	        this.value = source["value"];
+	    }
+	}
 	export class OptimizationPayload {
 	    gearset_name: string;
 	    max_level: number;
@@ -9,7 +23,7 @@ export namespace main {
 	    offhand_style: string;
 	    caster_spellpowers: string[];
 	    caster_schools: string[];
-	    stat_priorities: Record<string, number>;
+	    stat_priorities: StatPriorityEntry[];
 	    armor_restriction: string;
 	    reserved_minor_artifact_slot: string;
 	    minor_artifact_filigree_slots: number;
@@ -20,7 +34,7 @@ export namespace main {
 	    is_dino_artifact: boolean;
 	    output_filename: string;
 	    pre_equipped: Record<string, string>;
-	    pre_filled_augments: Record<string, string[]>;
+	    pre_filled_augments: Record<string, any>;
 	    pre_filled_filigrees: Record<string, string[]>;
 	    calculate_only: boolean;
 	
@@ -38,7 +52,7 @@ export namespace main {
 	        this.offhand_style = source["offhand_style"];
 	        this.caster_spellpowers = source["caster_spellpowers"];
 	        this.caster_schools = source["caster_schools"];
-	        this.stat_priorities = source["stat_priorities"];
+	        this.stat_priorities = this.convertValues(source["stat_priorities"], StatPriorityEntry);
 	        this.armor_restriction = source["armor_restriction"];
 	        this.reserved_minor_artifact_slot = source["reserved_minor_artifact_slot"];
 	        this.minor_artifact_filigree_slots = source["minor_artifact_filigree_slots"];
@@ -53,6 +67,24 @@ export namespace main {
 	        this.pre_filled_filigrees = source["pre_filled_filigrees"];
 	        this.calculate_only = source["calculate_only"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class ResultPayload {
 	    success: boolean;
@@ -62,6 +94,7 @@ export namespace main {
 	    activeSets?: string[];
 	    filigrees?: Record<string, string[]>;
 	    allEffects?: Record<string, any>;
+	    slots?: Record<string, any>;
 	    errorMessage?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -77,6 +110,7 @@ export namespace main {
 	        this.activeSets = source["activeSets"];
 	        this.filigrees = source["filigrees"];
 	        this.allEffects = source["allEffects"];
+	        this.slots = source["slots"];
 	        this.errorMessage = source["errorMessage"];
 	    }
 	}

@@ -50,6 +50,11 @@
 }
 
 @layer base {
+  html {
+    /* Responsive base font size: scales with viewport width, clamped
+       between 14px (small/shrunk windows) and 18px (max). */
+    font-size: clamp(14px, 1rem + 0.3vw, 18px);
+  }
   * {
     @apply border-border;
   }

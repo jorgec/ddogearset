@@ -15,6 +15,7 @@
 7. [`.ddogearset` File Schema](#ddogearset-file-schema)
 8. [Build & Run](#build--run)
 9. [Adding New Stats or Effects](#adding-new-stats-or-effects)
+10. [Known Issues](#known-issues)
 
 ---
 
@@ -429,3 +430,71 @@ CAP_VALUES = {
 ### 4. Optional: Set bonus effects
 
 If the new stat appears in set bonus XML, it will be picked up automatically by the existing set bonus parsing in `optimizer.py` since it uses the same `normalize_stat_name()` normalization.
+
+---
+
+## Known Issues
+
+### "Calculate Stats" is destructive — wipes the manually curated gearset
+
+**Status:** Fixed (Phase 9.2). The solver now emits a rich per-slot `slots` map
+(`item`/`location`/`augments`/`filigrees`/`set_bonus_contributions` for every equipped slot —
+see `python/optimizer.py`'s `run_optimization()` and `app.go`'s `ResultPayload.Slots`) alongside
+the existing `gearSet`. `frontend/src/lib/store.ts` exports `hydrateConfigFromSlots(config, slots)`,
+which fills in any slot/augment-bucket/filigree-bucket not already explicitly set in
+`$configStore` from the last-known `$resultStore.slots`, without overwriting manual edits.
+Both `Summary.svelte`'s `calculateStats()` and `GearsetEditor.svelte`'s `calculateGearSet()`
+call `hydrateConfigFromSlots()` immediately before invoking `RunOptimization` in
+`calculate_only` mode, so `pre_equipped`/`pre_filled_augments`/`pre_filled_filigrees` always
+reflect what's actually equipped (from an Auto Solver run, a loaded `.ddogearset` file, or
+manual edits) before the read-only recompute happens. The "Calculate Stats" button in
+`GearsetEditor.svelte` and the `calculateStats()` call in `Summary.svelte`'s `loadGearset()`
+are both re-enabled. The original root-cause analysis below is retained for context.
+
+Previously, both trigger points were disabled/commented out as a stopgap:
+- `frontend/src/lib/components/domain/Summary.svelte` — the `calculateStats()` call after
+  `loadGearset()` was commented out.
+- `frontend/src/lib/components/domain/GearsetEditor.svelte` — the "Calculate Stats" button
+  (calls `calculateGearSet()`) was commented out in the markup.
+
+**Symptom:** Clicking "Calculate Stats" (or loading a `.ddogearset` file, when the call was
+still wired up) can clear out the equipped items and zero out realized stats, instead of just
+evaluating the effects of the currently-assigned gear (items/augments/filigrees) as intended.
+"Calculate Stats" must be non-destructive — it should only *read* the current assignments and
+report their effects, and must never mutate them.
+
+**Likely root cause:** `RunOptimization` is called with `calculate_only: true`
+(`app.go`'s `OptimizationPayload.CalculateOnly` → `python/solver.py` → `optimizer.py`). In
+`calculate_only` mode, `run_optimization()` computes `required_slots` as only the slots
+present in `pre_equipped`:
+
+```python
+if calculate_only and pre_equipped:
+    required_slots = [s for s in base_required if s in available_slots and s in pre_equipped]
+```
+
+`$configStore.pre_equipped` (a `Record<slot, itemName>`) is only kept in sync with
+`$resultStore.gearSet` when items are assigned manually via the Gearset Editor
+(`GearsetEditor.svelte`'s slot-assignment handlers set both `$configStore.pre_equipped[slot]`
+and `$resultStore.gearSet[slot]` together). However:
+- After an **Auto Solver** run, `$resultStore.gearSet` is fully populated by the ILP solve,
+  but `$configStore.pre_equipped` is never written to — it stays empty (or stale).
+- After **loading** a `.ddogearset` file, `$configStore` is hydrated from the saved `config`
+  block, which reflects whatever `pre_equipped` looked like *at save time* — commonly empty,
+  for the same reason.
+
+When `pre_equipped` is empty, `required_slots` becomes empty, so the solver forces every
+equipment slot to be unequipped (`Σx[s] == 0`), and `calculate_only` returns an empty
+`gearSet`/zeroed stats — even though `$resultStore.gearSet` still had real items in it.
+`GearsetEditor.svelte`'s `calculateGearSet()` already has a partial workaround
+(`res.gearSet = $resultStore.gearSet` before assigning `$resultStore = res`), but this only
+patches the returned slot map after the fact — the `realizedStats`/`allEffects`/`activeSets`
+in `res` are still computed from the (destructively) empty solve, so they don't reflect the
+actual curated gearset either.
+
+**Fix implemented:** `hydrateConfigFromSlots()` in `frontend/src/lib/store.ts` derives
+`pre_equipped`/`pre_filled_augments`/`pre_filled_filigrees` from `$resultStore.slots` (the
+solver's rich per-slot output — the actual source of truth for "what's currently equipped"),
+called from both `Summary.svelte`'s `calculateStats()` and `GearsetEditor.svelte`'s
+`calculateGearSet()` so both callers share one centralized hydration path.
+

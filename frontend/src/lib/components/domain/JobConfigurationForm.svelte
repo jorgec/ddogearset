@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { configStore, isOptimizing, resultStore, currentTab } from '$lib/store';
+  import { configStore, isOptimizing, resultStore, currentTab, showToast } from '$lib/store';
   import { RunOptimization, UpdateExternalSources } from '../../../../wailsjs/go/main/App';
+  import { hydrateConfigFromSlots } from '../../store';
   import { onMount } from 'svelte';
 
   let newStatName = '';
@@ -33,8 +34,13 @@
 
   function addStatPriority() {
     if (newStatName.trim()) {
-      $configStore.stat_priorities[newStatName.trim()] = newStatWeight;
-      $configStore.stat_priorities = { ...$configStore.stat_priorities };
+      const name = newStatName.trim();
+      const existingIdx = $configStore.stat_priorities.findIndex(e => e.stat === name);
+      if (existingIdx >= 0) {
+        $configStore.stat_priorities[existingIdx] = { stat: name, value: newStatWeight };
+      } else {
+        $configStore.stat_priorities = [...$configStore.stat_priorities, { stat: name, value: newStatWeight }];
+      }
       newStatName = '';
       newStatWeight = 100;
     }
@@ -52,9 +58,28 @@
   }
 
   function removeStatPriority(key: string) {
-    delete $configStore.stat_priorities[key];
-    $configStore.stat_priorities = { ...$configStore.stat_priorities };
+    $configStore.stat_priorities = $configStore.stat_priorities.filter(e => e.stat !== key);
   }
+
+  // Mirrors the filigree-selection allocation rule implemented in
+  // python/optimizer.py (see docs/PHASE9_PLAN.md, Phase 9.1):
+  //  - exactly one priority at 100 -> all weight to that stat
+  //  - multiple priorities at 100 -> geometric decay (60/40, ~51/31/18, ...) in entry order
+  //  - no 100s -> prorate every listed stat by its value's share of the total
+  function computeFiligreeBias(priorities: { stat: string; value: number }[]): { stat: string; pct: number }[] {
+    if (!priorities || priorities.length === 0) return [];
+    const hundreds = priorities.filter(p => p.value >= 100);
+    if (hundreds.length > 0) {
+      const raw = hundreds.map((_, i) => 0.6 * Math.pow(0.4, i));
+      const sum = raw.reduce((a, b) => a + b, 0);
+      return hundreds.map((p, i) => ({ stat: p.stat, pct: Math.round((raw[i] / sum) * 1000) / 10 }));
+    }
+    const total = priorities.reduce((a, p) => a + p.value, 0);
+    if (total <= 0) return [];
+    return priorities.map(p => ({ stat: p.stat, pct: Math.round((p.value / total) * 1000) / 10 }));
+  }
+
+  $: filigreeBias = computeFiligreeBias($configStore.stat_priorities);
 
   async function handleOptimize() {
     $isOptimizing = true;
@@ -62,11 +87,20 @@
       const result = await RunOptimization($configStore);
       $resultStore = result;
       if (result.success) {
+        const hydrated = hydrateConfigFromSlots($configStore, result.slots);
+        if (hydrated) {
+            $configStore.pre_equipped = hydrated.pre_equipped;
+            $configStore.pre_filled_augments = hydrated.pre_filled_augments;
+            $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
+        }
+        showToast('Optimization complete.', 'success');
         $currentTab = 'editor';
+      } else {
+        showToast(result.errorMessage || 'Optimization failed.', 'error');
       }
     } catch (err) {
       console.error(err);
-      // In a real app we'd show a toast here
+      showToast('Optimization failed: ' + err, 'error');
     } finally {
       $isOptimizing = false;
     }
@@ -75,10 +109,10 @@
   async function handleUpdateData() {
     isUpdatingData = true;
     try {
-      const res = await UpdateExternalSources();
-      alert("Updated successfully:\n" + res);
+      await UpdateExternalSources();
+      showToast('Data updated successfully.', 'success');
     } catch (e) {
-      alert("Update failed:\n" + e);
+      showToast('Update failed: ' + e, 'error');
     } finally {
       isUpdatingData = false;
     }
@@ -266,18 +300,23 @@
         <span class="text-sm font-medium w-8 text-right">{newStatWeight}</span>
       </div>
     </div>
-    {#if $configStore.stat_priorities && Object.keys($configStore.stat_priorities).length > 0}
+    {#if $configStore.stat_priorities && $configStore.stat_priorities.length > 0}
       <div class="grid grid-cols-2 gap-2 mt-3">
-        {#each Object.entries($configStore.stat_priorities) as [stat, weight]}
-          <div class="flex justify-between items-center border border-border rounded-md px-3 py-2 text-sm bg-card text-card-foreground cursor-pointer hover:border-primary transition-colors" on:click={() => editStatPriority(stat, weight)}>
+        {#each $configStore.stat_priorities as { stat, value } (stat)}
+          <div class="flex justify-between items-center border border-border rounded-md px-3 py-2 text-sm bg-card text-card-foreground cursor-pointer hover:border-primary transition-colors" on:click={() => editStatPriority(stat, value)}>
             <span class="font-medium truncate mr-2" title={stat}>{stat}</span>
             <div class="flex items-center space-x-3">
-              <span class="text-muted-foreground">{weight}</span>
+              <span class="text-muted-foreground">{value}</span>
               <button class="text-destructive hover:text-destructive/80 focus:outline-none font-bold" on:click|stopPropagation={() => removeStatPriority(stat)} aria-label="Remove">&times;</button>
             </div>
           </div>
         {/each}
       </div>
+    {/if}
+    {#if filigreeBias.length > 0}
+      <p class="text-xs text-muted-foreground mt-2">
+        Filigree bias: {filigreeBias.map(b => `${b.pct}% ${b.stat}`).join(', ')}
+      </p>
     {/if}
   </div>
 

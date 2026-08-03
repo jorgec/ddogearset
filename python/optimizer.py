@@ -325,6 +325,11 @@ def parse_filigrees(base_dir, priorities):
                 
                 buffs = []
                 for effect_node in f_node.findall('Effect'):
+                    # "Rare" is an alternate/upgraded variant of the same filigree
+                    # instance, not an additional stacking bonus on top of the base
+                    # effect. Only the base (non-Rare) effect should ever be counted.
+                    if effect_node.find('Rare') is not None:
+                        continue
                     b_types = [t.text for t in effect_node.findall('Type') if t.text]
                     b_bonus = effect_node.findtext('Bonus')
                     b_item = effect_node.findtext('Item')
@@ -355,6 +360,34 @@ def parse_filigrees(base_dir, priorities):
             
     return filigrees, sets
 
+def compute_priority_bias(priority_pairs):
+    """Returns {base_stat_name_lower: pct 0-100} used to bias filigree selection
+    toward the user's most-desired stats, without altering the actual computed
+    stat totals (allEffects/realizedStats stay accurate). Mirrors the JS
+    implementation of computeFiligreeBias() in JobConfigurationForm.svelte —
+    see docs/PHASE9_PLAN.md, Phase 9.1.
+      - exactly one priority at 100 -> all bias to that stat
+      - multiple priorities at 100 -> geometric decay in entry order (60/40, ~51/31/18, ...)
+      - no 100s -> prorate every listed stat by its value's share of the total
+    """
+    if not priority_pairs:
+        return {}
+    hundreds = [(name, val) for name, val in priority_pairs if val >= 100]
+    if hundreds:
+        raw = [0.6 * (0.4 ** i) for i in range(len(hundreds))]
+        total = sum(raw)
+        return {
+            re.sub(r'\[\d+\]', '', name).strip().lower(): (raw[i] / total) * 100
+            for i, (name, val) in enumerate(hundreds)
+        }
+    total = sum(val for _, val in priority_pairs)
+    if total <= 0:
+        return {}
+    return {
+        re.sub(r'\[\d+\]', '', name).strip().lower(): (val / total) * 100
+        for name, val in priority_pairs
+    }
+
 def create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit=None, pre_equipped=None, pre_filled_augments=None, pre_filled_filigrees=None, calculate_only=False):
     if pre_equipped is None:
         pre_equipped = {}
@@ -365,7 +398,9 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
     WEIGHTS = {}
     CAPS = {}
     
-    for stat_name, weight_val in priorities.items():
+    # `priorities` is an ordered list of (stat_name, weight_val) pairs (order
+    # preserved from the user's entry order end-to-end; see docs/PHASE9_PLAN.md).
+    for stat_name, weight_val in priorities:
         p_base = re.sub(r'\[\d+\]', '', stat_name).strip()
         cap_match = re.search(r'\[(\d+)\]', stat_name)
         if cap_match:
@@ -408,29 +443,47 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
         fm[idx] = pulp.LpVariable(f"fm_{idx}", cat="Binary")
         
     if pre_filled_augments and pre_equipped:
-        for slot, aug_list in pre_filled_augments.items():
+        for slot, aug_entry in pre_filled_augments.items():
             if slot in required_slots and slot in pre_equipped:
                 eq_name = pre_equipped[slot]
                 for i, item in enumerate(items):
                     if item['name'] == eq_name:
-                        for aug_name in aug_list:
+                        # Support both the new color-keyed dict format
+                        # ({color: augment_name}, unambiguous — see docs/PHASE9_PLAN.md)
+                        # and the legacy positional list-of-names format from older
+                        # saved gearsets (where the color must be inferred).
+                        if isinstance(aug_entry, dict):
+                            pairs = []
+                            for k, v in aug_entry.items():
+                                if isinstance(v, list):
+                                    for name in v:
+                                        pairs.append((k, name))
+                                else:
+                                    pairs.append((k, v))
+                        else:
+                            pairs = [(None, aug_name) for aug_name in aug_entry]
+                        for known_color, aug_name in pairs:
                             if not aug_name: continue
                             matched_aug_idx = None
                             for idx, a in enumerate(augments):
                                 if a['name'] == aug_name:
                                     matched_aug_idx = idx
                                     break
-                            if matched_aug_idx is not None:
-                                matched_aug = augments[matched_aug_idx]
-                                matched_color = None
+                            if matched_aug_idx is None:
+                                continue
+                            matched_aug = augments[matched_aug_idx]
+                            matched_color = None
+                            if known_color and (matched_aug_idx, i, known_color) in y:
+                                matched_color = known_color
+                            else:
                                 color_counts = collections.Counter(item['augments'])
                                 for c in color_counts.keys():
                                     if matched_aug['type'].lower() == c.lower() or c.lower() in matched_aug['type'].lower():
                                         if (matched_aug_idx, i, c) in y:
                                             matched_color = c
                                             break
-                                if matched_color:
-                                    prob += y[(matched_aug_idx, i, matched_color)] == 1
+                            if matched_color:
+                                prob += y[(matched_aug_idx, i, matched_color)] == 1
                         break
 
     if pre_filled_filigrees and filigrees:
@@ -500,7 +553,10 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
         
     if calculate_only:
         # To strictly compute what was passed, force sum of y to equal the number of pre-filled augments
-        total_pre_filled_augments = sum(len([a for a in aug_list if a]) for aug_list in pre_filled_augments.values()) if pre_filled_augments else 0
+        def _count_entries(aug_entry):
+            values = aug_entry.values() if isinstance(aug_entry, dict) else aug_entry
+            return len([v for v in values if v])
+        total_pre_filled_augments = sum(_count_entries(v) for v in pre_filled_augments.values()) if pre_filled_augments else 0
         prob += pulp.lpSum(y.values()) == total_pre_filled_augments
         
     if filigrees:
@@ -554,23 +610,24 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
     
     for (i, s), var in x.items():
         for stat, b_type, val in items[i]['buffs']:
-            sources[(stat, b_type)].append((val, var))
+            sources[(stat, b_type)].append((val, var, items[i]['name']))
             
     for (a, i, c), var in y.items():
         for stat, b_type, val in augments[a]['buffs']:
-            sources[(stat, b_type)].append((val, var))
+            sources[(stat, b_type)].append((val, var, augments[a]['name']))
             
     for idx, f in enumerate(filigrees):
         for stat, b_type, val in f['buffs']:
-            sources[(stat, b_type)].append((val, fw[idx]))
-            sources[(stat, b_type)].append((val, fm[idx]))
+            sources[(stat, b_type)].append((val, fw[idx], f['name']))
+            sources[(stat, b_type)].append((val, fm[idx], f['name']))
             
     for (k, m), var in w_vars.items():
         for stat, b_type, val in sets[k][m]:
-            sources[(stat, b_type)].append((val, var))
+            sources[(stat, b_type)].append((val, var, f"{k} ({m} Piece)"))
             
     source_counter = 0
     objective_terms = []
+    sources_tracking = collections.defaultdict(list)
     
     for (stat, b_type), srclist in sources.items():
         z_var = pulp.LpVariable(f"z_{stat}_{safe_name(b_type)}", lowBound=0)
@@ -578,19 +635,21 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
         
         if b_type.lower().strip() in ['stacking', 'mythic', 'reaper']:
             expr = []
-            for val, var in srclist:
+            for val, var, sname in srclist:
                 expr.append(val * var)
+                sources_tracking[(stat, b_type)].append((var, val, sname))
             prob += z_var == pulp.lpSum(expr)
         else:
             deltas = []
             d_vars_for_this_stat = []
-            for val, var in srclist:
+            for val, var, sname in srclist:
                 d_var = pulp.LpVariable(f"d_{source_counter}", cat="Binary")
                 delta[source_counter] = d_var
                 d_vars_for_this_stat.append(d_var)
                 
                 prob += d_var <= var
                 deltas.append(val * d_var)
+                sources_tracking[(stat, b_type)].append((d_var, val, sname))
                 source_counter += 1
                 
             prob += pulp.lpSum(d_vars_for_this_stat) <= 1
@@ -608,17 +667,37 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
                 objective_terms.append(WEIGHTS[stat] * capped_var)
             else:
                 objective_terms.append(WEIGHTS[stat] * pulp.lpSum(z_list))
+    
+    # Filigree-selection bias (item 5 / Phase 9.1): a small tie-breaking term
+    # that steers *which* filigree fills a slot toward the user's front-loaded
+    # priority stats, without touching `sources`/`z_var` — so displayed stat
+    # totals in allEffects/realizedStats remain exactly what's actually equipped.
+    if filigrees:
+        bias_map = compute_priority_bias(priorities)
+        if bias_map:
+            FILIGREE_BIAS_SCALE = 1000.0
+            bias_terms = []
+            for idx, f in enumerate(filigrees):
+                f_score = 0.0
+                for stat, b_type, val in f['buffs']:
+                    pct = bias_map.get(stat.lower())
+                    if pct:
+                        f_score += pct * val
+                if f_score:
+                    bias_terms.append(f_score * (fw[idx] + fm[idx]))
+            if bias_terms:
+                objective_terms.append(FILIGREE_BIAS_SCALE * pulp.lpSum(bias_terms))
             
     prob += pulp.lpSum(objective_terms)
     
-    return prob, x, y, fw, fm, w_vars, z
+    return prob, x, y, fw, fm, w_vars, z, sources_tracking
 
 def solve_for_alternatives(items, sets, augments, filigrees, priorities, art_slots, required_slots, equipped_items, target_slot, num_alts, raid_item_limit=None):
     alternatives = []
     forbidden_items = [equipped_items[target_slot]]
     
     for _ in range(num_alts):
-        prob, x, y, fw, fm, w_vars, z = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit, None, None, None)
+        prob, x, y, fw, fm, w_vars, z, _sources_tracking = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit, None, None, None)
         
         # Lock all slots except target_slot
         for slot, eq_item in equipped_items.items():
@@ -664,7 +743,7 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
     else:
         required_slots = [s for s in base_required if s in available_slots]
     
-    prob, x, y, fw, fm, w_vars, z = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
+    prob, x, y, fw, fm, w_vars, z, sources_tracking = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
     
     out_file.write(f"\n======================================\n")
     out_file.write(f"       RUNNING FOR MAX LEVEL {cap}\n")
@@ -680,10 +759,12 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
     out_file.write("\n=== EQUIPPED ITEMS ===\n")
     equipped = {}
     equipped_simple = {}
+    equipped_idx = {}
     for (i, s), var in x.items():
         if var.varValue and var.varValue > 0.5:
             equipped[s] = items[i]
             equipped_simple[s] = items[i]['name']
+            equipped_idx[s] = i
             
     for slot in required_slots:
         if slot in equipped:
@@ -731,7 +812,7 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
             
     realized_stats_out = {}
     out_file.write("\n=== REALIZED STATS ===\n")
-    for p in priorities:
+    for p, _weight in priorities:
         p_base = re.sub(r'\[\d+\]', '', p).strip()
         total = 0
         details = []
@@ -744,6 +825,7 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
             realized_stats_out[p] = total
 
     filigrees_out = {"weapon": [], "artifact": []}
+    w_fil, m_fil = [], []
     if filigrees:
         w_fil = [f for idx, f in enumerate(filigrees) if fw[idx].varValue and fw[idx].varValue > 0.5]
         m_fil = [f for idx, f in enumerate(filigrees) if fm[idx].varValue and fm[idx].varValue > 0.5]
@@ -751,19 +833,77 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
             filigrees_out["weapon"].append(f['name'])
         for f in m_fil:
             filigrees_out["artifact"].append(f['name'])
-            
+
+    # Per-slot rich detail (item 1 / Phase 9.2, docs/PHASE9_PLAN.md): the single
+    # authoritative structure the frontend calculator/Summary should read from —
+    # what item is in a slot, what augments/filigrees/set bonuses it contributes.
+    def _buff_dicts(buffs):
+        return [{"stat": st, "bonus": bt, "value": v} for st, bt, v in buffs]
+
+    slots_out = {}
+    for slot, item in equipped.items():
+        i = equipped_idx[slot]
+        slot_augments = []
+        for (a, ii, c), y_var in y.items():
+            if ii == i and y_var.varValue and y_var.varValue > 0.5:
+                aug = augments[a]
+                slot_augments.append({"color": c, "name": aug['name'], "buffs": _buff_dicts(aug['buffs'])})
+
+        slot_set_bonuses = []
+        for (k, m), w_var in w_vars.items():
+            if w_var.varValue and w_var.varValue > 0.5 and k in item.get('sets', []):
+                slot_set_bonuses.append({
+                    "set": k,
+                    "pieces": m,
+                    "buffs": _buff_dicts(sets.get(k, {}).get(m, [])),
+                })
+
+        # Filigrees aren't per-literal-slot (they belong to the "Sentient Weapon"
+        # as a whole or the Minor Artifact item, see docs/USAGE.md) — attach the
+        # relevant bucket to whichever slot(s) actually carry that concept.
+        slot_filigrees = []
+        if slot in ('Weapon1', 'Weapon2'):
+            slot_filigrees = [{"name": f['name'], "buffs": _buff_dicts(f['buffs'])} for f in w_fil]
+        elif item.get('minor'):
+            slot_filigrees = [{"name": f['name'], "buffs": _buff_dicts(f['buffs'])} for f in m_fil]
+
+        slots_out[slot] = {
+            "location": slot,
+            "item": {
+                "name": item['name'],
+                "file": item.get('file'),
+                "ml": item.get('ml', 0),
+                "is_raid": item.get('is_raid', False),
+                "pack": item.get('pack'),
+                "minor": item.get('minor', False),
+            },
+            "augments": slot_augments,
+            "filigrees": slot_filigrees,
+            "set_bonus_contributions": slot_set_bonuses,
+        }
+
     all_effects_out = {}
     for (st, b_type), z_var in z.items():
         if z_var.varValue and z_var.varValue > 0:
             if st not in all_effects_out:
                 all_effects_out[st] = []
-            all_effects_out[st].append(f"{z_var.varValue} {b_type}")
+            
+            contributing = []
+            for tracked_var, val, sname in sources_tracking[(st, b_type)]:
+                if tracked_var.varValue and tracked_var.varValue > 0.5:
+                    contributing.append(f"{val} {b_type} ({sname})")
+            
+            if contributing:
+                all_effects_out[st].extend(contributing)
+            else:
+                all_effects_out[st].append(f"{z_var.varValue} {b_type}")
 
     rich_output = {
         "gearSet": equipped_simple,
         "realizedStats": realized_stats_out,
         "activeSets": active_sets_out,
         "filigrees": filigrees_out,
-        "allEffects": all_effects_out
+        "allEffects": all_effects_out,
+        "slots": slots_out
     }
     return rich_output

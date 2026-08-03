@@ -1,14 +1,119 @@
 <script lang="ts">
-  import { resultStore, configStore, isOptimizing } from '$lib/store';
+  import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
   import { RunOptimization, SaveGearset } from '../../../../wailsjs/go/main/App';
   
   // Sort priority stats based on their weight (descending)
-  $: sortedPriorities = Object.entries($configStore.stat_priorities)
+  $: sortedPriorities = ($configStore.stat_priorities ?? [])
+      .map(p => [p.stat, p.value] as [string, number])
       .sort(([, weightA], [, weightB]) => weightB - weightA);
 
   // Group all effects by their stat name, then sort alphabetically
   $: groupedEffects = $resultStore?.allEffects ? 
       Object.entries($resultStore.allEffects).sort(([statA], [statB]) => statA.localeCompare(statB)) : [];
+
+  // Key of the currently expanded effect source (`${statName}::${index}`), or null if none expanded.
+  let expandedSourceKey: string | null = null;
+
+  // Extracts the trailing "(Source Name)" from an effect string like
+  // "13.0 Enhancement (The Spring Equinox)" or a set-bonus string with nested
+  // parens like "15.0 Artifact (Legendary Soul of the Red Dragon (2 Piece))".
+  // Scans backward from the end counting paren depth so nested groups resolve
+  // correctly (a naive non-nesting regex fails on the set-bonus case).
+  // Returns null if no source is embedded (older/legacy result files won't have one).
+  function parseSourceName(source: string): string | null {
+      const trimmed = source.trimEnd();
+      if (!trimmed.endsWith(')')) return null;
+      let depth = 0;
+      for (let i = trimmed.length - 1; i >= 0; i--) {
+          const ch = trimmed[i];
+          if (ch === ')') {
+              depth++;
+          } else if (ch === '(') {
+              depth--;
+              if (depth === 0) {
+                  return trimmed.slice(i + 1, trimmed.length - 1);
+              }
+          }
+      }
+      return null;
+  }
+
+  // Determines where in the gearset a given source name (item, augment, filigree,
+  // or set bonus) comes from, so the user can see which equipped item/slot granted it.
+  // Prefers the exact, structured resultStore.slots data (Phase 9.2) when present;
+  // falls back to the older name-matching heuristic for gearsets saved before
+  // that field existed.
+  function locateSource(sourceName: string | null): string {
+      if (!sourceName || !$resultStore) return 'Location unavailable';
+      const slots = $resultStore.slots;
+
+      if (slots) {
+          for (const [slot, detail] of Object.entries(slots)) {
+              if (detail.item?.name === sourceName) {
+                  return `Equipped item — ${slot}`;
+              }
+              const aug = detail.augments?.find(a => a.name === sourceName);
+              if (aug) {
+                  return `Augment on ${detail.item?.name} — ${slot}`;
+              }
+              const fil = detail.filigrees?.find(f => f.name === sourceName);
+              if (fil) {
+                  return (slot === 'Weapon1' || slot === 'Weapon2')
+                      ? `Sentient Weapon Filigree — ${slot}`
+                      : `Minor Artifact Filigree — ${slot}`;
+              }
+              const setBonus = detail.set_bonus_contributions?.find(sb => sourceName.startsWith(sb.set));
+              if (setBonus) {
+                  return `Active Set Bonus — ${setBonus.set} (${setBonus.pieces} Piece) via ${detail.item?.name} — ${slot}`;
+              }
+          }
+      }
+
+      const gearSet = $resultStore.gearSet || {};
+
+      // Direct item match (equipped item name === source name)
+      for (const [slot, itemName] of Object.entries(gearSet)) {
+          if (itemName === sourceName) return `Equipped item — ${slot}`;
+      }
+
+      // Augment match: pre_filled_augments is keyed by slot -> color -> augment name
+      // (older saved files may still have the legacy slot -> array-of-names shape).
+      const preAugments = $configStore.pre_filled_augments || {};
+      for (const [slot, augs] of Object.entries(preAugments)) {
+          const names = Array.isArray(augs) ? augs : Object.values(augs || {});
+          if ((names || []).includes(sourceName)) {
+              const itemName = gearSet[slot];
+              return itemName ? `Augment on ${itemName} — ${slot}` : `Augment — ${slot}`;
+          }
+      }
+
+      // Sentient weapon filigree
+      const weaponFiligrees = $resultStore.filigrees?.weapon || [];
+      if (weaponFiligrees.some(f => f === sourceName || f.includes(sourceName))) {
+          return 'Sentient Weapon Filigree';
+      }
+
+      // Minor artifact filigree
+      const artifactFiligrees = $resultStore.filigrees?.artifact || [];
+      if (artifactFiligrees.some(f => f === sourceName || f.includes(sourceName))) {
+          return 'Minor Artifact Filigree';
+      }
+
+      // Set bonus: solver formats these source names as "Set Name (N Piece)"
+      // (python/optimizer.py's create_model), which differs in punctuation/casing
+      // from the "Set Name (N-piece)" strings in activeSets, so match structurally
+      // instead of doing an exact/prefix string comparison against activeSets.
+      const setMatch = sourceName.match(/^(.*) \(\d+ Piece\)$/i);
+      if (setMatch) {
+          return `Active Set Bonus — ${setMatch[1]}`;
+      }
+
+      return 'Location unavailable';
+  }
+
+  function toggleSourceDetail(key: string) {
+      expandedSourceKey = expandedSourceKey === key ? null : key;
+  }
 
   function loadGearset() {
       const input = document.createElement('input');
@@ -38,6 +143,7 @@
                   calculateStats();
               } catch(e) {
                   console.error('Failed to parse gearset file');
+                  showToast('Failed to load gearset file: ' + e, 'error');
               }
           };
           reader.readAsText(file);
@@ -48,13 +154,28 @@
   async function calculateStats() {
       $isOptimizing = true;
       try {
+          // Non-destructive/read-only recompute: hydrate pre_equipped/
+          // pre_filled_augments/pre_filled_filigrees from the just-loaded
+          // gearset's slots detail so calculate_only mode reflects exactly
+          // what was loaded, instead of stripping anything not already in
+          // configStore.pre_equipped. See docs/ENGINEERING.md "Known Issues".
+          const hydrated = hydrateConfigFromSlots($configStore, $resultStore?.slots);
+          if (hydrated) {
+              $configStore.pre_equipped = hydrated.pre_equipped;
+              $configStore.pre_filled_augments = hydrated.pre_filled_augments;
+              $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
+          }
           $configStore.calculate_only = true;
           const res = await RunOptimization($configStore);
           if (res && res.success) {
               $resultStore = res;
+              showToast('Gearset loaded and stats recalculated.', 'success');
+          } else {
+              showToast(res?.errorMessage || 'Calculation failed.', 'error');
           }
       } catch (e) {
           console.error(e);
+          showToast('Calculation failed: ' + e, 'error');
       } finally {
           $configStore.calculate_only = false;
           $isOptimizing = false;
@@ -64,10 +185,10 @@
   async function saveGearset() {
       try {
           const path = await SaveGearset($configStore, $resultStore);
-          alert("Saved successfully to " + path);
+          showToast('Saved successfully to ' + path, 'success');
       } catch (e) {
           console.error(e);
-          alert("Failed to save gearset: " + e);
+          showToast('Failed to save gearset: ' + e, 'error');
       }
   }
 </script>
@@ -182,10 +303,23 @@
                       <div class="flex flex-col space-y-2">
                           <h4 class="font-medium text-foreground text-sm border-b border-border/40 pb-1">{statName}</h4>
                           <ul class="space-y-1">
-                              {#each sources as source}
-                                  <li class="text-xs text-muted-foreground flex items-baseline">
-                                      <span class="w-2 h-2 rounded-full bg-primary/40 mr-2 flex-shrink-0"></span>
-                                      {source}
+                              {#each sources as source, idx}
+                                  {@const key = `${statName}::${idx}`}
+                                  <li class="text-xs">
+                                      <button
+                                          type="button"
+                                          class="w-full text-left text-muted-foreground flex items-baseline hover:text-foreground transition-colors"
+                                          on:click={() => toggleSourceDetail(key)}
+                                          aria-expanded={expandedSourceKey === key}
+                                      >
+                                          <span class="w-2 h-2 rounded-full bg-primary/40 mr-2 flex-shrink-0"></span>
+                                          {source}
+                                      </button>
+                                      {#if expandedSourceKey === key}
+                                          <div class="ml-4 mt-0.5 text-[11px] text-primary/80 italic">
+                                              {locateSource(parseSourceName(source))}
+                                          </div>
+                                      {/if}
                                   </li>
                               {/each}
                           </ul>

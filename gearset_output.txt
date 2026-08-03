@@ -1,14 +1,14 @@
 ======================================
            USER INPUTS
 ======================================
-Build Type: Melee
-Final Priorities: 
+Build Type: Ranged
+Final Priorities: Ranged Power, Doubleshot, Charisma, Constitution, Armor Piercing, Seeker
 Armor Restriction: Light
 Reserved Minor Artifact Slot: Ring
-Minor Artifact Filigree Slots: 4
-Allow Gem of Many Facets: True
-Excluded Packs: None
-Raid Item Limit: 2
+Minor Artifact Filigree Slots: 5
+Allow Gem of Many Facets: False
+Excluded Packs: Terror of Demogorgon
+Raid Item Limit: 4
 
 
 ======================================
@@ -18,29 +18,51 @@ Raid Item Limit: 2
 Status: Optimal
 
 === EQUIPPED ITEMS ===
-Helmet: Legendary Helm of the Sun's Wrath (ML: Legendary Helm of the Sun's Wrath.item)
-Necklace: Legendary Hyena Claw Necklace (ML: Legendary Hyena Claw Necklace.item)
+Helmet: Legendary Lamordian Cowl (ML: Legendary Lamordian Cowl.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Constitution (Legendary)
+  + Augment [Sun]: Solar Gem of Doubleshot (Legendary)
+Necklace: Legendary Black Dynamo (ML: Legendary Black Dynamo.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Charisma (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Quality Charisma (Legendary)
 Trinket: Legendary Golden Souvenir Coin (ML: Legendary Golden Souvenir Coin.item)
-Cloak: Cloak of the Hunter (ML: Cloak of the Hunter.item)
+  + Augment [Sun]: Solar Gem of Charisma (Legendary)
+Cloak: Legendary Cloak of the Warblade (ML: Legendary Cloak of the Warblade.item)
+  + Augment [Sun]: Solar Gem of Constitution (Legendary)
 Belt: Ophael's Cincture (ML: Ophael's Cincture.item)
-Ring_1: Legendary Ring of Venom (ML: Legendary Ring of Venom.item)
+  + Augment [Moon]: Lunar Gem of Ranged Power (Legendary)
+Ring_1: The Spring Equinox (Minor Artifact) (ML: The Spring Equinox.item)
 Ring_2: Legendary Ring of Unnatural Accuracy (ML: Legendary Ring of Unnatural Accuracy.item)
-Gloves: Legendary Brawling Gloves (level 32) (ML: Legendary Brawling Gloves (level 32).item)
-Boots: Legendary Dustless Boots (ML: Legendary Dustless Boots.item)
-Bracers: Legendary Wind Howler Bracers (ML: Legendary Wind Howler Bracers.item)
-Armor: Light Armor of the Warblade's Reflection (ML: Light Armor of the Warblade's Reflection.item)
-Goggles: Legendary Blazing Sniper's Sights (ML: Legendary Blazing Sniper's Sights.item)
-Weapon1: Legendary Zephyr (ML: Legendary Zephyr.item)
-Weapon2: Rapier of the Undying Age (ML: Rapier of the Undying Age.item)
+Gloves: Legendary Tinkerer's Gloves (ML: Legendary Tinkerer's Gloves.item)
+Boots: Legendary Icewalkers (ML: Legendary Icewalkers.item)
+  + Augment [Melancholic Slot (Accessory)]: Melancholic Doubleshot (Legendary)
+  + Augment [Dolorous Slot (Accessory)]: Dolorous Quality Constitution (Legendary)
+  + Augment [Moon]: Lunar Gem of Charisma (Legendary)
+Bracers: Legendary Bracers of Method and Magic (ML: Legendary Bracers of Method and Magic.item)
+  + Augment [Moon]: Lunar Gem of Constitution (Legendary)
+Armor: Dinosaur Bone Mail (ML: Dinosaur Bone Mail.item)
+  + Augment [IoD: Armor: Scale Slot]: Fragment of Extra-planar Shadow
+Goggles: Legendary Tinkerer's Goggles (ML: Legendary Tinkerer's Goggles.item)
+Weapon1: Dinosaur Bone Light Crossbow (ML: Dinosaur Bone Light Crossbow.item)
+  + Augment [IoD: Weapon: Claw Slot]: Sparkclaw: Charisma
+Weapon2: Legendary Frozen Contraption (ML: Legendary Frozen Contraption.item)
+  + Augment [Miserable Slot (Weapon)]: Miserable Acid (Legendary)
 
   [Weapon1 Alternatives]:
-    Alt 1: Pick of Endless Light (level 32) (ML: Pick of Endless Light (level 32).item)
-    Alt 2: Legendary Defiled Reliquary Heavy Mace (ML: Legendary Defiled Reliquary Heavy Mace.item)
+    Alt 1: Dinosaur Bone Heavy Crossbow (ML: Dinosaur Bone Heavy Crossbow.item)
+    Alt 2: Legendary Calamitous Light Crossbow (ML: Legendary Calamitous Light Crossbow.item)
 
   [Weapon2 Alternatives]:
-    Alt 1: Pick of Endless Light (level 32) (ML: Pick of Endless Light (level 32).item)
-    Alt 2: Legendary Defiled Reliquary Heavy Mace (ML: Legendary Defiled Reliquary Heavy Mace.item)
+    Alt 1: Legendary Suppressive Fire (ML: Legendary Suppressive Fire.item)
+    Alt 2: Legendary Blight Inferno (ML: Legendary Blight Inferno.item)
 
 === ACTIVE SET BONUSES ===
+Tyrannical Tinkerer (2-piece)
+  + 15.0 Artifact bonus to Ranged Power
 
 === REALIZED STATS ===
+Ranged Power: 30.0 (15.0 Artifact, 15.0 Profane)
+Doubleshot: 35.0 (5.0 Insightful, 9.0 Enhancement, 3.0 Profane, 3.0 Quality, 15.0 Artifact)
+Charisma: 35.0 (7.0 Insightful, 15.0 Enhancement, 3.0 Quality, 4.0 Artifact, 4.0 Profane, 2.0 Exceptional)
+Constitution: 35.0 (15.0 Enhancement, 3.0 Quality, 7.0 Insightful, 4.0 Artifact, 4.0 Profane, 2.0 Exceptional)
+Armor Piercing: 34.0 (23.0 Enhancement, 11.0 Insightful)
+Seeker: 29.0 (15.0 Enhancement, 6.0 Insightful, 3.0 Quality, 5.0 Exceptional)

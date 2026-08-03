@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { resultStore, configStore, isOptimizing } from '$lib/store';
+  import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
   import { GetAvailableItems, GetItemDetails, RunOptimization, GetAvailableAugments, GetAvailableFiligrees } from '../../../../wailsjs/go/main/App';
   import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime';
   import { models } from '../../../../wailsjs/go/models';
@@ -56,6 +56,22 @@
   }
   $: if ($resultStore && !$resultStore.gearSet) {
       $resultStore.gearSet = {};
+  }
+
+  // Auto-hydrate pre_equipped/pre_filled_augments/pre_filled_filigrees whenever a new
+  // solved/loaded gearset's per-slot detail becomes available (Auto Solver run or
+  // .ddogearset file load), so items placed here show their augments/filigrees
+  // immediately instead of only after clicking "Calculate Stats". Only fills gaps —
+  // never overwrites anything already manually edited (see hydrateConfigFromSlots).
+  let hydratedSlotsRef: Record<string, any> | undefined = undefined;
+  $: if ($resultStore?.slots && $resultStore.slots !== hydratedSlotsRef) {
+      hydratedSlotsRef = $resultStore.slots;
+      const hydrated = hydrateConfigFromSlots($configStore, $resultStore.slots);
+      if (hydrated) {
+          $configStore.pre_equipped = hydrated.pre_equipped;
+          $configStore.pre_filled_augments = hydrated.pre_filled_augments;
+          $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
+      }
   }
 
   async function handleSlotClick(slot: string) {
@@ -200,23 +216,70 @@
       }, 300);
   }
   
-  function selectAugment(idx: number, aug: models.XMLAugment) {
+  function getAugmentOccurrenceIndex(idx: number, color: string) {
+      if (!selectedItemDetails) return 0;
+      let count = 0;
+      for (let i = 0; i < idx; i++) {
+          if (selectedItemDetails.ItemAugments[i].Type === color) count++;
+      }
+      return count;
+  }
+
+  function getAugmentName(idx: number, color: string) {
+      if (!selectedSlot || !$configStore.pre_filled_augments[selectedSlot]) return null;
+      const val = $configStore.pre_filled_augments[selectedSlot][color];
+      if (!val) return null;
+      if (Array.isArray(val)) {
+          const occ = getAugmentOccurrenceIndex(idx, color);
+          return val[occ] || null;
+      }
+      // If it's just a single string, and occurrence is 0, return it
+      const occ = getAugmentOccurrenceIndex(idx, color);
+      return occ === 0 ? val : null;
+  }
+
+  function selectAugment(idx: number, color: string, aug: models.XMLAugment) {
       if (!selectedSlot) return;
       if (!$configStore.pre_filled_augments[selectedSlot]) {
-          $configStore.pre_filled_augments[selectedSlot] = [];
+          $configStore.pre_filled_augments[selectedSlot] = {};
       }
-      // Ensure array is large enough
-      while ($configStore.pre_filled_augments[selectedSlot].length <= idx) {
-          $configStore.pre_filled_augments[selectedSlot].push("");
+      const occ = getAugmentOccurrenceIndex(idx, color);
+      const existing = $configStore.pre_filled_augments[selectedSlot][color];
+      
+      if (Array.isArray(existing)) {
+          existing[occ] = aug.Name;
+          $configStore.pre_filled_augments[selectedSlot][color] = existing;
+      } else if (existing && occ > 0) {
+          // Upgrade to array
+          const arr = [existing];
+          arr[occ] = aug.Name;
+          $configStore.pre_filled_augments[selectedSlot][color] = arr;
+      } else {
+          // If occ == 0 and not array, or no existing
+          if (occ > 0) {
+             const arr = [];
+             arr[occ] = aug.Name;
+             $configStore.pre_filled_augments[selectedSlot][color] = arr;
+          } else {
+             $configStore.pre_filled_augments[selectedSlot][color] = aug.Name;
+          }
       }
-      $configStore.pre_filled_augments[selectedSlot][idx] = aug.Name;
+
       $configStore.pre_filled_augments = {...$configStore.pre_filled_augments};
       editingAugmentSlotIdx = null;
   }
   
-  function clearAugment(idx: number) {
+  function clearAugment(idx: number, color: string) {
       if (!selectedSlot || !$configStore.pre_filled_augments[selectedSlot]) return;
-      $configStore.pre_filled_augments[selectedSlot][idx] = "";
+      const occ = getAugmentOccurrenceIndex(idx, color);
+      const existing = $configStore.pre_filled_augments[selectedSlot][color];
+      
+      if (Array.isArray(existing)) {
+          existing[occ] = ""; // Keep array length intact
+          $configStore.pre_filled_augments[selectedSlot][color] = existing;
+      } else if (occ === 0) {
+          delete $configStore.pre_filled_augments[selectedSlot][color];
+      }
       $configStore.pre_filled_augments = {...$configStore.pre_filled_augments};
   }
 
@@ -277,23 +340,37 @@
   function clearAll() {
       $resultStore = { success: true, timeTaken: 0, gearSet: {}, realizedStats: {}, activeSets: [], filigrees: [] };
       $configStore.pre_equipped = {};
+      $configStore.pre_filled_augments = {};
+      $configStore.pre_filled_filigrees = { weapon: [], artifact: [] };
       selectedItemDetails = null;
       selectedSlot = null;
       availableItems = [];
   }
-  
+
   async function calculateGearSet() {
       $isOptimizing = true;
       try {
+          // Non-destructive/read-only recompute: fill in pre_equipped/
+          // pre_filled_augments/pre_filled_filigrees from the last known
+          // solved/loaded gearset for anything not already manually edited
+          // this session. See docs/ENGINEERING.md "Known Issues".
+          const hydrated = hydrateConfigFromSlots($configStore, $resultStore?.slots);
+          if (hydrated) {
+              $configStore.pre_equipped = hydrated.pre_equipped;
+              $configStore.pre_filled_augments = hydrated.pre_filled_augments;
+              $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
+          }
           $configStore.calculate_only = true;
           const res = await RunOptimization($configStore);
           if (res && res.success) {
-              // Ensure we don't destructively overwrite the manually curated gearset!
-              res.gearSet = $resultStore.gearSet;
               $resultStore = res;
+              showToast('Stats recalculated.', 'success');
+          } else {
+              showToast(res?.errorMessage || 'Calculation failed.', 'error');
           }
       } catch (e) {
           console.error(e);
+          showToast('Calculation failed: ' + e, 'error');
       } finally {
           $configStore.calculate_only = false;
           $isOptimizing = false;
@@ -406,8 +483,8 @@
                               <div class="flex flex-col space-y-1">
                                   <div class="flex justify-between items-center text-sm font-medium">
                                       <span>{aug.Type} Slot</span>
-                                      {#if $configStore.pre_filled_augments[selectedSlot] && $configStore.pre_filled_augments[selectedSlot][idx]}
-                                          <button class="text-xs text-destructive hover:underline" on:click={() => clearAugment(idx)}>Remove</button>
+                                      {#if getAugmentName(idx, aug.Type)}
+                                          <button class="text-xs text-destructive hover:underline" on:click={() => clearAugment(idx, aug.Type)}>Remove</button>
                                       {/if}
                                   </div>
                                   {#if editingAugmentSlotIdx === idx}
@@ -421,7 +498,7 @@
                                                   <p class="text-xs text-muted-foreground animate-pulse">Loading...</p>
                                               {:else}
                                                   {#each availableAugments as availableAug}
-                                                      <button on:click={() => selectAugment(idx, availableAug)} class="w-full text-left p-2 rounded text-xs bg-card hover:bg-muted transition-colors border border-transparent hover:border-primary">
+                                                      <button on:click={() => selectAugment(idx, aug.Type, availableAug)} class="w-full text-left p-2 rounded text-xs bg-card hover:bg-muted transition-colors border border-transparent hover:border-primary">
                                                           <div class="font-semibold">{availableAug.Name}</div>
                                                           <div class="text-[10px] text-muted-foreground truncate">{availableAug.Description} (ML: {availableAug.MinLevel})</div>
                                                       </button>
@@ -434,8 +511,8 @@
                                       </div>
                                   {:else}
                                       <button on:click={() => openAugmentPicker(idx, aug.Type)} class="w-full text-left p-2 rounded bg-muted/50 hover:bg-muted border border-transparent hover:border-primary transition-colors text-sm flex items-center justify-between">
-                                          {#if $configStore.pre_filled_augments[selectedSlot] && $configStore.pre_filled_augments[selectedSlot][idx]}
-                                              <span class="text-primary font-medium">{$configStore.pre_filled_augments[selectedSlot][idx]}</span>
+                                          {#if getAugmentName(idx, aug.Type)}
+                                              <span class="text-primary font-medium">{getAugmentName(idx, aug.Type)}</span>
                                           {:else}
                                               <span class="text-muted-foreground italic">Empty (Click to add)</span>
                                           {/if}

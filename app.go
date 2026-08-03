@@ -94,6 +94,14 @@ func (a *App) extractSolver() error {
 	return nil
 }
 
+// StatPriorityEntry preserves the user's entry order for a stat priority, which
+// matters for filigree-selection weighting (see docs/PHASE9_PLAN.md, Phase 9.1) —
+// a plain map loses ordering once marshaled to JSON (Go sorts map keys).
+type StatPriorityEntry struct {
+	Stat  string `json:"stat"`
+	Value int    `json:"value"`
+}
+
 type OptimizationPayload struct {
 	GearsetName                string              `json:"gearset_name"`
 	MaxLevel                   int                 `json:"max_level"`
@@ -103,7 +111,7 @@ type OptimizationPayload struct {
 	OffhandStyle               string              `json:"offhand_style"`
 	CasterSpellpowers          []string            `json:"caster_spellpowers"`
 	CasterSchools              []string            `json:"caster_schools"`
-	StatPriorities             map[string]int      `json:"stat_priorities"`
+	StatPriorities             []StatPriorityEntry `json:"stat_priorities"`
 	ArmorRestriction           string              `json:"armor_restriction"`
 	ReservedMinorArtifactSlot  string              `json:"reserved_minor_artifact_slot"`
 	MinorArtifactFiligreeSlots int                 `json:"minor_artifact_filigree_slots"`
@@ -114,7 +122,11 @@ type OptimizationPayload struct {
 	IsDinoArtifact             bool                `json:"is_dino_artifact"`
 	OutputFilename             string              `json:"output_filename"`
 	PreEquipped                map[string]string   `json:"pre_equipped"`
-	PreFilledAugments          map[string][]string `json:"pre_filled_augments"`
+	// Keyed by slot -> augment color/type -> augment name (e.g. {"Weapon1": {"Green": "..."}}).
+	// interface{} rather than a fixed map type so older saved gearsets that stored this
+	// as a plain array of names per slot still deserialize without error; python/solver.py
+	// normalizes both shapes.
+	PreFilledAugments          map[string]interface{} `json:"pre_filled_augments"`
 	PreFilledFiligrees         map[string][]string `json:"pre_filled_filigrees"`
 	CalculateOnly              bool                `json:"calculate_only"`
 }
@@ -127,7 +139,12 @@ type ResultPayload struct {
 	ActiveSets    []string               `json:"activeSets,omitempty"`
 	Filigrees     map[string][]string    `json:"filigrees,omitempty"`
 	AllEffects    map[string]interface{} `json:"allEffects,omitempty"`
-	ErrorMessage  string                 `json:"errorMessage,omitempty"`
+	// Slots is the authoritative per-slot detail (item, location, augments,
+	// filigrees, set bonus contributions) — see docs/PHASE9_PLAN.md Phase 9.2.
+	// The frontend calculator/Summary should read from this instead of
+	// re-deriving state from GearSet/Filigrees/ActiveSets where possible.
+	Slots        map[string]interface{} `json:"slots,omitempty"`
+	ErrorMessage string                 `json:"errorMessage,omitempty"`
 }
 
 func (a *App) addLog(msg string) {

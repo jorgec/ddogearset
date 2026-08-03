@@ -22,7 +22,16 @@ def main():
     
     cap = parsed_data.get('max_level', 34)
     b_type = parsed_data.get('build_type', 'Melee')
-    stat_priorities = parsed_data.get('stat_priorities', {})
+    raw_priorities = parsed_data.get('stat_priorities', [])
+    # `stat_priorities` is an ordered list of {"stat": str, "value": int} entries
+    # (order preserved end-to-end for filigree-selection bias, see
+    # docs/PHASE9_PLAN.md). Older saved .ddogearset files may still store this
+    # as a plain {stat: value} dict; support both for backward compatibility.
+    if isinstance(raw_priorities, dict):
+        priority_pairs = list(raw_priorities.items())
+    else:
+        priority_pairs = [(e.get('stat'), e.get('value')) for e in raw_priorities if e.get('stat')]
+    priority_names = [name for name, _ in priority_pairs]
     armor_input = parsed_data.get('armor_restriction', '')
     
     weapon_style = parsed_data.get('weapon_style', 'Two Weapon Fighting')
@@ -110,7 +119,7 @@ def main():
     quests_lookup = parser.parse_quests(base_dir)
     
     print(f"\nParsing Sets from {base_dir}...")
-    sets = optimizer.parse_sets(base_dir, stat_priorities)
+    sets = optimizer.parse_sets(base_dir, priority_names)
     print(f"Loaded {len(sets)} sets.")
     
     filename = parsed_data.get('output_filename', 'gearset_output.json')
@@ -124,7 +133,7 @@ def main():
         out_file.write("           USER INPUTS\n")
         out_file.write("======================================\n")
         out_file.write(f"Build Type: {b_type}\n")
-        out_file.write(f"Final Priorities: {', '.join(stat_priorities.keys())}\n")
+        out_file.write(f"Final Priorities: {', '.join(priority_names)}\n")
         out_file.write(f"Armor Restriction: {armor_input or 'None'}\n")
         out_file.write(f"Reserved Minor Artifact Slot: {art_slot_input or 'Any'}\n")
         out_file.write(f"Minor Artifact Filigree Slots: {art_slots}\n")
@@ -134,17 +143,17 @@ def main():
         
         print(f"\nParsing Items (ML 29-{cap})...")
         pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
-        items = optimizer.parse_items(base_dir, cap, stat_priorities, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names)
+        items = optimizer.parse_items(base_dir, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names)
         print(f"Loaded {len(items)} items")
         
         print(f"Parsing Augments (ML 29-{cap})...")
-        augments = optimizer.parse_augments(base_dir, cap, stat_priorities)
+        augments = optimizer.parse_augments(base_dir, cap, priority_names)
         print(f"Loaded {len(augments)} augments")
         
         filigrees = []
         if cap >= 34:
             print(f"Parsing Filigrees...")
-            filigrees, filigree_sets = optimizer.parse_filigrees(base_dir, stat_priorities)
+            filigrees, filigree_sets = optimizer.parse_filigrees(base_dir, priority_names)
             print(f"Loaded {len(filigrees)} filigrees")
             for k, v in filigree_sets.items():
                 if k not in sets:
@@ -154,7 +163,7 @@ def main():
                         sets[k][count] = buffs
                         
         print(f"Solving ILP for max level {cap} (this may take a minute)...")
-        equipped_simple = optimizer.run_optimization(items, sets, augments, filigrees, stat_priorities, out_file, cap, art_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
+        equipped_simple = optimizer.run_optimization(items, sets, augments, filigrees, priority_pairs, out_file, cap, art_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
         if equipped_simple:
             final_gearset = equipped_simple
             

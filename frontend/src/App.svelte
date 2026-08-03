@@ -5,6 +5,7 @@
   import FiligreeEditor from '$lib/components/domain/FiligreeEditor.svelte';
   import Summary from '$lib/components/domain/Summary.svelte';
   import StatusConsole from '$lib/components/domain/StatusConsole.svelte';
+  import Toast from '$lib/components/domain/Toast.svelte';
   import { ParseMetadata } from '../wailsjs/go/main/App';
   import { isParsing, currentTab } from '$lib/store';
 
@@ -87,6 +88,8 @@
     {/if}
   </div>
 </main>
+
+<Toast />
 
 <style>
   :global(body) {
