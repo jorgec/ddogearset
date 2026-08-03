@@ -481,7 +481,7 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
         raid_vars = []
         for i, item in enumerate(items):
             if item.get('is_raid'):
-                raid_vars.extend([x[(i, s)] for s in item['slots'] if (i, s) in x])
+                raid_vars.extend([x[(item_idx, s)] for (item_idx, s) in x.keys() if item_idx == i])
         if raid_vars:
             prob += pulp.lpSum(raid_vars) <= raid_item_limit, "Max_Raid_Items"
         
@@ -532,7 +532,7 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
                 elif item.get('ml', 0) >= 30:
                     slots_for_item = 3
                 
-                item_equipped_var = pulp.lpSum([x[(i, s)] for s in item['slots'] if (i, s) in x])
+                item_equipped_var = pulp.lpSum([x[(item_idx, s)] for (item_idx, s) in x.keys() if item_idx == i])
                 max_fm_slots_expr.append(slots_for_item * item_equipped_var)
                 
         if max_fm_slots_expr:
