@@ -106,8 +106,29 @@
       }
   }
 
-  function selectItem(item: models.XMLItem) {
+  async function selectItem(item: models.XMLItem) {
       if (!selectedSlot) return;
+      
+      const isMinor = item.MinorArtifact !== undefined && item.MinorArtifact !== null;
+      if (isMinor) {
+          const baseSlot = selectedSlot.replace('_1', '').replace('_2', '');
+          $configStore.reserved_minor_artifact_slot = baseSlot;
+          $configStore.is_dino_artifact = item.Name.toLowerCase().includes('dinosaur');
+          
+          for (const [slot, name] of Object.entries($resultStore.gearSet)) {
+              if (slot !== selectedSlot && name) {
+                  try {
+                      const details = await GetItemDetails(name as string);
+                      if (details && details.MinorArtifact !== undefined && details.MinorArtifact !== null) {
+                          clearSlot(slot);
+                      }
+                  } catch (e) {
+                      console.error(e);
+                  }
+              }
+          }
+      }
+
       $resultStore.gearSet[selectedSlot] = item.Name;
       $configStore.pre_equipped[selectedSlot] = item.Name;
       // Also clear existing augments for this slot if item changes

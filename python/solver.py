@@ -134,7 +134,8 @@ def main():
         
         for cap in levels:
             print(f"\nParsing Items (ML 29-{cap})...")
-            items = optimizer.parse_items(base_dir, cap, stat_priorities, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup)
+            pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
+            items = optimizer.parse_items(base_dir, cap, stat_priorities, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names)
             print(f"Loaded {len(items)} items")
             
             print(f"Parsing Augments (ML 29-{cap})...")

@@ -281,17 +281,6 @@
     {/if}
   </div>
 
-  <div class="space-y-2 border-t border-border pt-4">
-    <label class="text-sm font-medium leading-none" for="output-filename">Output JSON Filename</label>
-    <input 
-      id="output-filename"
-      type="text" 
-      bind:value={$configStore.output_filename}
-      placeholder="gearset_output.json"
-      class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-    />
-  </div>
-
   <button 
     on:click={handleOptimize}
     disabled={$isOptimizing}

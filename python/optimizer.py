@@ -53,7 +53,7 @@ def normalize_stat_name(typ, item, desc, priorities):
                 return p_base
     return None
 
-def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None):
+def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None):
     items = []
     allowed_armor = allowed_armor.strip().lower() if allowed_armor else None
     
@@ -68,18 +68,19 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
             root = tree.getroot()
             
             for item_node in root.findall('.//Item'):
+                name = item_node.findtext('Name') or 'Unknown'
+                is_pre_equipped = pre_equipped_names and name in pre_equipped_names
+                
                 ml_node = item_node.find('MinLevel')
                 ml = int(ml_node.text) if ml_node is not None and ml_node.text else 0
                 
-                if ml < 29 or ml > max_ml:
-                    continue
-                    
-                name = item_node.findtext('Name') or 'Unknown'
-                if not allow_gomf and "Gem of Many Facets" in name:
-                    continue
+                if not is_pre_equipped:
+                    if ml < 29 or ml > max_ml:
+                        continue
+                    if not allow_gomf and "Gem of Many Facets" in name:
+                        continue
                     
                 weapon_type = item_node.findtext('Weapon')
-                
                 is_minor = item_node.find('MinorArtifact') is not None
                 
                 slots = []
@@ -92,39 +93,43 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                             
                 if not slots:
                     continue
-                    
-                if is_minor and art_slot_input:
-                    matched_slots = [s for s in slots if art_slot_input in s.lower()]
-                    if not matched_slots:
-                        continue
-                    if force_dino and 'dinosaur bone' not in name.lower():
-                        continue
-                    slots = matched_slots
-                elif is_minor and force_dino and not art_slot_input:
-                    # User typed just "(Dino)" without a slot
-                    if 'dinosaur bone' not in name.lower():
-                        continue
+                
+                original_slots = slots.copy()
+                
+                if not is_pre_equipped:
+                    if is_minor and art_slot_input:
+                        matched_slots = [s for s in slots if art_slot_input in s.lower()]
+                        if not matched_slots:
+                            continue
+                        if force_dino and 'dinosaur bone' not in name.lower():
+                            continue
+                        slots = matched_slots
+                    elif is_minor and force_dino and not art_slot_input:
+                        if 'dinosaur bone' not in name.lower():
+                            continue
 
-                w_type_lower = (weapon_type or '').lower()
-                
-                if 'Weapon1' in slots:
-                    if allowed_w1_list and w_type_lower not in allowed_w1_list:
-                        slots.remove('Weapon1')
-                        
-                if 'Weapon2' in slots:
-                    if allowed_w2_list:
-                        if 'none' in allowed_w2_list:
-                            slots.remove('Weapon2')
-                        elif w_type_lower not in allowed_w2_list:
-                            slots.remove('Weapon2')
-                
-                armor_type = item_node.findtext('Armor')
-                if 'Armor' in slots and allowed_armor:
-                    if not armor_type or allowed_armor not in armor_type.strip().lower():
-                        slots.remove('Armor')
+                    w_type_lower = (weapon_type or '').lower()
                     
+                    if 'Weapon1' in slots:
+                        if allowed_w1_list and w_type_lower not in allowed_w1_list:
+                            slots.remove('Weapon1')
+                            
+                    if 'Weapon2' in slots:
+                        if allowed_w2_list:
+                            if 'none' in allowed_w2_list:
+                                slots.remove('Weapon2')
+                            elif w_type_lower not in allowed_w2_list:
+                                slots.remove('Weapon2')
+                    
+                    armor_type = item_node.findtext('Armor')
+                    if 'Armor' in slots and allowed_armor:
+                        if not armor_type or allowed_armor not in armor_type.strip().lower():
+                            slots.remove('Armor')
+                        
                 if not slots:
-                    continue
+                    slots = original_slots if is_pre_equipped else []
+                    if not slots:
+                        continue
 
                 drop_location = item_node.findtext('DropLocation') or ""
                 item_is_raid = False
@@ -140,7 +145,7 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                 if not item_is_raid and "raid" in drop_location.lower():
                     item_is_raid = True
                     
-                if excluded_packs and item_pack in excluded_packs:
+                if not is_pre_equipped and excluded_packs and item_pack in excluded_packs:
                     continue
 
                 buffs = []
