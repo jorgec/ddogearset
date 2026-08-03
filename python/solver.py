@@ -166,10 +166,13 @@ def main():
         equipped_simple = optimizer.run_optimization(items, sets, augments, filigrees, priority_pairs, out_file, cap, art_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
         if equipped_simple:
             final_gearset = equipped_simple
-            
-    # Print the json to stdout so the Go app can easily parse it
-    print(f"JSON_RESULT:{json.dumps(final_gearset)}")
-    print(f"\nSuccess! Results written to {filename}")
+            print(f"JSON_RESULT:{json.dumps(final_gearset)}")
+            print(f"\nSuccess! Results written to {filename}")
+        else:
+            # Output an explicit failure JSON payload so the Go app knows to abort
+            print(f"JSON_RESULT:{json.dumps({'success': False, 'errorMessage': 'Solver could not find a valid combination of gear that satisfies all of your constraints. Try clearing some locked items or reducing requirements.'})}")
+            print("\nSolver failed to find a feasible solution.")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

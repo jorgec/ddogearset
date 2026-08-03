@@ -85,8 +85,8 @@
     $isOptimizing = true;
     try {
       const result = await RunOptimization($configStore);
-      $resultStore = result;
       if (result.success) {
+        $resultStore = result;
         const hydrated = hydrateConfigFromSlots($configStore, result.slots);
         if (hydrated) {
             $configStore.pre_equipped = hydrated.pre_equipped;
