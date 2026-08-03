@@ -8,8 +8,8 @@ export default {
         border: "#d9dde1",
         input: "#d9dde1",
         ring: "#00798c",
-        background: "#0d131c",
-        foreground: "#f4f5f7",
+        background: "#f4f5f7",
+        foreground: "#0d131c",
         primary: {
           DEFAULT: "#00798c",
           foreground: "#f4f5f7",
@@ -20,23 +20,23 @@ export default {
         },
         destructive: {
           DEFAULT: "#d1495b",
-          foreground: "#f4f5f7",
+          foreground: "#0d131c",
         },
         muted: {
-          DEFAULT: "#1c2430",
-          foreground: "#7c858f",
+          DEFAULT: "#d9dde1",
+          foreground: "#1c2430",
         },
         accent: {
           DEFAULT: "#edae49",
           foreground: "#0d131c",
         },
         popover: {
-          DEFAULT: "#1c2430",
-          foreground: "#f4f5f7",
+          DEFAULT: "#ffffff",
+          foreground: "#0d131c",
         },
         card: {
-          DEFAULT: "#1c2430",
-          foreground: "#f4f5f7",
+          DEFAULT: "#ffffff",
+          foreground: "#0d131c",
         },
       },
       borderRadius: {
