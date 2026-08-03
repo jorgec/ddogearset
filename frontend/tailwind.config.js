@@ -19,8 +19,8 @@ export default {
           foreground: "#0d131c",
         },
         destructive: {
-          DEFAULT: "#d1495b",
-          foreground: "#c59da1",
+          DEFAULT: "#610414",
+          foreground: "#e1d5d7",
         },
         muted: {
           DEFAULT: "#d9dde1",

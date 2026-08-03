@@ -43,7 +43,7 @@ const colors = {
   foreground: "#0d131c",
   primary: { bg: "#00798c", fg: "#f4f5f7" },
   secondary: { bg: "#d9dde1", fg: "#0d131c" },
-  destructive: { bg: "#d1495b", fg: "#c59da1" },
+  destructive: { bg: "#610414", fg: "#e1d5d7" },
   muted: { bg: "#d9dde1", fg: "#1c2430" },
   accent: { bg: "#edae49", fg: "#0d131c" },
   card: { bg: "#ffffff", fg: "#0d131c" }
