@@ -106,27 +106,46 @@
       }
   }
 
+  async function assignMinorArtifact(item: models.XMLItem) {
+      if (!selectedSlot) return;
+      const baseSlot = selectedSlot.replace('_1', '').replace('_2', '');
+      $configStore.reserved_minor_artifact_slot = baseSlot;
+      $configStore.is_dino_artifact = item.Name.toLowerCase().includes('dinosaur');
+      
+      for (const [slot, name] of Object.entries($resultStore.gearSet)) {
+          if (slot !== selectedSlot && name) {
+              try {
+                  const details = await GetItemDetails(name as string);
+                  if (details && details.MinorArtifact !== undefined && details.MinorArtifact !== null) {
+                      clearSlot(slot);
+                  }
+              } catch (e) {
+                  console.error(e);
+              }
+          }
+      }
+  }
+
+  async function handleMinorArtifactToggle(checked: boolean) {
+      if (!selectedItemDetails || !selectedSlot) return;
+      if (checked) {
+          selectedItemDetails.MinorArtifact = "";
+          await assignMinorArtifact(selectedItemDetails);
+      } else {
+          selectedItemDetails.MinorArtifact = undefined as any;
+          const baseSlot = selectedSlot.replace('_1', '').replace('_2', '');
+          if ($configStore.reserved_minor_artifact_slot === baseSlot) {
+              $configStore.reserved_minor_artifact_slot = "Any";
+          }
+      }
+  }
+
   async function selectItem(item: models.XMLItem) {
       if (!selectedSlot) return;
       
       const isMinor = item.MinorArtifact !== undefined && item.MinorArtifact !== null;
       if (isMinor) {
-          const baseSlot = selectedSlot.replace('_1', '').replace('_2', '');
-          $configStore.reserved_minor_artifact_slot = baseSlot;
-          $configStore.is_dino_artifact = item.Name.toLowerCase().includes('dinosaur');
-          
-          for (const [slot, name] of Object.entries($resultStore.gearSet)) {
-              if (slot !== selectedSlot && name) {
-                  try {
-                      const details = await GetItemDetails(name as string);
-                      if (details && details.MinorArtifact !== undefined && details.MinorArtifact !== null) {
-                          clearSlot(slot);
-                      }
-                  } catch (e) {
-                      console.error(e);
-                  }
-              }
-          }
+          await assignMinorArtifact(item);
       }
 
       $resultStore.gearSet[selectedSlot] = item.Name;
@@ -344,9 +363,20 @@
           </div>
       {:else if selectedItemDetails}
           <div class="space-y-6">
-              <div>
-                  <h3 class="text-2xl font-bold tracking-tight">{selectedItemDetails.Name}</h3>
-                  <p class="text-sm text-muted-foreground mt-1">ML: {selectedItemDetails.MinLevel}</p>
+              <div class="flex items-start justify-between">
+                  <div>
+                      <h3 class="text-2xl font-bold tracking-tight">{selectedItemDetails.Name}</h3>
+                      <p class="text-sm text-muted-foreground mt-1">ML: {selectedItemDetails.MinLevel}</p>
+                  </div>
+                  <label class="flex items-center space-x-2 text-sm cursor-pointer border border-border p-2 rounded hover:bg-muted/50 transition-colors">
+                      <input 
+                          type="checkbox" 
+                          checked={selectedItemDetails.MinorArtifact !== undefined && selectedItemDetails.MinorArtifact !== null}
+                          on:change={(e) => handleMinorArtifactToggle(e.currentTarget.checked)}
+                          class="rounded border-input text-primary focus:ring-primary"
+                      />
+                      <span>Is Minor Artifact?</span>
+                  </label>
               </div>
               
               <div class="flex space-x-3">
@@ -415,116 +445,7 @@
                   </div>
               {/if}
               
-              <!-- Filigree Slots -->
-              {#if getArtifactFiligreeCount(selectedItemDetails) > 0}
-                  <div class="mt-6 pt-4 border-t border-border/50">
-                      <h4 class="font-semibold text-lg mb-3">Minor Artifact Filigrees</h4>
-                      <div class="space-y-3">
-                          {#each Array(getArtifactFiligreeCount(selectedItemDetails)) as _, idx}
-                              <div class="flex flex-col space-y-1">
-                                  <div class="flex justify-between items-center text-sm font-medium">
-                                      <span>Artifact Filigree Slot {idx + 1}</span>
-                                      {#if $configStore.pre_filled_filigrees?.artifact && $configStore.pre_filled_filigrees.artifact[idx]}
-                                          <button class="text-xs text-destructive hover:underline" on:click={() => clearFiligree(idx, "artifact")}>Remove</button>
-                                      {/if}
-                                  </div>
-                                  {#if editingFiligreeIdx === idx && editingFiligreeType === "artifact"}
-                                      <div class="mt-2 p-3 bg-muted/30 rounded border border-border">
-                                          <div class="flex justify-between items-center mb-2">
-                                              <input type="text" bind:value={filigreeSearchQuery} on:input={handleFiligreeSearchInput} placeholder="Search filigrees by stat or set..." class="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs mr-2" />
-                                              <select bind:value={filigreeSetFilter} class="h-8 rounded-md border border-input bg-background px-2 text-xs mr-2 max-w-[120px]">
-                                                  <option value="">All Sets</option>
-                                                  {#each uniqueFiligreeSets as setName}
-                                                      <option value={setName}>{setName}</option>
-                                                  {/each}
-                                              </select>
-                                              <button class="text-xs text-muted-foreground hover:text-primary" on:click={() => {editingFiligreeIdx = null; editingFiligreeType = null}}>Cancel</button>
-                                          </div>
-                                          <div class="max-h-40 overflow-y-auto space-y-1">
-                                              {#if isFetchingFiligrees}
-                                                  <p class="text-xs text-muted-foreground animate-pulse">Loading...</p>
-                                              {:else}
-                                                  {#each filteredFiligrees as availableFil}
-                                                      <button on:click={() => selectFiligree(idx, availableFil)} class="w-full text-left p-2 rounded text-xs bg-card hover:bg-muted transition-colors border border-transparent hover:border-primary">
-                                                          <div class="font-semibold">{availableFil.Name}</div>
-                                                          <div class="text-[10px] text-muted-foreground truncate">{availableFil.SetName} - {availableFil.Description}</div>
-                                                      </button>
-                                                  {/each}
-                                                  {#if filteredFiligrees.length === 0}
-                                                      <p class="text-xs text-muted-foreground">No matching filigrees found.</p>
-                                                  {/if}
-                                              {/if}
-                                          </div>
-                                      </div>
-                                  {:else}
-                                      <button on:click={() => openFiligreePicker(idx, "artifact")} class="w-full text-left p-2 rounded bg-muted/50 hover:bg-muted border border-transparent hover:border-primary transition-colors text-sm flex items-center justify-between">
-                                          {#if $configStore.pre_filled_filigrees?.artifact && $configStore.pre_filled_filigrees.artifact[idx]}
-                                              <span class="text-primary font-medium">{$configStore.pre_filled_filigrees.artifact[idx]}</span>
-                                          {:else}
-                                              <span class="text-muted-foreground italic">Empty (Click to add)</span>
-                                          {/if}
-                                      </button>
-                                  {/if}
-                              </div>
-                          {/each}
-                      </div>
-                  </div>
-              {/if}
-              
-              {#if getWeaponFiligreeCount(selectedItemDetails) > 0}
-                  <div class="mt-6 pt-4 border-t border-border/50">
-                      <h4 class="font-semibold text-lg mb-3">Sentient Weapon Filigrees</h4>
-                      <div class="space-y-3">
-                          {#each Array(getWeaponFiligreeCount(selectedItemDetails)) as _, idx}
-                              <div class="flex flex-col space-y-1">
-                                  <div class="flex justify-between items-center text-sm font-medium">
-                                      <span>Weapon Filigree Slot {idx + 1}</span>
-                                      {#if $configStore.pre_filled_filigrees?.weapon && $configStore.pre_filled_filigrees.weapon[idx]}
-                                          <button class="text-xs text-destructive hover:underline" on:click={() => clearFiligree(idx, "weapon")}>Remove</button>
-                                      {/if}
-                                  </div>
-                                  {#if editingFiligreeIdx === idx && editingFiligreeType === "weapon"}
-                                      <div class="mt-2 p-3 bg-muted/30 rounded border border-border">
-                                          <div class="flex justify-between items-center mb-2">
-                                              <input type="text" bind:value={filigreeSearchQuery} on:input={handleFiligreeSearchInput} placeholder="Search filigrees by stat or set..." class="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs mr-2" />
-                                              <select bind:value={filigreeSetFilter} class="h-8 rounded-md border border-input bg-background px-2 text-xs mr-2 max-w-[120px]">
-                                                  <option value="">All Sets</option>
-                                                  {#each uniqueFiligreeSets as setName}
-                                                      <option value={setName}>{setName}</option>
-                                                  {/each}
-                                              </select>
-                                              <button class="text-xs text-muted-foreground hover:text-primary" on:click={() => {editingFiligreeIdx = null; editingFiligreeType = null}}>Cancel</button>
-                                          </div>
-                                          <div class="max-h-40 overflow-y-auto space-y-1">
-                                              {#if isFetchingFiligrees}
-                                                  <p class="text-xs text-muted-foreground animate-pulse">Loading...</p>
-                                              {:else}
-                                                  {#each filteredFiligrees as availableFil}
-                                                      <button on:click={() => selectFiligree(idx, availableFil)} class="w-full text-left p-2 rounded text-xs bg-card hover:bg-muted transition-colors border border-transparent hover:border-primary">
-                                                          <div class="font-semibold">{availableFil.Name}</div>
-                                                          <div class="text-[10px] text-muted-foreground truncate">{availableFil.SetName} - {availableFil.Description}</div>
-                                                      </button>
-                                                  {/each}
-                                                  {#if filteredFiligrees.length === 0}
-                                                      <p class="text-xs text-muted-foreground">No matching filigrees found.</p>
-                                                  {/if}
-                                              {/if}
-                                          </div>
-                                      </div>
-                                  {:else}
-                                      <button on:click={() => openFiligreePicker(idx, "weapon")} class="w-full text-left p-2 rounded bg-muted/50 hover:bg-muted border border-transparent hover:border-primary transition-colors text-sm flex items-center justify-between">
-                                          {#if $configStore.pre_filled_filigrees?.weapon && $configStore.pre_filled_filigrees.weapon[idx]}
-                                              <span class="text-primary font-medium">{$configStore.pre_filled_filigrees.weapon[idx]}</span>
-                                          {:else}
-                                              <span class="text-muted-foreground italic">Empty (Click to add)</span>
-                                          {/if}
-                                      </button>
-                                  {/if}
-                              </div>
-                          {/each}
-                      </div>
-                  </div>
-              {/if}
+
           </div>
       {:else}
           <div class="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground p-12">
