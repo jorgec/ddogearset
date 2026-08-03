@@ -12,7 +12,8 @@ export namespace main {
 	    armor_restriction: string;
 	    reserved_minor_artifact_slot: string;
 	    minor_artifact_filigree_slots: number;
-	    allow_gomf: boolean;
+	    exclude_gem_of_many_facets: boolean;
+	    runearm_use: boolean;
 	    excluded_packs: string[];
 	    raid_item_limit: number;
 	
@@ -33,7 +34,8 @@ export namespace main {
 	        this.armor_restriction = source["armor_restriction"];
 	        this.reserved_minor_artifact_slot = source["reserved_minor_artifact_slot"];
 	        this.minor_artifact_filigree_slots = source["minor_artifact_filigree_slots"];
-	        this.allow_gomf = source["allow_gomf"];
+	        this.exclude_gem_of_many_facets = source["exclude_gem_of_many_facets"];
+	        this.runearm_use = source["runearm_use"];
 	        this.excluded_packs = source["excluded_packs"];
 	        this.raid_item_limit = source["raid_item_limit"];
 	    }

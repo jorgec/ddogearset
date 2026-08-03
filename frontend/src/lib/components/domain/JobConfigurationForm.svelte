@@ -66,7 +66,7 @@
         $configStore.weapon_style = 'Two Weapon Fighting';
       }
     } else if ($configStore.build_type === 'Ranged') {
-      if (!['Bow', 'Crossbow', 'Thrown'].includes($configStore.weapon_style)) {
+      if (!['Bow', 'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 'Thrown', 'Shuriken'].includes($configStore.weapon_style)) {
         $configStore.weapon_style = 'Bow';
       }
     } else if ($configStore.build_type === 'Caster') {
@@ -76,7 +76,7 @@
     }
   }
 
-  $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Crossbow', 'Thrown'] : 
+  $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 'Thrown', 'Shuriken'] : 
                     $configStore.build_type === 'Caster' ? ['None'] :
                     ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'];
 </script>
@@ -115,6 +115,41 @@
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="raid-limit">Max Raid Items</label>
       <input id="raid-limit" type="number" bind:value={$configStore.raid_item_limit} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+    </div>
+
+    <div class="space-y-2">
+      <label class="text-sm font-medium leading-none" for="armor-restriction">Armor Restriction</label>
+      <select id="armor-restriction" bind:value={$configStore.armor_restriction} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+        <option value="Any" class="bg-background text-foreground">Any</option>
+        <option value="Cloth" class="bg-background text-foreground">Cloth</option>
+        <option value="Light" class="bg-background text-foreground">Light</option>
+        <option value="Medium" class="bg-background text-foreground">Medium</option>
+        <option value="Heavy" class="bg-background text-foreground">Heavy</option>
+      </select>
+    </div>
+
+    <div class="space-y-2">
+      <label class="text-sm font-medium leading-none" for="minor-artifact-slots">Minor Artifact Filigree Slots</label>
+      <input id="minor-artifact-slots" type="number" bind:value={$configStore.minor_artifact_filigree_slots} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+    </div>
+
+    <div class="space-y-2">
+      <label class="text-sm font-medium leading-none" for="reserved-minor-artifact">Reserved Minor Artifact Slot</label>
+      <input id="reserved-minor-artifact" type="text" bind:value={$configStore.reserved_minor_artifact_slot} placeholder="e.g. Ring, Trinket (Dino)" class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+    </div>
+
+    <div class="space-y-2 flex flex-col justify-center pt-6">
+      <label class="flex items-center space-x-2 text-sm cursor-pointer">
+        <input type="checkbox" bind:checked={$configStore.runearm_use} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+        <span class="font-medium leading-none text-foreground">Runearm Use</span>
+      </label>
+    </div>
+
+    <div class="space-y-2 flex flex-col justify-center pt-6">
+      <label class="flex items-center space-x-2 text-sm cursor-pointer">
+        <input type="checkbox" bind:checked={$configStore.exclude_gem_of_many_facets} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+        <span class="font-medium leading-none text-foreground">Exclude Gem of Many Facets</span>
+      </label>
     </div>
   </div>
 

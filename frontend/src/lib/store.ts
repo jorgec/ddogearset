@@ -13,7 +13,8 @@ export const configStore = writable<main.OptimizationPayload>({
     armor_restriction: "Light",
     reserved_minor_artifact_slot: "Ring",
     minor_artifact_filigree_slots: 4,
-    allow_gomf: true,
+    exclude_gem_of_many_facets: false,
+    runearm_use: false,
     excluded_packs: [],
     raid_item_limit: 2
 });

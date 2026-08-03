@@ -37,7 +37,8 @@ type OptimizationPayload struct {
 	ArmorRestriction           string         `json:"armor_restriction"`
 	ReservedMinorArtifactSlot  string         `json:"reserved_minor_artifact_slot"`
 	MinorArtifactFiligreeSlots int            `json:"minor_artifact_filigree_slots"`
-	AllowGomf                  bool           `json:"allow_gomf"`
+	ExcludeGemOfManyFacets     bool           `json:"exclude_gem_of_many_facets"`
+	RunearmUse                 bool           `json:"runearm_use"`
 	ExcludedPacks              []string       `json:"excluded_packs"`
 	RaidItemLimit              int            `json:"raid_item_limit"`
 }
