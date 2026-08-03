@@ -58,9 +58,11 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
     allowed_armor = allowed_armor.strip().lower() if allowed_armor else None
     
     force_dino = False
-    if art_slot_input and '(dino)' in art_slot_input.lower():
-        force_dino = True
-        art_slot_input = art_slot_input.lower().replace('(dino)', '').strip()
+    if art_slot_input:
+        art_slot_input = art_slot_input.lower().strip()
+        if '(dino)' in art_slot_input:
+            force_dino = True
+            art_slot_input = art_slot_input.replace('(dino)', '').strip()
     
     for item_file in glob.glob(os.path.join(base_dir, 'Items', '*.item')):
         try:
