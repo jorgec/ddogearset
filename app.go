@@ -203,6 +203,10 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 	}
 	a.addLog("Solver completed successfully.")
 	
+	if !richResult.Success && richResult.ErrorMessage != "" {
+		// Solver explicitly returned a failure JSON payload
+		return richResult, nil
+	}
 	richResult.Success = true
 	richResult.TimeTaken = 0
 	return richResult, nil
