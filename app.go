@@ -78,7 +78,7 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
 	a.addLog("Invoking Python solver...")
-	cmd := exec.Command("python3",
+	cmd := exec.Command("/Users/jorgecosgayon/dev/ddo/venv/bin/python3",
 		"/Users/jorgecosgayon/dev/ddo/goGearset/python/solver.py",
 		tmpFile)
 	cmd.Dir = "/Users/jorgecosgayon/dev/ddo/goGearset/python"
