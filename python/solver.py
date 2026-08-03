@@ -53,17 +53,20 @@ def main():
     elif weapon_style == 'Single Weapon Fighting':
         swashbuckling = parsed_data.get('swashbuckling', False)
         w1_list = swash_weapons if swashbuckling else twf_weapons
-        offhand_style = parsed_data.get('offhand_style', 'Empty')
-        if offhand_style == 'Buckler':
-            w2_list = ['buckler']
-        elif offhand_style == 'Shield':
-            w2_list = shields
-        elif offhand_style == 'Orb':
-            w2_list = ['orb']
-        elif offhand_style == 'Runearm':
-            w2_list = runearm_offhand
+        if swashbuckling:
+            w2_list = ['none', 'buckler', 'orb'] + runearm_offhand
         else:
-            w2_list = ['none']
+            offhand_style = parsed_data.get('offhand_style', 'Empty')
+            if offhand_style == 'Buckler':
+                w2_list = ['buckler']
+            elif offhand_style == 'Shield':
+                w2_list = shields
+            elif offhand_style == 'Orb':
+                w2_list = ['orb']
+            elif offhand_style == 'Runearm':
+                w2_list = runearm_offhand
+            else:
+                w2_list = ['none']
     elif weapon_style == 'Sword and Board':
         w1_list = twf_weapons
         w2_list = shields
@@ -72,19 +75,19 @@ def main():
         w2_list = ['none']
     elif weapon_style == 'Repeating Crossbow':
         w1_list = ['repeating light crossbow', 'repeating heavy crossbow']
-        w2_list = runearm_offhand if runearm_use else ['none']
+        w2_list = ['none']
     elif weapon_style == 'Great Crossbow':
         w1_list = ['great crossbow']
         w2_list = ['none']
     elif weapon_style == 'Dual Crossbow':
         w1_list = ['light crossbow', 'heavy crossbow']
-        w2_list = runearm_offhand if runearm_use else ['none']
+        w2_list = ['none']
     elif weapon_style == 'Thrown':
         w1_list = ['throwing dagger', 'throwing axe', 'dart']
-        w2_list = runearm_offhand if runearm_use else ['none']
+        w2_list = ['none']
     elif weapon_style == 'Shuriken':
         w1_list = ['shuriken']
-        w2_list = runearm_offhand if runearm_use else ['none']
+        w2_list = ['none']
     elif weapon_style == 'Dual Caster':
         w1_list = caster_1h
         w2_list = caster_1h
@@ -94,9 +97,22 @@ def main():
     elif weapon_style == 'Quarterstaff':
         w1_list = ['quarterstaff']
         w2_list = ['none']
-    else:  # None / fallback
-        w1_list = None
-        w2_list = None
+    else:
+        w1_list = twf_weapons
+        w2_list = twf_weapons
+
+    # "if runearm use is checked, it should always allow runearms for single-handed weapons and crossbows."
+    single_handed_and_xbow_styles = [
+        'Two Weapon Fighting', 'Single Weapon Fighting', 'Sword and Board', 
+        'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 
+        'Thrown', 'Shuriken', 'Dual Caster', 'Stick and Orb'
+    ]
+    if runearm_use and weapon_style in single_handed_and_xbow_styles:
+        for r_arm in runearm_offhand:
+            if r_arm not in w2_list:
+                w2_list.append(r_arm)
+    
+    # Fallback checking logic follows here if any...
 
     allow_gomf = not parsed_data.get('exclude_gem_of_many_facets', False)
     art_slot_input = parsed_data.get('reserved_minor_artifact_slot', '')
