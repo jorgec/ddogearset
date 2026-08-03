@@ -696,7 +696,7 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
     
     return prob, x, y, fw, fm, w_vars, z, sources_tracking
 
-def solve_for_alternatives(items, sets, augments, filigrees, priorities, art_slots, required_slots, equipped_items, target_slot, num_alts, raid_item_limit=None):
+def solve_for_alternatives(items, sets, augments, filigrees, priorities, art_slots, required_slots, equipped_items, target_slot, num_alts, raid_item_limit=None, max_search_time=60):
     alternatives = []
     forbidden_items = [equipped_items[target_slot]]
     
@@ -716,7 +716,7 @@ def solve_for_alternatives(items, sets, augments, filigrees, priorities, art_slo
             if (f_idx, target_slot) in x:
                 prob += x[(f_idx, target_slot)] == 0
                 
-        prob.solve(pulp.GLPK_CMD(msg=1, path="/opt/homebrew/bin/glpsol", options=["--log", "solver_progress.log"]))
+        prob.solve(pulp.GLPK_CMD(msg=1, path="/opt/homebrew/bin/glpsol", options=["--log", "solver_progress.log", "--tmlim", str(max_search_time)] if max_search_time else ["--log", "solver_progress.log"]))
         
         if prob.status == 1:
             for (i, s), var in x.items():
@@ -730,7 +730,7 @@ def solve_for_alternatives(items, sets, augments, filigrees, priorities, art_slo
             
     return alternatives
 
-def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap, art_slots, raid_item_limit=None, pre_equipped=None, pre_filled_augments=None, pre_filled_filigrees=None, calculate_only=False):
+def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap, art_slots, raid_item_limit=None, pre_equipped=None, pre_filled_augments=None, pre_filled_filigrees=None, calculate_only=False, max_search_time=60):
     # Required slots based on available items
     available_slots = set()
     for item in items:
@@ -753,7 +753,7 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
     out_file.write(f"       RUNNING FOR MAX LEVEL {cap}\n")
     out_file.write(f"======================================\n\n")
     
-    prob.solve(pulp.GLPK_CMD(msg=1, path="/opt/homebrew/bin/glpsol", options=["--log", "solver_progress.log"]))
+    prob.solve(pulp.GLPK_CMD(msg=1, path="/opt/homebrew/bin/glpsol", options=["--log", "solver_progress.log", "--tmlim", str(max_search_time)] if max_search_time else ["--log", "solver_progress.log"]))
     
     out_file.write(f"Status: {pulp.LpStatus[prob.status]}\n")
     if prob.status != 1:

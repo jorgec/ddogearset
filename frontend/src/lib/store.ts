@@ -18,6 +18,7 @@ export const configStore = writable<main.OptimizationPayload>(({
     runearm_use: false,
     excluded_packs: [],
     raid_item_limit: 2,
+    max_search_time: 60,
     is_dino_artifact: false,
     output_filename: "",
     pre_equipped: {} as Record<string, string>,

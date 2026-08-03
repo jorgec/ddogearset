@@ -195,6 +195,11 @@
     </div>
 
     <div class="space-y-2">
+      <label class="text-sm font-medium leading-none" for="search-time">Max Search Time (seconds)</label>
+      <input id="search-time" type="number" bind:value={$configStore.max_search_time} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+    </div>
+
+    <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="armor-restriction">Armor Restriction</label>
       <select id="armor-restriction" bind:value={$configStore.armor_restriction} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <option value="Any" class="bg-background text-foreground">Any</option>
