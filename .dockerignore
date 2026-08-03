@@ -1,0 +1,10 @@
+node_modules/
+frontend/node_modules/
+build/
+releases/
+python/build/
+python/dist/
+python/__pycache__/
+python/.venv/
+*.log
+.gemini/

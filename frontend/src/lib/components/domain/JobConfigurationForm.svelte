@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { configStore, isOptimizing, resultStore } from '$lib/store';
-  import { RunOptimization } from '../../../../wailsjs/go/main/App';
+  import { configStore, isOptimizing, resultStore, currentTab } from '$lib/store';
+  import { RunOptimization, UpdateExternalSources } from '../../../../wailsjs/go/main/App';
   import { onMount } from 'svelte';
 
   let newStatName = '';
   let newStatWeight = 100;
+  let showExcludedPacks = false;
+  let isUpdatingData = false;
 
   let expansions: string[] = [];
 
@@ -38,6 +40,17 @@
     }
   }
 
+  function handleStatKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      addStatPriority();
+    }
+  }
+
+  function editStatPriority(stat: string, weight: number) {
+    newStatName = stat;
+    newStatWeight = weight;
+  }
+
   function removeStatPriority(key: string) {
     delete $configStore.stat_priorities[key];
     $configStore.stat_priorities = { ...$configStore.stat_priorities };
@@ -48,11 +61,26 @@
     try {
       const result = await RunOptimization($configStore);
       $resultStore = result;
+      if (result.success) {
+        $currentTab = 'editor';
+      }
     } catch (err) {
       console.error(err);
       // In a real app we'd show a toast here
     } finally {
       $isOptimizing = false;
+    }
+  }
+
+  async function handleUpdateData() {
+    isUpdatingData = true;
+    try {
+      const res = await UpdateExternalSources();
+      alert("Updated successfully:\n" + res);
+    } catch (e) {
+      alert("Update failed:\n" + e);
+    } finally {
+      isUpdatingData = false;
     }
   }
 
@@ -110,6 +138,18 @@
       </select>
     </div>
 
+    {#if $configStore.weapon_style === 'Single Weapon Fighting'}
+      <div class="space-y-2">
+        <label class="text-sm font-medium leading-none" for="offhand-style">Offhand Style</label>
+        <select id="offhand-style" bind:value={$configStore.offhand_style} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <option value="Empty" class="bg-background text-foreground">Empty Hand (no shield slot)</option>
+          <option value="Orb" class="bg-background text-foreground">Orb</option>
+          <option value="Buckler" class="bg-background text-foreground">Buckler</option>
+          <option value="Runearm" class="bg-background text-foreground">Runearm</option>
+        </select>
+      </div>
+    {/if}
+
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="char-level">Character Level</label>
       <input id="char-level" type="number" value={characterLevel} on:input={updateCharacterLevel} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
@@ -151,15 +191,14 @@
         <option value="Bracers" class="bg-background text-foreground">Bracers</option>
         <option value="Goggles" class="bg-background text-foreground">Goggles</option>
         <option value="Armor" class="bg-background text-foreground">Armor</option>
-        <option value="Trinket (Dino)" class="bg-background text-foreground">Trinket (Dino)</option>
-        <option value="Cloak (Dino)" class="bg-background text-foreground">Cloak (Dino)</option>
-        <option value="Belt (Dino)" class="bg-background text-foreground">Belt (Dino)</option>
-        <option value="Ring (Dino)" class="bg-background text-foreground">Ring (Dino)</option>
-        <option value="Gloves (Dino)" class="bg-background text-foreground">Gloves (Dino)</option>
-        <option value="Boots (Dino)" class="bg-background text-foreground">Boots (Dino)</option>
-        <option value="Bracers (Dino)" class="bg-background text-foreground">Bracers (Dino)</option>
-        <option value="Helmet (Dino)" class="bg-background text-foreground">Helmet (Dino)</option>
       </select>
+    </div>
+
+    <div class="space-y-2 flex flex-col justify-center pt-6">
+      <label class="flex items-center space-x-2 text-sm cursor-pointer">
+        <input type="checkbox" bind:checked={$configStore.is_dino_artifact} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+        <span class="font-medium leading-none text-foreground">Dinosaur Bone Artifact</span>
+      </label>
     </div>
 
     <div class="space-y-2 flex flex-col justify-center pt-6">
@@ -178,56 +217,79 @@
   </div>
 
   <div class="space-y-2 border-t border-border pt-4">
-    <label class="text-sm font-medium leading-none">Excluded Expansion Packs</label>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-      {#each expansions as pack}
-        <label class="flex items-center space-x-2 text-sm cursor-pointer">
-          <input 
-            type="checkbox" 
-            checked={$configStore.excluded_packs?.includes(pack) ?? false}
-            on:change={() => togglePack(pack)}
-            class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
-          />
-          <span class="text-foreground">{pack}</span>
-        </label>
-      {/each}
-    </div>
+    <button class="flex items-center justify-between w-full text-left" on:click={() => showExcludedPacks = !showExcludedPacks}>
+      <span class="text-sm font-medium leading-none">Excluded Expansion Packs</span>
+      <span class="text-muted-foreground">{showExcludedPacks ? '▲' : '▼'}</span>
+    </button>
+    {#if showExcludedPacks}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+        {#each expansions as pack}
+          <label class="flex items-center space-x-2 text-sm cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={$configStore.excluded_packs?.includes(pack) ?? false}
+              on:change={() => togglePack(pack)}
+              class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+            />
+            <span class="text-foreground">{pack}</span>
+          </label>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <div class="space-y-2 border-t border-border pt-4">
     <label class="text-sm font-medium leading-none" for="stat-name">Stat Priorities (1-100)</label>
-    <div class="flex space-x-2">
-      <input 
-        id="stat-name"
-        type="text" 
-        bind:value={newStatName}
-        placeholder="Stat (e.g. Constitution)"
-        class="flex h-10 w-2/3 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      />
-      <input 
-        type="number" 
-        bind:value={newStatWeight}
-        min="1"
-        max="100"
-        class="flex h-10 w-1/3 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      />
-      <button on:click={addStatPriority} class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-        Add
-      </button>
+    <div class="flex flex-col space-y-2">
+      <div class="flex space-x-2">
+        <input 
+          id="stat-name"
+          type="text" 
+          bind:value={newStatName}
+          on:keydown={handleStatKeydown}
+          placeholder="Stat (e.g. Constitution)"
+          class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        />
+        <button on:click={addStatPriority} class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          Save
+        </button>
+      </div>
+      <div class="flex items-center space-x-3">
+        <input 
+          type="range" 
+          bind:value={newStatWeight}
+          on:keydown={handleStatKeydown}
+          min="1"
+          max="100"
+          class="w-full accent-primary"
+        />
+        <span class="text-sm font-medium w-8 text-right">{newStatWeight}</span>
+      </div>
     </div>
     {#if $configStore.stat_priorities && Object.keys($configStore.stat_priorities).length > 0}
       <div class="grid grid-cols-2 gap-2 mt-3">
         {#each Object.entries($configStore.stat_priorities) as [stat, weight]}
-          <div class="flex justify-between items-center border border-border rounded-md px-3 py-2 text-sm bg-card text-card-foreground">
-            <span class="font-medium">{stat}</span>
+          <div class="flex justify-between items-center border border-border rounded-md px-3 py-2 text-sm bg-card text-card-foreground cursor-pointer hover:border-primary transition-colors" on:click={() => editStatPriority(stat, weight)}>
+            <span class="font-medium truncate mr-2" title={stat}>{stat}</span>
             <div class="flex items-center space-x-3">
               <span class="text-muted-foreground">{weight}</span>
-              <button class="text-destructive hover:text-destructive/80 focus:outline-none font-bold" on:click={() => removeStatPriority(stat)} aria-label="Remove">&times;</button>
+              <button class="text-destructive hover:text-destructive/80 focus:outline-none font-bold" on:click|stopPropagation={() => removeStatPriority(stat)} aria-label="Remove">&times;</button>
             </div>
           </div>
         {/each}
       </div>
     {/if}
+  </div>
+
+  <div class="space-y-2 border-t border-border pt-4">
+    <label class="text-sm font-medium leading-none" for="output-filename">Output JSON Filename</label>
+    <input 
+      id="output-filename"
+      type="text" 
+      bind:value={$configStore.output_filename}
+      placeholder="gearset_output.json"
+      class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    />
   </div>
 
   <button 
@@ -240,6 +302,19 @@
       Running Optimization...
     {:else}
       Optimize Gear
+    {/if}
+  </button>
+  
+  <button 
+    on:click={handleUpdateData}
+    disabled={isUpdatingData}
+    class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border h-10 px-4 py-2 mt-4"
+  >
+    {#if isUpdatingData}
+      <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+      Updating...
+    {:else}
+      Update External Sources (DDOBuilderV2)
     {/if}
   </button>
 </div>

@@ -1,0 +1,25 @@
+FROM --platform=linux/amd64 golang:1.23-bullseye
+
+# Install Wails dependencies for Linux build
+RUN apt-get update && apt-get install -y curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y \
+    libgtk-3-dev \
+    libwebkit2gtk-4.0-dev \
+    gcc \
+    g++ \
+    pkg-config \
+    nodejs \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Wails CLI
+RUN go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.0
+
+WORKDIR /app
+COPY . .
+
+# Build
+RUN wails build -skipbindings -platform linux/amd64 -o DDOGearsetOptimizer
+
+CMD ["cp", "-r", "/app/build/bin/", "/output/"]

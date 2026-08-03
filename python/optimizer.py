@@ -179,7 +179,8 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                     'augments': augments,
                     'minor': is_minor,
                     'is_raid': item_is_raid,
-                    'pack': item_pack
+                    'pack': item_pack,
+                    'ml': ml
                 })
         except Exception:
             pass
@@ -347,7 +348,13 @@ def parse_filigrees(base_dir, priorities):
             
     return filigrees, sets
 
-def create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit=None):
+def create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit=None, pre_equipped=None, pre_filled_augments=None, pre_filled_filigrees=None, calculate_only=False):
+    if pre_equipped is None:
+        pre_equipped = {}
+    if pre_filled_augments is None:
+        pre_filled_augments = {}
+    if pre_filled_filigrees is None:
+        pre_filled_filigrees = {}
     WEIGHTS = {}
     CAPS = {}
     
@@ -370,6 +377,15 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
             else:
                 x[(i, slot)] = pulp.LpVariable(f"x_{i}_{slot}", cat="Binary")
                 
+    if pre_equipped:
+        for slot, eq_name in pre_equipped.items():
+            if slot in required_slots:
+                for i, item in enumerate(items):
+                    if item['name'] == eq_name:
+                        if (i, slot) in x:
+                            prob += x[(i, slot)] == 1
+                        break
+                
     y = {}
     for i, item in enumerate(items):
         color_counts = collections.Counter(item['augments'])
@@ -384,6 +400,50 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
         fw[idx] = pulp.LpVariable(f"fw_{idx}", cat="Binary")
         fm[idx] = pulp.LpVariable(f"fm_{idx}", cat="Binary")
         
+    if pre_filled_augments and pre_equipped:
+        for slot, aug_list in pre_filled_augments.items():
+            if slot in required_slots and slot in pre_equipped:
+                eq_name = pre_equipped[slot]
+                for i, item in enumerate(items):
+                    if item['name'] == eq_name:
+                        for aug_name in aug_list:
+                            if not aug_name: continue
+                            matched_aug_idx = None
+                            for idx, a in enumerate(augments):
+                                if a['name'] == aug_name:
+                                    matched_aug_idx = idx
+                                    break
+                            if matched_aug_idx is not None:
+                                matched_aug = augments[matched_aug_idx]
+                                matched_color = None
+                                color_counts = collections.Counter(item['augments'])
+                                for c in color_counts.keys():
+                                    if matched_aug['type'].lower() == c.lower() or c.lower() in matched_aug['type'].lower():
+                                        if (matched_aug_idx, i, c) in y:
+                                            matched_color = c
+                                            break
+                                if matched_color:
+                                    prob += y[(matched_aug_idx, i, matched_color)] == 1
+                        break
+
+    if pre_filled_filigrees and filigrees:
+        w_fils = pre_filled_filigrees.get('weapon', [])
+        a_fils = pre_filled_filigrees.get('artifact', [])
+        
+        for fname in w_fils:
+            if not fname: continue
+            for idx, f in enumerate(filigrees):
+                if f['name'] == fname:
+                    prob += fw[idx] == 1
+                    break
+                    
+        for fname in a_fils:
+            if not fname: continue
+            for idx, f in enumerate(filigrees):
+                if f['name'] == fname:
+                    prob += fm[idx] == 1
+                    break
+        
     w_vars = {}
     for k, tiers in sets.items():
         for m in tiers.keys():
@@ -395,6 +455,13 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
     for slot in required_slots:
         prob += pulp.lpSum([x[(i, s)] for (i, s) in x.keys() if s == slot]) == 1
         
+    if calculate_only:
+        # Force all unequipped slots to be empty
+        all_possible_slots = set(s for (_, s) in x.keys())
+        for slot in all_possible_slots:
+            if slot not in required_slots:
+                prob += pulp.lpSum([x[(i, s)] for (i, s) in x.keys() if s == slot]) == 0
+                
     for i in range(len(items)):
         prob += pulp.lpSum([x[(i, s)] for (item_idx, s) in x.keys() if item_idx == i]) <= 1
         
@@ -424,6 +491,11 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
     for a in range(len(augments)):
         prob += pulp.lpSum([y[(aug_idx, i, c)] for (aug_idx, i, c) in y.keys() if aug_idx == a]) <= 1
         
+    if calculate_only:
+        # To strictly compute what was passed, force sum of y to equal the number of pre-filled augments
+        total_pre_filled_augments = sum(len([a for a in aug_list if a]) for aug_list in pre_filled_augments.values()) if pre_filled_augments else 0
+        prob += pulp.lpSum(y.values()) == total_pre_filled_augments
+        
     if filigrees:
         base_name_groups = collections.defaultdict(list)
         for idx, f in enumerate(filigrees):
@@ -435,8 +507,33 @@ def create_model(items, sets, augments, filigrees, priorities, art_slots, requir
                 prob += pulp.lpSum([fm[idx] for idx in idx_list]) <= 1
                 
         prob += pulp.lpSum(fw.values()) <= 10
-        is_minor_equipped = pulp.lpSum(minor_vars) if minor_vars else 0
-        prob += pulp.lpSum(fm.values()) <= art_slots * is_minor_equipped
+        
+        if calculate_only:
+            total_w_fils = len([f for f in pre_filled_filigrees.get('weapon', []) if f]) if pre_filled_filigrees else 0
+            total_m_fils = len([f for f in pre_filled_filigrees.get('artifact', []) if f]) if pre_filled_filigrees else 0
+            prob += pulp.lpSum(fw.values()) == total_w_fils
+            prob += pulp.lpSum(fm.values()) == total_m_fils
+        
+        max_fm_slots_expr = []
+        for i, item in enumerate(items):
+            if item['minor']:
+                slots_for_item = 3
+                if item['name'] == "Epic Voice of the Master":
+                    slots_for_item = 1
+                elif item.get('ml', 0) >= 33:
+                    slots_for_item = 5
+                elif item.get('ml', 0) >= 31:
+                    slots_for_item = 4
+                elif item.get('ml', 0) >= 30:
+                    slots_for_item = 3
+                
+                item_equipped_var = pulp.lpSum([x[(i, s)] for s in item['slots'] if (i, s) in x])
+                max_fm_slots_expr.append(slots_for_item * item_equipped_var)
+                
+        if max_fm_slots_expr:
+            prob += pulp.lpSum(fm.values()) <= pulp.lpSum(max_fm_slots_expr)
+        else:
+            prob += pulp.lpSum(fm.values()) <= 0
         
     for k, tiers in sets.items():
         pieces = pulp.lpSum([x[(i, s)] for (i, s) in x.keys() if k in items[i]['sets']])
@@ -514,7 +611,7 @@ def solve_for_alternatives(items, sets, augments, filigrees, priorities, art_slo
     forbidden_items = [equipped_items[target_slot]]
     
     for _ in range(num_alts):
-        prob, x, y, fw, fm, w_vars, z = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit)
+        prob, x, y, fw, fm, w_vars, z = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit, None, None, None)
         
         # Lock all slots except target_slot
         for slot, eq_item in equipped_items.items():
@@ -543,7 +640,7 @@ def solve_for_alternatives(items, sets, augments, filigrees, priorities, art_slo
             
     return alternatives
 
-def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap, art_slots, raid_item_limit=None):
+def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap, art_slots, raid_item_limit=None, pre_equipped=None, pre_filled_augments=None, pre_filled_filigrees=None, calculate_only=False):
     # Required slots based on available items
     available_slots = set()
     for item in items:
@@ -555,9 +652,12 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
                 available_slots.add(slot)
             
     base_required = ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring_1', 'Ring_2', 'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2']
-    required_slots = [s for s in base_required if s in available_slots]
+    if calculate_only and pre_equipped:
+        required_slots = [s for s in base_required if s in available_slots and s in pre_equipped]
+    else:
+        required_slots = [s for s in base_required if s in available_slots]
     
-    prob, x, y, fw, fm, w_vars, z = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit)
+    prob, x, y, fw, fm, w_vars, z = create_model(items, sets, augments, filigrees, priorities, art_slots, required_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
     
     out_file.write(f"\n======================================\n")
     out_file.write(f"       RUNNING FOR MAX LEVEL {cap}\n")
@@ -572,9 +672,11 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
     
     out_file.write("\n=== EQUIPPED ITEMS ===\n")
     equipped = {}
+    equipped_simple = {}
     for (i, s), var in x.items():
         if var.varValue and var.varValue > 0.5:
             equipped[s] = items[i]
+            equipped_simple[s] = items[i]['name']
             
     for slot in required_slots:
         if slot in equipped:
@@ -610,14 +712,17 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
             for f in m_fil:
                 out_file.write(f"  + {f['name']}\n")
                     
+    active_sets_out = []
     out_file.write("\n=== ACTIVE SET BONUSES ===\n")
     for (k, m), w_var in w_vars.items():
         if w_var.varValue and w_var.varValue > 0.5:
             out_file.write(f"{k} ({m}-piece)\n")
+            active_sets_out.append(f"{k} ({m}-piece)")
             if k in sets and m in sets[k]:
                 for stat, bonus, val in sets[k][m]:
                     out_file.write(f"  + {val} {bonus} bonus to {stat}\n")
             
+    realized_stats_out = {}
     out_file.write("\n=== REALIZED STATS ===\n")
     for p in priorities:
         p_base = re.sub(r'\[\d+\]', '', p).strip()
@@ -629,3 +734,29 @@ def run_optimization(items, sets, augments, filigrees, priorities, out_file, cap
                 details.append(f"{z_var.varValue} {b_type}")
         if total > 0:
             out_file.write(f"{p}: {total} ({', '.join(details)})\n")
+            realized_stats_out[p] = total
+
+    filigrees_out = {"weapon": [], "artifact": []}
+    if filigrees:
+        w_fil = [f for idx, f in enumerate(filigrees) if fw[idx].varValue and fw[idx].varValue > 0.5]
+        m_fil = [f for idx, f in enumerate(filigrees) if fm[idx].varValue and fm[idx].varValue > 0.5]
+        for f in w_fil:
+            filigrees_out["weapon"].append(f['name'])
+        for f in m_fil:
+            filigrees_out["artifact"].append(f['name'])
+            
+    all_effects_out = {}
+    for (st, b_type), z_var in z.items():
+        if z_var.varValue and z_var.varValue > 0:
+            if st not in all_effects_out:
+                all_effects_out[st] = []
+            all_effects_out[st].append(f"{z_var.varValue} {b_type}")
+
+    rich_output = {
+        "gearSet": equipped_simple,
+        "realizedStats": realized_stats_out,
+        "activeSets": active_sets_out,
+        "filigrees": filigrees_out,
+        "allEffects": all_effects_out
+    }
+    return rich_output

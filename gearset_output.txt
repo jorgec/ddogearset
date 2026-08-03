@@ -1,0 +1,46 @@
+======================================
+           USER INPUTS
+======================================
+Build Type: Melee
+Final Priorities: 
+Armor Restriction: Light
+Reserved Minor Artifact Slot: Ring
+Minor Artifact Filigree Slots: 4
+Allow Gem of Many Facets: True
+Excluded Packs: None
+Raid Item Limit: 2
+
+
+======================================
+       RUNNING FOR MAX LEVEL 34
+======================================
+
+Status: Optimal
+
+=== EQUIPPED ITEMS ===
+Helmet: Legendary Helm of the Sun's Wrath (ML: Legendary Helm of the Sun's Wrath.item)
+Necklace: Legendary Hyena Claw Necklace (ML: Legendary Hyena Claw Necklace.item)
+Trinket: Legendary Golden Souvenir Coin (ML: Legendary Golden Souvenir Coin.item)
+Cloak: Cloak of the Hunter (ML: Cloak of the Hunter.item)
+Belt: Ophael's Cincture (ML: Ophael's Cincture.item)
+Ring_1: Legendary Ring of Venom (ML: Legendary Ring of Venom.item)
+Ring_2: Legendary Ring of Unnatural Accuracy (ML: Legendary Ring of Unnatural Accuracy.item)
+Gloves: Legendary Brawling Gloves (level 32) (ML: Legendary Brawling Gloves (level 32).item)
+Boots: Legendary Dustless Boots (ML: Legendary Dustless Boots.item)
+Bracers: Legendary Wind Howler Bracers (ML: Legendary Wind Howler Bracers.item)
+Armor: Light Armor of the Warblade's Reflection (ML: Light Armor of the Warblade's Reflection.item)
+Goggles: Legendary Blazing Sniper's Sights (ML: Legendary Blazing Sniper's Sights.item)
+Weapon1: Legendary Zephyr (ML: Legendary Zephyr.item)
+Weapon2: Rapier of the Undying Age (ML: Rapier of the Undying Age.item)
+
+  [Weapon1 Alternatives]:
+    Alt 1: Pick of Endless Light (level 32) (ML: Pick of Endless Light (level 32).item)
+    Alt 2: Legendary Defiled Reliquary Heavy Mace (ML: Legendary Defiled Reliquary Heavy Mace.item)
+
+  [Weapon2 Alternatives]:
+    Alt 1: Pick of Endless Light (level 32) (ML: Pick of Endless Light (level 32).item)
+    Alt 2: Legendary Defiled Reliquary Heavy Mace (ML: Legendary Defiled Reliquary Heavy Mace.item)
+
+=== ACTIVE SET BONUSES ===
+
+=== REALIZED STATS ===
