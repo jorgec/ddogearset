@@ -31,4 +31,6 @@ export function RunOptimization(arg1:main.OptimizationPayload):Promise<main.Resu
 
 export function SaveGearset(arg1:main.OptimizationPayload,arg2:main.ResultPayload):Promise<string>;
 
+export function SearchItemsByStat(arg1:string,arg2:number):Promise<main.StatSearchResult>;
+
 export function UpdateExternalSources():Promise<string>;

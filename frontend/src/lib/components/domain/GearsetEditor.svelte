@@ -27,7 +27,7 @@
   
   function isWeapon(item: models.XMLItem) {
       if (!item.EquipmentSlot || !item.EquipmentSlot.Slots) return false;
-      return item.EquipmentSlot.Slots.includes("Weapon1") || item.EquipmentSlot.Slots.includes("Weapon2") || item.EquipmentSlot.Slots.includes("Weapon");
+      return item.EquipmentSlot.Slots.includes("Weapon1" as any) || item.EquipmentSlot.Slots.includes("Weapon2" as any) || item.EquipmentSlot.Slots.includes("Weapon" as any);
   }
 
   function getArtifactFiligreeCount(item: models.XMLItem) {
@@ -46,7 +46,7 @@
   }
   
   $: if (!$resultStore) {
-      $resultStore = { success: true, timeTaken: 0, gearSet: {}, realizedStats: {}, activeSets: [], filigrees: [] };
+      $resultStore = { success: true, timeTaken: 0, gearSet: {}, realizedStats: {}, activeSets: [], filigrees: {} } as unknown as main.ResultPayload;
   }
   $: if ($resultStore && !$resultStore.gearSet) {
       $resultStore.gearSet = {};
@@ -231,7 +231,7 @@
   }
 
   function clearAll() {
-      $resultStore = { success: true, timeTaken: 0, gearSet: {}, realizedStats: {}, activeSets: [], filigrees: [] };
+      $resultStore = { success: true, timeTaken: 0, gearSet: {}, realizedStats: {}, activeSets: [], filigrees: {} } as unknown as main.ResultPayload;
       $configStore.pre_equipped = {};
       $configStore.pre_filled_augments = {};
       $configStore.pre_filled_filigrees = { weapon: [], artifact: [] };

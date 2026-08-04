@@ -2,6 +2,7 @@
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
   import { RunOptimization, SaveGearset } from '../../../../wailsjs/go/main/App';
   import TierReport from './TierReport.svelte';
+  import Accordion from '../ui/Accordion.svelte';
   import { migrateLegacyCasterFields } from '$lib/data/statPriorities';
   import type { main } from '../../../../wailsjs/go/models';
 
@@ -37,29 +38,33 @@
   // Key of the currently expanded effect source (`${statName}::${index}`), or null if none expanded.
   let expandedSourceKey: string | null = null;
 
-  // Extracts the trailing "(Source Name)" from an effect string like
+  // Extracts value, bonusType, and sourceName from an effect string like
   // "13.0 Enhancement (The Spring Equinox)" or a set-bonus string with nested
   // parens like "15.0 Artifact (Legendary Soul of the Red Dragon (2 Piece))".
-  // Scans backward from the end counting paren depth so nested groups resolve
-  // correctly (a naive non-nesting regex fails on the set-bonus case).
-  // Returns null if no source is embedded (older/legacy result files won't have one).
-  function parseSourceName(source: string): string | null {
-      const trimmed = source.trimEnd();
-      if (!trimmed.endsWith(')')) return null;
-      let depth = 0;
-      for (let i = trimmed.length - 1; i >= 0; i--) {
-          const ch = trimmed[i];
-          if (ch === ')') {
-              depth++;
-          } else if (ch === '(') {
-              depth--;
-              if (depth === 0) {
-                  return trimmed.slice(i + 1, trimmed.length - 1);
-              }
-          }
+  function parseEffectSource(raw: string): { value: number, bonusType: string, sourceName: string | null } {
+      const match = raw.match(/^(-?[\d.]+)\s+([^\s]+)(?:\s+\((.+)\))?$/);
+      if (match) {
+          return {
+              value: parseFloat(match[1]),
+              bonusType: match[2],
+              sourceName: match[3] || null
+          };
       }
-      return null;
+      return { value: 0, bonusType: 'Unknown', sourceName: null };
   }
+
+  $: duplicatedStats = Object.entries($resultStore?.allEffects || {})
+      .filter(([_, sources]) => Array.isArray(sources) && sources.length > 1)
+      .map(([stat, sources]) => {
+          return {
+              stat,
+              sources: (sources as string[]).map((raw: string) => {
+                  const { value, bonusType, sourceName } = parseEffectSource(raw);
+                  return { value, bonusType, sourceName, slot: locateSource(sourceName), raw };
+              })
+          };
+      })
+      .sort((a, b) => b.sources.length - a.sources.length);
 
   // Determines where in the gearset a given source name (item, augment, filigree,
   // or set bonus) comes from, so the user can see which equipped item/slot granted it.
@@ -75,17 +80,17 @@
               if (detail.item?.name === sourceName) {
                   return `Equipped item — ${slot}`;
               }
-              const aug = detail.augments?.find(a => a.name === sourceName);
+              const aug = detail.augments?.find((a: any) => a.name === sourceName);
               if (aug) {
                   return `Augment on ${detail.item?.name} — ${slot}`;
               }
-              const fil = detail.filigrees?.find(f => f.name === sourceName);
+              const fil = detail.filigrees?.find((f: any) => f.name === sourceName);
               if (fil) {
                   return (slot === 'Weapon1' || slot === 'Weapon2')
                       ? `Sentient Weapon Filigree — ${slot}`
                       : `Minor Artifact Filigree — ${slot}`;
               }
-              const setBonus = detail.set_bonus_contributions?.find(sb => sourceName.startsWith(sb.set));
+              const setBonus = detail.set_bonus_contributions?.find((sb: any) => sourceName.startsWith(sb.set));
               if (setBonus) {
                   return `Active Set Bonus — ${setBonus.set} (${setBonus.pieces} Piece) via ${detail.item?.name} — ${slot}`;
               }
@@ -159,7 +164,7 @@
                       $configStore.pre_equipped = {...data.gearSet};
                   } else {
                       // Legacy: plain slot map
-                      $resultStore = { success: true, timeTaken: 0, gearSet: data, realizedStats: {}, activeSets: [], filigrees: {} };
+                      $resultStore = { success: true, timeTaken: 0, gearSet: data, realizedStats: {}, activeSets: [], filigrees: {} } as unknown as main.ResultPayload;
                       $configStore.pre_equipped = {...data};
                   }
                   
@@ -316,6 +321,43 @@
 
       <div class="h-px bg-border/50 w-full my-4"></div>
 
+      <!-- Duplicated Stats Section -->
+      {#if duplicatedStats.length > 0}
+      <section class="space-y-4">
+          <h3 class="text-lg font-semibold flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="M2 15h10"/><path d="m9 18 3-3-3-3"/></svg>
+              Duplicated Stat Sources
+          </h3>
+          <p class="text-sm text-muted-foreground italic mb-2">Stats fed by more than one equipped source — not necessarily wasted; Stacking-type bonuses are expected to have many.</p>
+          
+          <div class="space-y-0.5">
+              {#each duplicatedStats as { stat, sources }}
+                  <Accordion title="{stat} ({sources.length})">
+                      <ul class="space-y-2 px-1 pb-2">
+                          {#each sources as src}
+                              <li class="text-sm flex flex-col space-y-0.5 border-l-2 border-primary/20 pl-3">
+                                  <div class="text-foreground font-medium flex items-baseline space-x-1.5">
+                                      <span class="text-primary">{src.value}</span>
+                                      <span class="text-muted-foreground">{src.bonusType}</span>
+                                      {#if src.sourceName}
+                                          <span class="text-muted-foreground opacity-50">—</span>
+                                          <span>{src.sourceName}</span>
+                                      {/if}
+                                  </div>
+                                  <div class="text-xs text-muted-foreground italic">
+                                      {src.slot}
+                                  </div>
+                              </li>
+                          {/each}
+                      </ul>
+                  </Accordion>
+              {/each}
+          </div>
+      </section>
+
+      <div class="h-px bg-border/50 w-full my-4"></div>
+      {/if}
+
       <!-- All Effects Section -->
       <section class="space-y-4 flex-1">
           <h3 class="text-lg font-semibold flex items-center">
@@ -345,7 +387,7 @@
                                       </button>
                                       {#if expandedSourceKey === key}
                                           <div class="ml-4 mt-0.5 text-[11px] text-primary/80 italic">
-                                              {locateSource(parseSourceName(source))}
+                                              {locateSource(parseEffectSource(source).sourceName)}
                                           </div>
                                       {/if}
                                   </li>

@@ -284,7 +284,7 @@ def _weapon_base_buffs(item_node, wanted):
     return out
 
 
-def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None):
+def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None, min_ml=29):
     items = []
     allowed_armor = allowed_armor.strip().lower() if allowed_armor else None
 
@@ -317,7 +317,7 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                 ml = int(ml_node.text) if ml_node is not None and ml_node.text else 0
 
                 if not is_pre_equipped:
-                    if ml < 29 or ml > max_ml:
+                    if ml < min_ml or ml > max_ml:
                         continue
                     if not allow_gomf and "Gem of Many Facets" in name:
                         continue
@@ -501,7 +501,7 @@ def flatten_pre_filled_augment_names(pre_filled_augments):
     return names
 
 
-def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None):
+def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, min_ml=29):
     """`pre_filled_augment_names` mirrors parse_items' `pre_equipped_names` bypass
     (see is_pre_equipped there): an augment already slotted into a pre-equipped
     item is not optional gear-search inventory, it's a fact about the current
@@ -526,7 +526,7 @@ def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None):
 
                 ml_node = aug_node.find('MinLevel')
                 ml = int(ml_node.text) if ml_node is not None and ml_node.text else 0
-                if not is_pre_filled and (ml < 29 or ml > max_ml):
+                if not is_pre_filled and (ml < min_ml or ml > max_ml):
                     continue
 
                 buffs = []

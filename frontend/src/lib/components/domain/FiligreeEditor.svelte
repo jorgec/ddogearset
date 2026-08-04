@@ -1,7 +1,7 @@
 <script lang="ts">
   import { configStore, resultStore, isOptimizing } from '$lib/store';
   import { GetAvailableFiligrees, GetItemDetails } from '../../../../wailsjs/go/main/App';
-  import { models } from '../../../../wailsjs/go/models';
+  import type { models } from '../../../../wailsjs/go/models';
 
   let editingFiligreeIdx: number | null = null;
   let editingFiligreeType: "weapon" | "artifact" | null = null;

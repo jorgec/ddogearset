@@ -814,3 +814,52 @@ func (a *App) GetStatSets() (StatSetsFile, error) {
 	}
 	return parsed, nil
 }
+
+// --- Stat Search (docs/DUPLICATE_STATS_AND_ITEM_SEARCH_PLAN.md) ---
+
+type StatSearchPayload struct {
+	Mode     string `json:"mode"`
+	Stat     string `json:"stat"`
+	MaxLevel int    `json:"max_level"`
+}
+
+type StatSearchEntry struct {
+	SourceType string   `json:"sourceType"`
+	SourceName string   `json:"sourceName"`
+	BonusType  string   `json:"bonusType"`
+	Value      float64  `json:"value"`
+	ML         int      `json:"ml"`
+	Slots      []string `json:"slots,omitempty"`
+	Pack       *string  `json:"pack,omitempty"`
+}
+
+type StatSearchResult struct {
+	Stat         string            `json:"stat"`
+	Results      []StatSearchEntry `json:"results"`
+	Success      bool              `json:"success"`
+	ErrorMessage string            `json:"errorMessage,omitempty"`
+}
+
+func (a *App) SearchItemsByStat(stat string, maxLevel int) (StatSearchResult, error) {
+	payload := StatSearchPayload{
+		Mode:     "stat_search",
+		Stat:     stat,
+		MaxLevel: maxLevel,
+	}
+	raw, err := a.runSolver(payload)
+	if err != nil {
+		return StatSearchResult{Success: false, Stat: stat, ErrorMessage: err.Error()}, err
+	}
+	var result StatSearchResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return StatSearchResult{Success: false, Stat: stat, ErrorMessage: "Could not read the solver's result: " + err.Error()}, err
+	}
+	if result.ErrorMessage != "" && !result.Success {
+		return result, nil
+	}
+	result.Success = true
+	if result.Results == nil {
+		result.Results = []StatSearchEntry{}
+	}
+	return result, nil
+}

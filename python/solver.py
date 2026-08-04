@@ -6,7 +6,7 @@ import parser
 import optimizer
 from optimizer import PriorityEntry
 
-VALID_MODES = ("optimize", "calculate", "alternatives")
+VALID_MODES = ("optimize", "calculate", "alternatives", "stat_search")
 
 # §2.6 — every validation message starts with this literal prefix.
 VALIDATION_PREFIX = "Stat priority validation failed: "
@@ -322,20 +322,27 @@ def main():
     cap = parsed_data.get('max_level', 34)
     b_type = parsed_data.get('build_type', 'Melee')
 
-    # --- validation runs BEFORE any XML parsing (§2.6) ---------------------
-    priority_warnings = []
-    entries, err = parse_stat_priorities(parsed_data.get('stat_priorities'), priority_warnings)
-    if err:
-        fail(err)
-
     mode, err = normalize_mode(parsed_data)
     if err:
         fail(err)
 
-    # INV-2: priority_names must contain stats from ALL FIVE tiers. Dropping
-    # tier-5 stats would make matching XML data invisible to normalize_stat_name
-    # and therefore to the entire model.
-    priority_names = [e.stat for e in entries]
+    priority_warnings = []
+    if mode == "stat_search":
+        search_stat = parsed_data.get('stat', '')
+        if not search_stat:
+            fail("No stat provided for stat_search mode.")
+        priority_names = [search_stat]
+        entries = []
+    else:
+        # --- validation runs BEFORE any XML parsing (§2.6) ---------------------
+        entries, err = parse_stat_priorities(parsed_data.get('stat_priorities'), priority_warnings)
+        if err:
+            fail(err)
+
+        # INV-2: priority_names must contain stats from ALL FIVE tiers. Dropping
+        # tier-5 stats would make matching XML data invisible to normalize_stat_name
+        # and therefore to the entire model.
+        priority_names = [e.stat for e in entries]
 
     armor_input = parsed_data.get('armor_restriction', '')
     w1_list, w2_list = resolve_weapon_lists(parsed_data)
@@ -391,20 +398,21 @@ def main():
             out_file.write(f"WARNING: {w}\n")
         out_file.write("\n")
 
-        print(f"\nParsing Items (ML 29-{cap})...")
+        min_ml = cap - 6 if mode == "stat_search" else 29
+        print(f"\nParsing Items (ML {min_ml}-{cap})...")
         pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
         if mode == "alternatives":
             pre_equipped_names = list((parsed_data.get('equipped_items') or {}).values())
-        items = optimizer.parse_items(base_dir, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names)
+        items = optimizer.parse_items(base_dir, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names, min_ml=min_ml)
         print(f"Loaded {len(items)} items")
 
-        print(f"Parsing Augments (ML 29-{cap})...")
+        print(f"Parsing Augments (ML {min_ml}-{cap})...")
         pre_filled_augment_names = optimizer.flatten_pre_filled_augment_names(pre_filled_augments)
-        augments = optimizer.parse_augments(base_dir, cap, priority_names, pre_filled_augment_names)
+        augments = optimizer.parse_augments(base_dir, cap, priority_names, pre_filled_augment_names, min_ml=min_ml)
         print(f"Loaded {len(augments)} augments")
 
         filigrees = []
-        if cap >= 34:
+        if cap >= 34 or mode == "stat_search":
             print(f"Parsing Filigrees...")
             filigrees, filigree_sets = optimizer.parse_filigrees(base_dir, priority_names)
             print(f"Loaded {len(filigrees)} filigrees")
@@ -414,6 +422,32 @@ def main():
                 else:
                     for count, buffs in v.items():
                         sets[k][count] = buffs
+
+        if mode == "stat_search":
+            results = []
+            target_stat = optimizer.normalize_stat_key(priority_names[0])
+            
+            def add_matches(collection, source_type):
+                for item in collection:
+                    for buff in item.get('buffs', []):
+                        if optimizer.normalize_stat_key(buff[0]) == target_stat:
+                            results.append({
+                                "sourceType": source_type,
+                                "sourceName": item.get('name'),
+                                "bonusType": buff[1],
+                                "value": buff[2],
+                                "ml": item.get('ml', 0),
+                                "slots": item.get('slots', []),
+                                "pack": item.get('pack')
+                            })
+
+            add_matches(items, "item")
+            add_matches(augments, "augment")
+            add_matches(filigrees, "filigree")
+
+            results.sort(key=lambda x: x['value'], reverse=True)
+            print(f"JSON_RESULT:{json.dumps({'stat': priority_names[0], 'results': results})}")
+            return
 
         if mode == "alternatives":
             print("Enumerating slot alternatives...")

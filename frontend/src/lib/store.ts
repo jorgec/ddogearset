@@ -104,7 +104,7 @@ export function flashStats(stats: string[], durationMs = 3000) {
 export const logsStore = writable<string[]>([]);
 export const isParsing = writable(false);
 export const isOptimizing = writable(false);
-export const currentTab = writable<'solver' | 'editor' | 'filigrees' | 'summary'>('solver');
+export const currentTab = writable<'solver' | 'editor' | 'filigrees' | 'summary' | 'itemSearch'>('solver');
 
 // Computes hydrated pre_equipped/pre_filled_augments/pre_filled_filigrees from
 // the current config plus the last known solved/loaded gearset's per-slot
