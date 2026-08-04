@@ -1,0 +1,55 @@
+wing: gogearset
+rooms:
+- name: releases
+  description: Files from releases/
+  keywords:
+  - releases
+  - releases
+- name: frontend
+  description: Files from frontend/
+  keywords:
+  - frontend
+  - frontend
+- name: python
+  description: Files from python/
+  keywords:
+  - python
+  - python
+- name: internal
+  description: Files from internal/
+  keywords:
+  - internal
+  - internal
+- name: documentation
+  description: Files from docs/
+  keywords:
+  - documentation
+  - docs
+- name: scripts
+  description: Files from scripts/
+  keywords:
+  - scripts
+  - scripts
+- name: data
+  description: Files from data/
+  keywords:
+  - data
+  - data
+- name: gearsets
+  description: Files from gearsets/
+  keywords:
+  - gearsets
+  - gearsets
+- name: testing
+  description: Files from tests/
+  keywords:
+  - testing
+  - tests
+- name: backend
+  description: Files from models/
+  keywords:
+  - backend
+  - models
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []
