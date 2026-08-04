@@ -22,3 +22,11 @@ test-pulp.lp
 test_glpk.py
 
 python/tests/__pycache__/
+
+frontend/wailsjs/runtime/package.json
+
+frontend/wailsjs/runtime/runtime.d.ts
+
+frontend/wailsjs/runtime/runtime.js
+
+gearsets/.DS_Store
