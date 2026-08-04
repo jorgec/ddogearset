@@ -21,6 +21,13 @@
     }
   });
 
+  const spellSchools = [
+    'Abjuration', 'Conjuration', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation'
+  ];
+  const spellpowers = [
+    'Acid', 'Cold', 'Electric', 'Fire', 'Force', 'Light', 'Negative', 'Positive', 'Repair', 'Sonic'
+  ];
+
   function togglePack(pack: string) {
     if (!$configStore.excluded_packs) {
       $configStore.excluded_packs = [];
@@ -59,6 +66,15 @@
 
   function removeStatPriority(key: string) {
     $configStore.stat_priorities = $configStore.stat_priorities.filter(e => e.stat !== key);
+  }
+
+  function moveStatPriority(index: number, direction: 'up' | 'down') {
+    const newIdx = direction === 'up' ? index - 1 : index + 1;
+    if (newIdx < 0 || newIdx >= $configStore.stat_priorities.length) return;
+    
+    const priorities = [...$configStore.stat_priorities];
+    [priorities[index], priorities[newIdx]] = [priorities[newIdx], priorities[index]];
+    $configStore.stat_priorities = priorities;
   }
 
   // Mirrors the filigree-selection allocation rule implemented in
@@ -141,6 +157,42 @@
     }
   }
 
+  $: {
+    if ($configStore.build_type === 'Caster') {
+      if (!$configStore.caster_spellpowers) $configStore.caster_spellpowers = [];
+      if (!$configStore.caster_schools) $configStore.caster_schools = [];
+
+      // Inject selected spellpowers
+      $configStore.caster_spellpowers.forEach(sp => {
+        if (!$configStore.stat_priorities.find(p => p.stat === sp)) {
+          $configStore.stat_priorities = [...$configStore.stat_priorities, { stat: sp, value: 100 }];
+        }
+      });
+      // Inject selected schools
+      $configStore.caster_schools.forEach(sch => {
+        if (!$configStore.stat_priorities.find(p => p.stat === sch)) {
+          $configStore.stat_priorities = [...$configStore.stat_priorities, { stat: sch, value: 100 }];
+        }
+      });
+    }
+  }
+
+  function toggleCasterOption(type: 'spellpower' | 'school', option: string) {
+    if (type === 'spellpower') {
+      if ($configStore.caster_spellpowers.includes(option)) {
+        $configStore.caster_spellpowers = $configStore.caster_spellpowers.filter(o => o !== option);
+      } else {
+        $configStore.caster_spellpowers = [...$configStore.caster_spellpowers, option];
+      }
+    } else {
+      if ($configStore.caster_schools.includes(option)) {
+        $configStore.caster_schools = $configStore.caster_schools.filter(o => o !== option);
+      } else {
+        $configStore.caster_schools = [...$configStore.caster_schools, option];
+      }
+    }
+  }
+
   $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 'Thrown', 'Shuriken'] : 
                     $configStore.build_type === 'Caster' ? ['None'] :
                     ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'];
@@ -172,6 +224,43 @@
       </select>
     </div>
 
+    {#if $configStore.build_type === 'Caster'}
+      <div class="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border border-border rounded-lg bg-card/30">
+        <div class="space-y-3">
+          <label class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Spell Schools</label>
+          <div class="grid grid-cols-2 gap-2">
+            {#each spellSchools as school}
+              <label class="flex items-center space-x-2 text-sm cursor-pointer hover:text-primary transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={$configStore.caster_schools?.includes(school)}
+                  on:change={() => toggleCasterOption('school', school)}
+                  class="h-4 w-4 rounded border-input bg-transparent text-primary"
+                />
+                <span>{school}</span>
+              </label>
+            {/each}
+          </div>
+        </div>
+        <div class="space-y-3">
+          <label class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Spellpowers</label>
+          <div class="grid grid-cols-2 gap-2">
+            {#each spellpowers as power}
+              <label class="flex items-center space-x-2 text-sm cursor-pointer hover:text-primary transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={$configStore.caster_spellpowers?.includes(power)}
+                  on:change={() => toggleCasterOption('spellpower', power)}
+                  class="h-4 w-4 rounded border-input bg-transparent text-primary"
+                />
+                <span>{power}</span>
+              </label>
+            {/each}
+          </div>
+        </div>
+      </div>
+    {/if}
+
     {#if $configStore.weapon_style === 'Single Weapon Fighting'}
       <div class="space-y-2">
         <label class="text-sm font-medium leading-none" for="offhand-style">Offhand Style</label>
@@ -195,11 +284,6 @@
     </div>
 
     <div class="space-y-2">
-      <label class="text-sm font-medium leading-none" for="search-time">Max Search Time (seconds)</label>
-      <input id="search-time" type="number" bind:value={$configStore.max_search_time} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
-    </div>
-
-    <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="armor-restriction">Armor Restriction</label>
       <select id="armor-restriction" bind:value={$configStore.armor_restriction} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <option value="Any" class="bg-background text-foreground">Any</option>
@@ -208,36 +292,6 @@
         <option value="Medium" class="bg-background text-foreground">Medium</option>
         <option value="Heavy" class="bg-background text-foreground">Heavy</option>
       </select>
-    </div>
-
-    <div class="space-y-2">
-      <label class="text-sm font-medium leading-none" for="minor-artifact-slots">Minor Artifact Filigree Slots</label>
-      <input id="minor-artifact-slots" type="number" bind:value={$configStore.minor_artifact_filigree_slots} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
-    </div>
-
-    <div class="space-y-2">
-      <label class="text-sm font-medium leading-none" for="reserved-minor-artifact">Reserved Minor Artifact Slot</label>
-      <select id="reserved-minor-artifact" bind:value={$configStore.reserved_minor_artifact_slot} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-        <option value="" class="bg-background text-foreground">Any</option>
-        <option value="Helmet" class="bg-background text-foreground">Helmet</option>
-        <option value="Necklace" class="bg-background text-foreground">Necklace</option>
-        <option value="Trinket" class="bg-background text-foreground">Trinket</option>
-        <option value="Cloak" class="bg-background text-foreground">Cloak</option>
-        <option value="Belt" class="bg-background text-foreground">Belt</option>
-        <option value="Ring" class="bg-background text-foreground">Ring</option>
-        <option value="Gloves" class="bg-background text-foreground">Gloves</option>
-        <option value="Boots" class="bg-background text-foreground">Boots</option>
-        <option value="Bracers" class="bg-background text-foreground">Bracers</option>
-        <option value="Goggles" class="bg-background text-foreground">Goggles</option>
-        <option value="Armor" class="bg-background text-foreground">Armor</option>
-      </select>
-    </div>
-
-    <div class="space-y-2 flex flex-col justify-center pt-6">
-      <label class="flex items-center space-x-2 text-sm cursor-pointer">
-        <input type="checkbox" bind:checked={$configStore.is_dino_artifact} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
-        <span class="font-medium leading-none text-foreground">Dinosaur Bone Artifact</span>
-      </label>
     </div>
 
     <div class="space-y-2 flex flex-col justify-center pt-6">
@@ -252,6 +306,40 @@
         <input type="checkbox" bind:checked={$configStore.exclude_gem_of_many_facets} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
         <span class="font-medium leading-none text-foreground">Exclude Gem of Many Facets</span>
       </label>
+    </div>
+
+    <!-- Artifact Section -->
+    <div class="col-span-2 mt-4 space-y-3">
+      <h3 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-1">Artifact Configuration</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-border rounded-lg bg-card/20">
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none" for="reserved-minor-artifact">Reserved Slot</label>
+          <select id="reserved-minor-artifact" bind:value={$configStore.reserved_minor_artifact_slot} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <option value="" class="bg-background text-foreground">Any</option>
+            <option value="Helmet" class="bg-background text-foreground">Helmet</option>
+            <option value="Necklace" class="bg-background text-foreground">Necklace</option>
+            <option value="Trinket" class="bg-background text-foreground">Trinket</option>
+            <option value="Cloak" class="bg-background text-foreground">Cloak</option>
+            <option value="Belt" class="bg-background text-foreground">Belt</option>
+            <option value="Ring" class="bg-background text-foreground">Ring</option>
+            <option value="Gloves" class="bg-background text-foreground">Gloves</option>
+            <option value="Boots" class="bg-background text-foreground">Boots</option>
+            <option value="Bracers" class="bg-background text-foreground">Bracers</option>
+            <option value="Goggles" class="bg-background text-foreground">Goggles</option>
+            <option value="Armor" class="bg-background text-foreground">Armor</option>
+          </select>
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none" for="minor-artifact-slots">Filigree Slots</label>
+          <input id="minor-artifact-slots" type="number" bind:value={$configStore.minor_artifact_filigree_slots} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+        </div>
+        <div class="flex items-center pt-6">
+          <label class="flex items-center space-x-2 text-sm cursor-pointer">
+            <input type="checkbox" bind:checked={$configStore.is_dino_artifact} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+            <span class="font-medium leading-none text-foreground">Dinosaur Bone Artifact</span>
+          </label>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -306,13 +394,27 @@
       </div>
     </div>
     {#if $configStore.stat_priorities && $configStore.stat_priorities.length > 0}
-      <div class="grid grid-cols-2 gap-2 mt-3">
-        {#each $configStore.stat_priorities as { stat, value } (stat)}
+      <div class="grid grid-cols-1 gap-2 mt-3">
+        {#each $configStore.stat_priorities as { stat, value }, i (stat)}
           <div class="flex justify-between items-center border border-border rounded-md px-3 py-2 text-sm bg-card text-card-foreground cursor-pointer hover:border-primary transition-colors" on:click={() => editStatPriority(stat, value)}>
-            <span class="font-medium truncate mr-2" title={stat}>{stat}</span>
+            <div class="flex items-center space-x-3 mr-2 min-w-0">
+              <div class="flex flex-col space-y-0.5">
+                <button 
+                  class="text-[10px] leading-none hover:text-primary disabled:opacity-30" 
+                  on:click|stopPropagation={() => moveStatPriority(i, 'up')}
+                  disabled={i === 0}
+                >▲</button>
+                <button 
+                  class="text-[10px] leading-none hover:text-primary disabled:opacity-30" 
+                  on:click|stopPropagation={() => moveStatPriority(i, 'down')}
+                  disabled={i === $configStore.stat_priorities.length - 1}
+                >▼</button>
+              </div>
+              <span class="font-medium truncate" title={stat}>{stat}</span>
+            </div>
             <div class="flex items-center space-x-3">
               <span class="text-muted-foreground">{value}</span>
-              <button class="text-destructive hover:text-destructive/80 focus:outline-none font-bold" on:click|stopPropagation={() => removeStatPriority(stat)} aria-label="Remove">&times;</button>
+              <button class="text-destructive hover:text-destructive/80 focus:outline-none font-bold text-lg" on:click|stopPropagation={() => removeStatPriority(stat)} aria-label="Remove">&times;</button>
             </div>
           </div>
         {/each}
@@ -323,6 +425,23 @@
         Filigree bias: {filigreeBias.map(b => `${b.pct}% ${b.stat}`).join(', ')}
       </p>
     {/if}
+  </div>
+
+  <div class="space-y-2 border-t border-border pt-4">
+    <label class="text-sm font-medium leading-none" for="search-time">Max Search Time (seconds)</label>
+    <div class="flex items-center space-x-3">
+      <input 
+        id="search-time" 
+        type="range" 
+        min="5" 
+        max="300" 
+        step="5"
+        bind:value={$configStore.max_search_time} 
+        class="w-full accent-primary" 
+      />
+      <span class="text-sm font-medium w-8 text-right">{$configStore.max_search_time}</span>
+    </div>
+    <p class="text-[10px] text-muted-foreground">Longer search times allow for deeper optimization but take more resources.</p>
   </div>
 
   <button 

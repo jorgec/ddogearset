@@ -16,3 +16,7 @@ python/dist/
 releases/
 *.ddogearset
 gearset_output.txt
+
+test-pulp.lp
+
+test_glpk.py
