@@ -141,6 +141,22 @@ def _is_stacking(b_type):
     return (b_type or '').lower().strip() in STACKING_TYPES
 
 
+def augment_fits_slot(aug_type, slot_color):
+    """DDO rule: a 'Colorless' augment slot accepts an augment of ANY color, not
+    just an augment literally typed 'Colorless'. Without this special case, no
+    y variable is ever created for a Colorless slot (a real augment's `type` is
+    one of the six colors, never the literal string "Colorless"), so Colorless
+    slots are silently unfillable everywhere in the model: normal optimize runs
+    just never use them, and calculate-only runs go infeasible the moment a
+    saved gearset has anything slotted there (see create_model's
+    total_pre_filled_augments guard)."""
+    slot_color = (slot_color or '').lower()
+    aug_type = (aug_type or '').lower()
+    if slot_color == 'colorless':
+        return True
+    return aug_type == slot_color or slot_color in aug_type
+
+
 def _clamp(v, lo, hi):
     return max(lo, min(hi, v))
 
@@ -466,8 +482,38 @@ def parse_sets(base_dir, priorities):
     return set_bonuses
 
 
-def parse_augments(base_dir, max_ml, priorities):
+def flatten_pre_filled_augment_names(pre_filled_augments):
+    """Extracts every augment name referenced by a pre_filled_augments payload,
+    across both accepted shapes (see create_model's `pairs` handling): the new
+    {color: name} / {color: [names]} dict format, and the legacy positional
+    list-of-names format. Used to bypass parse_augments' ML floor for augments
+    that are already slotted into a pre-equipped item."""
+    names = set()
+    for aug_entry in (pre_filled_augments or {}).values():
+        if isinstance(aug_entry, dict):
+            for v in aug_entry.values():
+                if isinstance(v, list):
+                    names.update(n for n in v if n)
+                elif v:
+                    names.add(v)
+        else:
+            names.update(n for n in (aug_entry or []) if n)
+    return names
+
+
+def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None):
+    """`pre_filled_augment_names` mirrors parse_items' `pre_equipped_names` bypass
+    (see is_pre_equipped there): an augment already slotted into a pre-equipped
+    item is not optional gear-search inventory, it's a fact about the current
+    build, so the ML>=29 floor (meant to keep the *search space* to
+    endgame-relevant items) must not silently drop it. Without this, any
+    pre-filled augment with MinLevel < 29 (e.g. the MinLevel-22 Festive line)
+    fails to match in create_model, and the aggregate
+    `sum(y) == total_pre_filled_augments` constraint (which counts every
+    payload entry, matched or not) turns that single miss into a hard
+    infeasibility for the whole calculate-only solve."""
     augments = []
+    pre_filled_augment_names = set(pre_filled_augment_names or [])
     for aug_file in glob.glob(os.path.join(base_dir, 'Augments', '*.xml')):
         try:
             tree = ET.parse(aug_file)
@@ -476,9 +522,11 @@ def parse_augments(base_dir, max_ml, priorities):
                 a_type = aug_node.findtext('Type')
                 if not a_type: continue
 
+                is_pre_filled = name in pre_filled_augment_names
+
                 ml_node = aug_node.find('MinLevel')
                 ml = int(ml_node.text) if ml_node is not None and ml_node.text else 0
-                if ml < 29 or ml > max_ml:
+                if not is_pre_filled and (ml < 29 or ml > max_ml):
                     continue
 
                 buffs = []
@@ -951,7 +999,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         color_counts = collections.Counter(item['augments'])
         for color, limit in color_counts.items():
             for aug_idx, aug in enumerate(augments):
-                if aug['type'].lower() == color.lower() or color.lower() in aug['type'].lower():
+                if augment_fits_slot(aug['type'], color):
                     y[(aug_idx, i, color)] = pulp.LpVariable(f"y_{aug_idx}_{i}_{safe_name(color)}", cat="Binary")
 
     fw = {}
@@ -960,6 +1008,8 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         fw[idx] = pulp.LpVariable(f"fw_{idx}", cat="Binary")
         fm[idx] = pulp.LpVariable(f"fm_{idx}", cat="Binary")
 
+    matched_pre_filled_augment_count = 0
+    unmatched_pre_filled_augments = []
     if pre_filled_augments and pre_equipped:
         for slot, aug_entry in pre_filled_augments.items():
             if slot in required_slots and slot in pre_equipped:
@@ -988,6 +1038,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
                                     matched_aug_idx = idx
                                     break
                             if matched_aug_idx is None:
+                                unmatched_pre_filled_augments.append(f"{aug_name} ({slot})")
                                 continue
                             matched_aug = augments[matched_aug_idx]
                             matched_color = None
@@ -996,12 +1047,15 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
                             else:
                                 color_counts = collections.Counter(item['augments'])
                                 for c in color_counts.keys():
-                                    if matched_aug['type'].lower() == c.lower() or c.lower() in matched_aug['type'].lower():
+                                    if augment_fits_slot(matched_aug['type'], c):
                                         if (matched_aug_idx, i, c) in y:
                                             matched_color = c
                                             break
                             if matched_color:
                                 prob += y[(matched_aug_idx, i, matched_color)] == 1
+                                matched_pre_filled_augment_count += 1
+                            else:
+                                unmatched_pre_filled_augments.append(f"{aug_name} ({slot})")
                         break
 
     if pre_filled_filigrees and filigrees:
@@ -1055,7 +1109,13 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
     if minor_vars:
         prob += pulp.lpSum(minor_vars) == 1
 
-    if raid_item_limit is not None and raid_item_limit >= 0:
+    # calculate_only is a strict reproduction of a saved/pre_equipped gearset,
+    # not a search — the raid-item cap is a search-time preference, not a fact
+    # about whether that gearset can exist. Enforcing it here means a gearset
+    # saved under an older/looser raid_item_limit (or hand-edited, or saved
+    # before a limit was set) becomes permanently uncalculatable even though
+    # every item in it is individually valid.
+    if not calculate_only and raid_item_limit is not None and raid_item_limit >= 0:
         raid_vars = []
         for i, item in enumerate(items):
             if item.get('is_raid'):
@@ -1071,16 +1131,31 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
             if valid_y:
                 prob += pulp.lpSum(valid_y) <= limit * item_is_equipped
 
-    for a in range(len(augments)):
-        prob += pulp.lpSum([y[(aug_idx, i, c)] for (aug_idx, i, c) in y.keys() if aug_idx == a]) <= 1
+    if not calculate_only:
+        # Prevents the search from slotting the identical augment into every
+        # compatible color across the whole gearset. Skipped in calculate_only:
+        # augments like Solar/Lunar Gems are craftable/purchasable in multiple
+        # copies (no bind-unique restriction), so a saved gearset can legally
+        # have the same augment name in two different slots (confirmed against
+        # a real saved .ddogearset — see docs/PHASE10_HANDOFF.md). Enforcing
+        # this here would force pre_filled_augments' two matching `y == 1`
+        # constraints for the same aug_idx to both hold while also capping
+        # their sum at 1 — an unsatisfiable pair that fails calculate_only
+        # outright instead of just under-crediting the duplicate.
+        for a in range(len(augments)):
+            prob += pulp.lpSum([y[(aug_idx, i, c)] for (aug_idx, i, c) in y.keys() if aug_idx == a]) <= 1
 
     if calculate_only:
-        # To strictly compute what was passed, force sum of y to equal the number of pre-filled augments
-        def _count_entries(aug_entry):
-            values = aug_entry.values() if isinstance(aug_entry, dict) else aug_entry
-            return len([v for v in values if v])
-        total_pre_filled_augments = sum(_count_entries(v) for v in pre_filled_augments.values()) if pre_filled_augments else 0
-        prob += pulp.lpSum(y.values()) == total_pre_filled_augments
+        # To strictly compute what was passed, force sum of y to equal the number
+        # of pre-filled augments that were actually resolved to a real (augment,
+        # item, color) triple above — NOT the raw count of payload entries. An
+        # entry can legitimately fail to resolve (unknown/renamed augment name,
+        # or — historically, before augment_fits_slot existed — any augment in a
+        # Colorless slot); counting those anyway forced the model to place extra
+        # unrelated augments to make the numbers balance, and when no compatible
+        # slot existed for that surplus, the whole calculate-only solve went
+        # infeasible instead of just not crediting the one bad entry.
+        prob += pulp.lpSum(y.values()) == matched_pre_filled_augment_count
 
     if filigrees:
         base_name_groups = collections.defaultdict(list)
@@ -1147,6 +1222,11 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         flat_weights.update(tier_map)
 
     notes = []
+
+    if unmatched_pre_filled_augments:
+        notes.append(
+            "Pre-filled augment(s) not credited (no matching augment data found): "
+            + ", ".join(unmatched_pre_filled_augments))
 
     # §15.3 / EC-29: the composite double-counts against its components. The
     # frontend is responsible for blocking the combination; the backend only
@@ -2224,7 +2304,7 @@ def _local_search_augments(item, augments, used_names, initial, evaluate, shortl
     for color in colors:
         pool = [a for a in augments
                 if a['name'] not in used_names
-                and (a['type'].lower() == color.lower() or color.lower() in a['type'].lower())]
+                and augment_fits_slot(a['type'], color)]
         # Pre-filter by raw buff magnitude so the search stays cheap.
         pool.sort(key=lambda a: (-sum(abs(v) for _s, _b, v in a['buffs']), a['name']))
         compatible.append(pool[:shortlist])

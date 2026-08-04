@@ -399,7 +399,8 @@ def main():
         print(f"Loaded {len(items)} items")
 
         print(f"Parsing Augments (ML 29-{cap})...")
-        augments = optimizer.parse_augments(base_dir, cap, priority_names)
+        pre_filled_augment_names = optimizer.flatten_pre_filled_augment_names(pre_filled_augments)
+        augments = optimizer.parse_augments(base_dir, cap, priority_names, pre_filled_augment_names)
         print(f"Loaded {len(augments)} augments")
 
         filigrees = []

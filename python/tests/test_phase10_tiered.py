@@ -984,3 +984,98 @@ def test_ec16_same_item_in_two_slots_warns_and_is_excluded():
         "Ring_1", "Twin Ring", 3, ub_all, ub_nofil, weights)
     assert any("more than one slot" in w for w in res["warnings"])
     assert [a["itemName"] for a in res["alternatives"]] == ["Other Ring"]
+
+
+# ---------------------------------------------------------------------------
+# Regression — calculate_only infeasibility bugs found against a real saved
+# gearset (see docs/PHASE10_HANDOFF.md). All three compounded: a save with an
+# augment in a Colorless slot, the same augment name in two slots, and a
+# raid-item count over an (unrelated, search-time) raid_item_limit made
+# calculate_only report "some locked items may be incompatible" even though
+# every individual item/augment/filigree in the file was perfectly valid.
+# ---------------------------------------------------------------------------
+
+def make_augment(name, a_type, buffs):
+    return {'name': name, 'type': a_type, 'buffs': list(buffs)}
+
+
+def test_augment_fits_slot_treats_colorless_as_universal():
+    # A real augment's `type` is a color (Blue/Red/Green/...), never literally
+    # "Colorless" — a Colorless item slot accepts any of them (DDO rule).
+    assert optimizer.augment_fits_slot('Blue', 'Colorless') is True
+    assert optimizer.augment_fits_slot('Green', 'colorless') is True
+    # Non-Colorless slots still require an actual color match.
+    assert optimizer.augment_fits_slot('Blue', 'Red') is False
+    assert optimizer.augment_fits_slot('Blue', 'Blue') is True
+
+
+def test_calculate_only_credits_pre_filled_augment_in_a_colorless_slot():
+    item = make_item("Festive Hat", ["Helmet"], [], augments=["Colorless"])
+    augments = [make_augment("+2 Festive Charisma", "Blue", [("Charisma", "Festive", 2.0)])]
+    entries = [PriorityEntry("Charisma", 1, None, 0)]
+
+    result, _ = solve(
+        [item], entries, augments=augments,
+        pre_equipped={"Helmet": "Festive Hat"},
+        pre_filled_augments={"Helmet": {"Colorless": "+2 Festive Charisma"}},
+        mode="calculate")
+
+    assert result.get("errorMessage") is None
+    assert result["realizedStats"]["Charisma"] == 2.0
+
+
+def test_calculate_only_allows_the_same_augment_name_in_two_slots():
+    # Augments like Solar/Lunar Gems are craftable/purchasable in multiple
+    # copies — no bind-unique restriction — so the same augment name can
+    # legally appear in two different slots of a saved gearset.
+    armor = make_item("Plate", ["Armor"], [], augments=["Sun"])
+    cloak = make_item("Cape", ["Cloak"], [], augments=["Sun"])
+    augments = [make_augment("Solar Gem of Charisma", "Sun", [("Charisma", "Stacking", 4.0)])]
+    entries = [PriorityEntry("Charisma", 1, None, 0)]
+
+    result, _ = solve(
+        [armor, cloak], entries, augments=augments,
+        pre_equipped={"Armor": "Plate", "Cloak": "Cape"},
+        pre_filled_augments={
+            "Armor": {"Sun": "Solar Gem of Charisma"},
+            "Cloak": {"Sun": "Solar Gem of Charisma"},
+        },
+        mode="calculate")
+
+    # Both Artifact/Insightful-style non-stacking bonuses would collapse to
+    # the max of the two (correct DDO rule) and wouldn't prove the fix, so
+    # this augment uses a Stacking bonus type: both copies must be credited.
+    assert result.get("errorMessage") is None
+    assert result["realizedStats"]["Charisma"] == 8.0
+
+
+def test_calculate_only_ignores_raid_item_limit():
+    raid_item = make_item("Raid Trinket", ["Trinket"], [("Charisma", "Stacking", 5.0)])
+    raid_item["is_raid"] = True
+    other_raid_item = make_item("Raid Belt", ["Belt"], [("Charisma", "Stacking", 5.0)])
+    other_raid_item["is_raid"] = True
+    entries = [PriorityEntry("Charisma", 1, None, 0)]
+
+    result, _ = solve(
+        [raid_item, other_raid_item], entries,
+        pre_equipped={"Trinket": "Raid Trinket", "Belt": "Raid Belt"},
+        raid_item_limit=1, mode="calculate")
+
+    assert result.get("errorMessage") is None
+    assert result["realizedStats"]["Charisma"] == 10.0
+
+
+def test_optimize_mode_still_enforces_raid_item_limit():
+    # The calculate_only bypass above must not weaken the search-mode cap.
+    raid_item = make_item("Raid Trinket", ["Trinket"], [("Charisma", "Insightful", 5.0)])
+    raid_item["is_raid"] = True
+    other_raid_item = make_item("Raid Belt", ["Belt"], [("Charisma", "Insightful", 5.0)])
+    other_raid_item["is_raid"] = True
+    entries = [PriorityEntry("Charisma", 1, None, 0)]
+
+    result, _ = solve([raid_item, other_raid_item], entries, raid_item_limit=1)
+
+    assert result.get("errorMessage") is None
+    equipped_raid = sum(1 for name in result["gearSet"].values()
+                        if name in ("Raid Trinket", "Raid Belt"))
+    assert equipped_raid <= 1
