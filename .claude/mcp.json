@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mempalace": {
+      "command": "python",
+      "args": ["-m", "mempalace.mcp_server"],
+      "env": {
+        "MEMPALACE_CONFIG": "/Users/jorgecosgayon/dev/ddo/goGearset/mempalace.yaml"
+      },
+      "cwd": "/Users/jorgecosgayon/mempalace"
+    }
+  }
+}
