@@ -1,3 +1,4 @@
+import re
 import sys
 import os
 import optimizer
@@ -211,7 +212,20 @@ def main():
                             sets[k][count] = buffs
                             
             print(f"Solving ILP for max level {cap} (this may take a minute)...")
-            optimizer.run_optimization(items, sets, augments, filigrees, priorities, out_file, cap, art_slots)
+            # This legacy interactive CLI collects a flat, ordered list of stat
+            # names with no tier concept, so every entry lands in tier 1 in
+            # entry order (matching the pre-Phase-10 "all equally important,
+            # front-loaded" behaviour). The Wails path goes through
+            # solver.parse_stat_priorities instead.
+            entries = []
+            for order, p in enumerate(priorities):
+                cap_match = re.search(r'\[(\d+)\]', p)
+                entries.append(optimizer.PriorityEntry(
+                    stat=optimizer.strip_cap_suffix(p),
+                    tier=1,
+                    cap=float(cap_match.group(1)) if cap_match else None,
+                    order=order))
+            optimizer.run_optimization(items, sets, augments, filigrees, entries, out_file, cap, art_slots)
             
     print(f"\nSuccess! Results written to {filename}")
 

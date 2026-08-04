@@ -1,39 +1,170 @@
 import json
 import sys
 import os
+import re
 import parser
 import optimizer
+from optimizer import PriorityEntry
+
+VALID_MODES = ("optimize", "calculate", "alternatives")
+
+# §2.6 — every validation message starts with this literal prefix.
+VALIDATION_PREFIX = "Stat priority validation failed: "
+
+MIN_TIER = 1
+MAX_TIER = 5
+
 
 def parse_payload(payload):
     # Just returns the payload for now, any required normalization can happen here
     return payload
 
-def main():
-    if len(sys.argv) > 1:
-        with open(sys.argv[1], 'r') as f:
-            payload = json.load(f)
-    elif not sys.stdin.isatty():
-        payload = json.load(sys.stdin)
+
+def fail(message):
+    """Prints the failure payload on the existing JSON_RESULT channel, then
+    exits 1. app.go returns the captured payload even on a non-zero exit."""
+    print(f"JSON_RESULT:{json.dumps({'success': False, 'errorMessage': message})}")
+    sys.exit(1)
+
+
+def _legacy_tier(value):
+    """§2.4 — legacy 1-100 `value` -> tier."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = 0.0
+    if v >= 100:
+        return 1
+    if v >= 75:
+        return 2
+    if v >= 50:
+        return 3
+    if v >= 25:
+        return 4
+    return 5
+
+
+def _cap_from_suffix(raw_name):
+    m = re.search(r'\[(\d+)\]', str(raw_name))
+    return float(m.group(1)) if m else None
+
+
+def parse_stat_priorities(raw, warnings=None):
+    """Accepts Shape A / B / C (§2.4). Returns (entries, None) on success or
+    ([], error_message) on validation failure. Runs BEFORE any XML parsing.
+
+    `warnings` is an optional list that collects non-fatal notes (currently only
+    the cap/`[N]`-suffix disagreement of EC-22), which main() writes to
+    out_file once it is open.
+    """
+    if warnings is None:
+        warnings = []
+
+    if not raw:
+        return [], VALIDATION_PREFIX + "no stat priorities were provided."
+
+    # --- shape detection (§2.4) -------------------------------------------
+    raw_entries = []
+    if isinstance(raw, dict):
+        # Shape A — legacy dict. Intra-tier order is JSON object insertion
+        # order, guaranteed since Python 3.7.
+        for name, value in raw.items():
+            raw_entries.append({"stat": name, "tier": _legacy_tier(value), "cap": None})
+    elif isinstance(raw, (list, tuple)):
+        has_tier = any(isinstance(e, dict) and 'tier' in e for e in raw)
+        for e in raw:
+            if not isinstance(e, dict):
+                continue
+            name = e.get('stat')
+            if not name:
+                continue
+            if has_tier:
+                # Shape C — elements *without* tier are a validation error.
+                if 'tier' not in e:
+                    return [], (VALIDATION_PREFIX +
+                                f"entry '{name}' is missing a tier.")
+                tier = e.get('tier')
+            else:
+                # Shape B — Phase 9 ordered list with `value`.
+                tier = _legacy_tier(e.get('value'))
+            raw_entries.append({"stat": name, "tier": tier, "cap": e.get('cap')})
     else:
-        print("Error: No JSON payload provided via file or stdin.")
-        sys.exit(1)
-        
-    parsed_data = parse_payload(payload)
-    
-    cap = parsed_data.get('max_level', 34)
-    b_type = parsed_data.get('build_type', 'Melee')
-    raw_priorities = parsed_data.get('stat_priorities', [])
-    # `stat_priorities` is an ordered list of {"stat": str, "value": int} entries
-    # (order preserved end-to-end for filigree-selection bias, see
-    # docs/PHASE9_PLAN.md). Older saved .ddogearset files may still store this
-    # as a plain {stat: value} dict; support both for backward compatibility.
-    if isinstance(raw_priorities, dict):
-        priority_pairs = list(raw_priorities.items())
-    else:
-        priority_pairs = [(e.get('stat'), e.get('value')) for e in raw_priorities if e.get('stat')]
-    priority_names = [name for name, _ in priority_pairs]
-    armor_input = parsed_data.get('armor_restriction', '')
-    
+        return [], VALIDATION_PREFIX + "no stat priorities were provided."
+
+    if not raw_entries:
+        return [], VALIDATION_PREFIX + "no stat priorities were provided."
+
+    # --- validation (§2.6) -------------------------------------------------
+    seen = {}          # normalized key -> (display name, tier)
+    tier_counts = {}
+    entries = []
+
+    for e in raw_entries:
+        raw_name = e['stat']
+        base = optimizer.strip_cap_suffix(raw_name)
+        key = optimizer.normalize_stat_key(raw_name)
+
+        tier = e['tier']
+        if not isinstance(tier, int) or isinstance(tier, bool):
+            try:
+                tier = int(tier)
+            except (TypeError, ValueError):
+                return [], (VALIDATION_PREFIX +
+                            f"'{base}' has invalid tier {e['tier']!r} (must be 1-5).")
+        if tier < MIN_TIER or tier > MAX_TIER:
+            return [], (VALIDATION_PREFIX +
+                        f"'{base}' has invalid tier {tier} (must be 1-5).")
+
+        if key in seen:
+            prev_name, prev_tier = seen[key]
+            if prev_tier == tier:
+                return [], (VALIDATION_PREFIX +
+                            f"'{prev_name}' is listed more than once in tier {tier}.")
+            return [], (VALIDATION_PREFIX +
+                        f"'{prev_name}' appears in more than one tier "
+                        f"(tiers {prev_tier} and {tier}). Each stat may be listed only once.")
+        seen[key] = (base, tier)
+
+        suffix_cap = _cap_from_suffix(raw_name)
+        cap = e.get('cap')
+        if cap is not None:
+            if isinstance(cap, bool) or not isinstance(cap, (int, float)) or \
+                    float(cap) != int(cap) or int(cap) <= 0:
+                return [], (VALIDATION_PREFIX +
+                            f"'{base}' has invalid cap {cap!r} (must be a positive integer).")
+            cap = float(int(cap))
+            # EC-22 — the `cap` field wins over a "[N]" suffix; warn on disagreement.
+            if suffix_cap is not None and suffix_cap != cap:
+                warnings.append(
+                    f"Priority '{raw_name}' declares cap {int(cap)} and suffix cap "
+                    f"{int(suffix_cap)}; using the cap field ({int(cap)}).")
+        else:
+            cap = suffix_cap
+
+        order = tier_counts.get(tier, 0)
+        tier_counts[tier] = order + 1
+        entries.append(PriorityEntry(stat=base, tier=tier, cap=cap, order=order))
+
+    return entries, None
+
+
+def normalize_mode(parsed_data):
+    """(mode, error_message). §2.5. `calculate_only` remains accepted as a
+    legacy field and is never read again after normalization."""
+    mode = parsed_data.get('mode')
+    if mode:
+        mode = str(mode).strip().lower()
+        if mode not in VALID_MODES:
+            return None, VALIDATION_PREFIX + f"unknown mode '{parsed_data.get('mode')}'."
+        return mode, None
+    if parsed_data.get('calculate_only'):
+        return "calculate", None
+    return "optimize", None
+
+
+def resolve_weapon_lists(parsed_data):
+    """Weapon-style filtering. Extracted so the alternatives path uses exactly
+    the same pool the main solve would."""
     weapon_style = parsed_data.get('weapon_style', 'Two Weapon Fighting')
     runearm_use = parsed_data.get('runearm_use', False)
 
@@ -101,18 +232,113 @@ def main():
         w1_list = twf_weapons
         w2_list = twf_weapons
 
-    # "if runearm use is checked, it should always allow runearms for single-handed weapons and crossbows."
+    # "if runearm use is checked, it should always allow runearms for
+    # single-handed weapons and crossbows."
     single_handed_and_xbow_styles = [
-        'Two Weapon Fighting', 'Single Weapon Fighting', 'Sword and Board', 
-        'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 
+        'Two Weapon Fighting', 'Single Weapon Fighting', 'Sword and Board',
+        'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow',
         'Thrown', 'Shuriken', 'Dual Caster', 'Stick and Orb'
     ]
     if runearm_use and weapon_style in single_handed_and_xbow_styles:
+        w2_list = list(w2_list)
         for r_arm in runearm_offhand:
             if r_arm not in w2_list:
                 w2_list.append(r_arm)
-    
-    # Fallback checking logic follows here if any...
+
+    return w1_list, w2_list
+
+
+def derive_required_slots(items):
+    available_slots = set()
+    for item in items:
+        for slot in item['slots']:
+            if slot == 'Ring':
+                available_slots.add('Ring_1')
+                available_slots.add('Ring_2')
+            else:
+                available_slots.add(slot)
+    base_required = ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring_1', 'Ring_2',
+                     'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2']
+    return [s for s in base_required if s in available_slots]
+
+
+def run_alternatives(parsed_data, entries, items, sets, augments, filigrees,
+                     required_slots, out_file):
+    """mode == 'alternatives' branch (§7). Cold-callable: no prior optimization
+    run is required."""
+    target_slot = parsed_data.get('target_slot') or ''
+    current_item = parsed_data.get('current_item') or ''
+    equipped_items = parsed_data.get('equipped_items') or {}
+    count = parsed_data.get('count', 5)
+    pre_filled_augments = parsed_data.get('pre_filled_augments', {})
+    pre_filled_filigrees = parsed_data.get('pre_filled_filigrees', {})
+
+    if not target_slot:
+        return {"success": False, "slot": "", "baselineTierScores": {},
+                "alternatives": [], "errorMessage": "No target slot was supplied."}
+
+    caps = {e.stat: float(e.cap) for e in entries if e.cap is not None}
+
+    # §7.3 — UB_s comes from the FULL parsed pool (the same
+    # compute_stat_upper_bounds call the main solve would make), not from the
+    # candidate set, so TierScores stay comparable to a main-solve G_t and
+    # comparable across candidates.
+    ub_sources = optimizer.build_ub_sources(items, sets, augments, filigrees, required_slots)
+    ub_all = optimizer.compute_stat_upper_bounds(ub_sources, items, required_slots, caps, True)
+    ub_nofil = optimizer.compute_stat_upper_bounds(ub_sources, items, required_slots, caps, False)
+
+    usable = [e for e in entries if e.stat in ub_all]
+    weights = optimizer.compute_tier_weights(usable)
+
+    out_file.write(f"\n=== SLOT ALTERNATIVES: {target_slot} ===\n")
+    out_file.write(f"Current item: {current_item or '(empty)'}\n")
+
+    result = optimizer.find_slot_alternatives(
+        items, sets, augments, filigrees, entries, required_slots,
+        equipped_items, pre_filled_augments, pre_filled_filigrees,
+        target_slot, current_item, count, ub_all, ub_nofil, weights)
+
+    for alt in result.get('alternatives', []):
+        out_file.write(f"  {alt['rank']}. {alt['itemName']} "
+                       f"(objective {alt['objectiveScore']})\n")
+    for w in result.get('warnings', []):
+        out_file.write(f"  ! {w}\n")
+
+    return result
+
+
+def main():
+    if len(sys.argv) > 1:
+        with open(sys.argv[1], 'r') as f:
+            payload = json.load(f)
+    elif not sys.stdin.isatty():
+        payload = json.load(sys.stdin)
+    else:
+        print("Error: No JSON payload provided via file or stdin.")
+        sys.exit(1)
+
+    parsed_data = parse_payload(payload)
+
+    cap = parsed_data.get('max_level', 34)
+    b_type = parsed_data.get('build_type', 'Melee')
+
+    # --- validation runs BEFORE any XML parsing (§2.6) ---------------------
+    priority_warnings = []
+    entries, err = parse_stat_priorities(parsed_data.get('stat_priorities'), priority_warnings)
+    if err:
+        fail(err)
+
+    mode, err = normalize_mode(parsed_data)
+    if err:
+        fail(err)
+
+    # INV-2: priority_names must contain stats from ALL FIVE tiers. Dropping
+    # tier-5 stats would make matching XML data invisible to normalize_stat_name
+    # and therefore to the entire model.
+    priority_names = [e.stat for e in entries]
+
+    armor_input = parsed_data.get('armor_restriction', '')
+    w1_list, w2_list = resolve_weapon_lists(parsed_data)
 
     allow_gomf = not parsed_data.get('exclude_gem_of_many_facets', False)
     art_slot_input = parsed_data.get('reserved_minor_artifact_slot', '')
@@ -124,24 +350,24 @@ def main():
     pre_equipped = parsed_data.get('pre_equipped', {})
     pre_filled_augments = parsed_data.get('pre_filled_augments', {})
     pre_filled_filigrees = parsed_data.get('pre_filled_filigrees', {})
-    calculate_only = parsed_data.get('calculate_only', False)
-    
+    max_search_time = parsed_data.get('max_search_time', optimizer.DEFAULT_SEARCH_TIME)
+
     base_dir = "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles"
     if not os.path.exists(base_dir):
         print(f"Error: Base directory {base_dir} not found.")
         sys.exit(1)
-        
+
     print(f"\nParsing Quests from {base_dir}...")
     quests_lookup = parser.parse_quests(base_dir)
-    
+
     print(f"\nParsing Sets from {base_dir}...")
     sets = optimizer.parse_sets(base_dir, priority_names)
     print(f"Loaded {len(sets)} sets.")
-    
+
     filename = parsed_data.get('output_filename', 'gearset_output.json')
     if not filename.endswith('.json'):
         filename += '.json'
-    
+
     log_filename = "gearset_output.txt"
     final_gearset = {}
     with open(log_filename, 'w') as out_file:
@@ -149,23 +375,33 @@ def main():
         out_file.write("           USER INPUTS\n")
         out_file.write("======================================\n")
         out_file.write(f"Build Type: {b_type}\n")
+        out_file.write(f"Mode: {mode}\n")
+        out_file.write(f"Max Search Time: {max_search_time}\n")
         out_file.write(f"Final Priorities: {', '.join(priority_names)}\n")
+        out_file.write("Priority Tiers: " + ', '.join(
+            f"{e.stat} (T{e.tier}" + (f", cap {int(e.cap)}" if e.cap else "") + ")"
+            for e in entries) + "\n")
         out_file.write(f"Armor Restriction: {armor_input or 'None'}\n")
         out_file.write(f"Reserved Minor Artifact Slot: {art_slot_input or 'Any'}\n")
         out_file.write(f"Minor Artifact Filigree Slots: {art_slots}\n")
         out_file.write(f"Allow Gem of Many Facets: {allow_gomf}\n")
         out_file.write(f"Excluded Packs: {', '.join(excluded_packs) if excluded_packs else 'None'}\n")
-        out_file.write(f"Raid Item Limit: {raid_item_limit}\n\n")
-        
+        out_file.write(f"Raid Item Limit: {raid_item_limit}\n")
+        for w in priority_warnings:
+            out_file.write(f"WARNING: {w}\n")
+        out_file.write("\n")
+
         print(f"\nParsing Items (ML 29-{cap})...")
         pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
+        if mode == "alternatives":
+            pre_equipped_names = list((parsed_data.get('equipped_items') or {}).values())
         items = optimizer.parse_items(base_dir, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names)
         print(f"Loaded {len(items)} items")
-        
+
         print(f"Parsing Augments (ML 29-{cap})...")
         augments = optimizer.parse_augments(base_dir, cap, priority_names)
         print(f"Loaded {len(augments)} augments")
-        
+
         filigrees = []
         if cap >= 34:
             print(f"Parsing Filigrees...")
@@ -177,18 +413,35 @@ def main():
                 else:
                     for count, buffs in v.items():
                         sets[k][count] = buffs
-                        
+
+        if mode == "alternatives":
+            print("Enumerating slot alternatives...")
+            result = run_alternatives(parsed_data, entries, items, sets, augments, filigrees,
+                                      derive_required_slots(items), out_file)
+            print(f"JSON_RESULT:{json.dumps(result)}")
+            if not result.get('success'):
+                sys.exit(1)
+            return
+
         print(f"Solving ILP for max level {cap} (this may take a minute)...")
-        equipped_simple = optimizer.run_optimization(items, sets, augments, filigrees, priority_pairs, out_file, cap, art_slots, raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees, calculate_only)
-        if equipped_simple:
-            final_gearset = equipped_simple
+        result = optimizer.run_optimization(
+            items, sets, augments, filigrees, entries, out_file, cap, art_slots,
+            raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees,
+            mode, max_search_time)
+
+        if result and result.get('success') is not False:
+            final_gearset = result
             print(f"JSON_RESULT:{json.dumps(final_gearset)}")
             print(f"\nSuccess! Results written to {filename}")
         else:
             # Output an explicit failure JSON payload so the Go app knows to abort
-            print(f"JSON_RESULT:{json.dumps({'success': False, 'errorMessage': 'Solver could not find a valid combination of gear that satisfies all of your constraints. Try clearing some locked items or reducing requirements.'})}")
+            message = (result or {}).get('errorMessage') or (
+                'Solver could not find a valid combination of gear that satisfies all of your '
+                'constraints. Try clearing some locked items or reducing requirements.')
+            print(f"JSON_RESULT:{json.dumps({'success': False, 'errorMessage': message})}")
             print("\nSolver failed to find a feasible solution.")
             sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
