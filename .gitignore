@@ -20,3 +20,5 @@ gearset_output.txt
 test-pulp.lp
 
 test_glpk.py
+
+python/tests/__pycache__/
