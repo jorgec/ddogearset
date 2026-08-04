@@ -1044,3 +1044,115 @@ Add points 1–3 as a comment block above `solve_tiered`.
 ### 14.7 Documentation
 
 Add to the Phase 10 section of `docs/PHASE9_PLAN.md`, under a short "Empty slots" heading: slots are never mandatory (`≤ 1`, unchanged since before Phase 9); once every tier goal is locked, the consolidation stage actively empties any slot whose item is not load-bearing; the two exceptions are the mandatory minor artifact and user-pinned `pre_equipped` items. This is user-visible behavior — a solved gearset may legitimately come back with fewer than 14 slots filled, and the UI should not treat a missing slot key as an error.
+
+---
+
+## 15. Addendum — Weapon Combat Properties as Solver Priorities
+
+Adds four weapon-intrinsic properties (`<WeaponDamage>`, `<BaseDice>`, `<CriticalMultiplier>`, `<CriticalThreatRange>`) as real, optimizable priority stats. These are **direct child elements of `<Item>`**, not `<Buff>` elements, and are structurally different from every other stat in this document: each weapon has exactly one fixed value per property, and at most one item occupies `Weapon1` (the only slot considered — see §15.4).
+
+### 15.1 Verdict: fits the existing non-stacking-source machinery, with one required fix
+
+The core claim — "this needs no new PuLP variable class" — holds. `Σ_i x[(i,slot)] ≤ 1` (`optimizer.py:516`) plus a non-stacking bonus type's `Σ d_var ≤ 1` (`optimizer.py:655`) already expresses "at most one weapon, its value counts, nothing stacks." `z`, `UB_s`, the cap mechanism, the tier goal expressions, and the reconciliation LP all work unmodified.
+
+**Required fix, small:** the source-building loop (`optimizer.py:611-613`)
+```python
+for (i, s), var in x.items():
+    for stat, b_type, val in items[i]['buffs']:
+        sources[(stat, b_type)].append((val, var, items[i]['name']))
+```
+iterates every `(item, slot)` pair `x` var that item participates in — including `Weapon2` for any dagger-class item legal in both hands. Left unqualified, a weapon-base stat's `(stat, b_type)` bucket would receive tuples keyed by both `x[(i,'Weapon1')]` and `x[(i,'Weapon2')]`, and its single `Σd ≤ 1` would then resolve to whichever hand happens to win, silently discarding the other. Per §15.4 (weapon-1-only scope), the fix here is simply: **weapon-base source tuples are only ever built from `x[(i,'Weapon1')]`.** Weapon2's `x` variables never contribute a weapon-base source at all, so the ambiguity the loop would otherwise create cannot arise. This is a smaller change than originally proposed (no bonus-type slot-qualification, no summing) — see §15.4 for why.
+
+### 15.2 Parsing addition to `parse_items`
+
+Insert after the `<Buff>` extraction loop (`optimizer.py:167`), appending to the same item's `buffs` list so everything downstream — `sources`, `z`, `UB_s`, `n_s`, the tier goals, the reconciliation LP — is unchanged:
+
+| XML source | stat name | value | bonus type |
+|---|---|---|---|
+| `<WeaponDamage>` | `weapon damage` | float, as-is | `WeaponBase` |
+| `<BaseDice>` | `base damage dice` | `Number × (Sides+1)/2` | `WeaponBase` |
+| `<CriticalMultiplier>` | `critical multiplier` | int → float | `WeaponBase` |
+| `<CriticalThreatRange>` | `critical threat range` | int → float | `WeaponBase` |
+| derived (both present) | `weapon base damage` | `WeaponDamage × Number × (Sides+1)/2` | `WeaponBase` |
+
+Rules:
+- Emit **only when the source element is present and parses**; never substitute a default. Rune Arms (the only items structurally missing these fields, ~130 of 4,237 weapon items) correctly emit nothing — they have no crit profile, and none should be invented.
+- Emit **only if the priority list actually contains that exact stat name** (same gating discipline as the rest of `parse_items` — unused weapon-property stats add zero variables to the model).
+- **Source tuples are built from `x[(i,'Weapon1')]` only** — see §15.4. Do not emit a Weapon2-scoped tuple for any weapon-base stat.
+- `WeaponBase` must not appear in `['stacking','mythic','reaper']` (`optimizer.py:636`), which routes it down the `d_var` (max-of-sources) path automatically — this is the entire mechanism that makes "one weapon's value counts" work with zero new code.
+- Guard with the existing `try/except ValueError` idiom already used for `<Buff>` parsing.
+- **Matching is exact-string, not the substring heuristic in `normalize_stat_name`.** These are typed elements with known, closed names — substring matching would misfire (`"critical multiplier"` overlapping the existing `"spell critical damage"` handling at `optimizer.py:40-43`; `"weapon damage"` against `Weapon_*` effect types elsewhere). Use a small separate exact-match lookup table (the five names in the table above) rather than routing these through `normalize_stat_name`. This also gives the frontend picker a closed, enumerable list to seed its taxonomy from.
+
+### 15.3 `BaseDice` — confirmed resolution: expected-value collapse plus a composite
+
+`base damage dice` collapses `<BaseDice>` to **expected value**, `Number × (Sides+1)/2`, as a single float stat — not two independent stats for `Number` and `Sides` (those are individually meaningless: a user prioritizing "dice sides" alone would take 1d12, EV 6.5, over 2d6, EV 7, and get a strictly worse weapon with no way to see why).
+
+`weapon base damage` is additionally exposed as a **composite** (`WeaponDamage × dice-EV`), because the two factors multiply rather than being independently meaningful — a Quarterstaff at 4d4/[W]1.0 (EV 10) and a Quarterstaff at 1d6/[W]6.0 (EV 21) cannot be correctly ranked by either factor alone. It costs nothing to compute (both factors are constants of the same static item at parse time — no bilinear term enters the ILP).
+
+**Confirmed (user decision): the frontend must block selecting the composite together with either component stat in the same priority list.** This is the one genuine double-counting risk in this feature (every other combination is either additive-across-distinct-stats or the max-of-one-family rule already handles it). `weapon base damage` is the recommended/default pick in the taxonomy; `weapon damage` and `base damage dice` are advanced/component options, mutually exclusive with the composite. This is a **frontend validation rule**, to be specified in the Tiered Solver Frontend spec's stat-picker section — not a backend constraint, since the backend has no concept of "these two stat names are related" and shouldn't need one.
+
+### 15.4 Weapon slot scope — confirmed resolution (overrides the orchestrator's sum-across-hands recommendation)
+
+**Confirmed (user decision): weapon-base stats are computed from `Weapon1` only. `Weapon2` is never separately modeled for these stats, under the explicit simplifying assumption that in Two Weapon Fighting the off-hand weapon duplicates the main-hand weapon's type. Two-Handed Fighting styles use only one weapon slot already (`w2_list = ['none']` in `solver.py`'s existing style-filtering logic), so `Weapon2` is structurally absent from `required_slots` in that style regardless.**
+
+This is a deliberate simplification, not a solver-enforced matching constraint — the solver does **not** verify or require that whatever item ends up in `Weapon2` actually matches `Weapon1`'s type; it simply never looks at `Weapon2` for the purpose of these five stats. Consequences to state plainly, so this isn't rediscovered as a bug later:
+
+- For Two Weapon Fighting builds, `realizedStats["critical multiplier"]` (etc.) reflects **only the main-hand weapon**, even though the off-hand also swings and has its own (assumed-identical) crit profile in actual gameplay. This is intentionally a simpler, coarser model than tracking both hands independently.
+- This also **sidesteps the correctness bug the architectural review identified** (a single unqualified `WeaponBase` bucket combining `Weapon1` and `Weapon2` sources for any item legal in both hands, resolving to a silent max-of-both-hands) — because `Weapon2` is never included in the source set at all, there is nothing to combine.
+- No per-hand escape hatch (`main hand` / `off hand` named variants) is implemented in this pass. If a future user need for independently prioritizing off-hand weapon stats emerges, that is a separate, later extension — not built now.
+
+### 15.5 `UB_s` — confirmed, and its dependency on UB-normalization
+
+The non-stacking upper-bound formula from §3.4 applies unchanged: `UB_s = max(val)` over every candidate weapon legal for `Weapon1` under the current `weapon_style` filter (already computed upstream by the existing style-filtering logic in `solver.py`/`optimizer.py:115-124`). The bound is automatically tight and style-appropriate — no new formula needed.
+
+**This feature is only functional under UB-normalized intra-tier weighting** (§2.1/§3.6's "normalize by upper bound," not raw magnitude) — weapon-base magnitudes are single digits (crit multiplier 1-5, threat range 0-6, `[W]` roughly 1-6.4, dice EV roughly 2-10) against conventional stats in the hundreds (Ranged Power ~200, Spellpower in the hundreds). Under raw-magnitude weighting, a weapon-base stat sharing a tier with any conventional stat would contribute a rounding error to that tier's goal and be effectively ignored regardless of the user's ranking.
+
+**No conflict to resolve:** intra-tier weighting was already settled as UB-normalized earlier in this document (§1.2 decision 1, §2.1, §3.6) before this addendum was written. This section exists only to record that this addendum is what makes that choice load-bearing, not optional — a plain-magnitude fallback would silently break this entire feature.
+
+### 15.6 Tier 4 — confirmed per-stat baseline thresholds
+
+Tier 4's `present_s = 1 ⟺ ẑ_s ≥ θ_s · present_s` linking constraint (§3.7) needs `θ_s` set to a **meaningful baseline**, not a bare presence check, for weapon-base stats specifically. A weapon is essentially always equipped (`Weapon1` is in `base_required`, `optimizer.py:744`, and every weapon-legal item pool is non-empty in practice), so a naive near-zero `θ_s` would make `present_s` trivially always 1 — the tier-4 breadth term becomes a constant and tier 4 silently degrades into plain tier-3-style magnitude maximization for these stats specifically, with no "breadth" behavior at all. Not incorrect (the lexicographic guarantee still holds — a constant doesn't break it), just toothless.
+
+**Confirmed baselines** (tuned against the actual item corpus, per the architectural review's measurements):
+
+| Stat | `θ_s` (tier-4 "meaningful bar") | Rationale |
+|---|---|---|
+| `critical multiplier` | `≥ 3` | Corpus-modal value is x2; x3 represents a genuine upgrade |
+| `critical threat range` | `≥ 2` | Width-2 (19-20) is the common upgrade tier over width-1/0 |
+| `weapon damage` | `> 1.0` | 1,228 items sit at the mundane `[W]` floor of 1.0; anything above is an enhancement |
+| `base damage dice` | not applicable at tier 4 without a user-specified value; no default baseline set in this pass — omit from the default tier-4 baseline table unless the user supplies one later | Expected-value scale varies too widely across weapon types (roughly 2-10) for one corpus-wide baseline to be meaningful the way multiplier/range/[W] are |
+| `weapon base damage` | not applicable at tier 4 without a user-specified value; same reasoning as `base damage dice` | — |
+
+These are **per-stat properties in the weapon-base stat table**, distinct from the general tier-4 `θ_s` = "one credited source" rule (§1.2 decision 2, §3.7) that still applies to every non-weapon-base stat unchanged. `cap` (the `[N]` suffix / `cap` field) remains available and useful on top of these — e.g. `critical threat range[4]` still reads naturally as "width 4 is enough, don't keep pushing."
+
+### 15.7 Categorical weapon properties — confirmed out of scope
+
+**Confirmed (user decision): `DRBypass`, `Material`, and the weapon type (`<Weapon>`) itself are excluded from Phase 10 entirely.** These are categorical, not numeric — they do not fit the maximization model at all (there is no "more" of "Magic" damage-reduction bypass; a weapon either bypasses it or doesn't). They would need a set-membership/filtering primitive structurally unlike everything else in this document (closer to the existing `armor_restriction` filter than to a priority stat). Remain informational-display-only (in the item detail panel, a separate piece of work) for this pass. If wanted as solver input later, the correct mechanism is a filter alongside `armor_restriction`/`weapon_style`, not an addition to `stat_priorities` — a distinct, later design pass, not an extension of this one.
+
+### 15.8 Files touched (delta to §7/§13)
+
+| File | Location | Change |
+|---|---|---|
+| `python/optimizer.py` | after `parse_items`'s `<Buff>` loop (~L167) | Weapon-property extraction per §15.2, appended to `buffs` |
+| `python/optimizer.py` | new | Exact-match weapon-property lookup table (five names, separate from `normalize_stat_name`) |
+| `python/optimizer.py` | source-building loop (~L611-613) | Weapon-base source tuples built from `x[(i,'Weapon1')]` only (§15.1, §15.4) — no slot-qualified bonus-type split needed |
+| `python/optimizer.py` | tier-4 `θ_s` table (§3.7 / this addendum's §15.6) | Per-stat baselines for the four weapon-base stats that have one |
+| `docs/STAT_SHORTCUTS.md` | §8 "Weapon Base Damage (Properties, Not Stats)" | Promote to a real `weapon_properties` group with these five exact stat name strings; update the note that these are single-source, `Weapon1`-scoped priority stats, not purely informational |
+
+**No change to `app.go` or the `stat_priorities` wire format** — these are just five more strings the existing `{stat, tier, cap}` shape already accommodates; `priority_names` already flows unchanged into `parse_items`. This addendum lands entirely inside `python/optimizer.py`.
+
+### 15.9 New acceptance criteria (append to §10)
+
+| ID | Check |
+|---|---|
+| **AC-49** | **Weapon-base source scoping.** Fixture: two weapons legal for both `Weapon1`/`Weapon2` (e.g. two daggers) with different `<CriticalMultiplier>` values, `weapon_style = "Two Weapon Fighting"`, priority `{"stat":"critical multiplier","tier":1}`. Assert `realizedStats["critical multiplier"]` equals the `Weapon1`-equipped item's value only, regardless of what (if anything) is equipped in `Weapon2` — confirms no summing, no cross-hand max-collapse. |
+| **AC-50** | **Rune Arm has no weapon-base stats.** A Rune Arm item (no `<CriticalMultiplier>`/`<CriticalThreatRange>`/`<WeaponDamage>`/`<BaseDice>`) equipped in a slot never appears as a source for any weapon-base stat — no default/fallback value is emitted. |
+| **AC-51** | **`base damage dice` is expected value, not raw dice.** Item with `<BaseDice><Number>2</Number><Sides>6</Sides></BaseDice>` and priority `{"stat":"base damage dice","tier":1}` yields `realizedStats["base damage dice"] == 7.0` (`2 × (6+1)/2`), not `2` or `6`. |
+| **AC-52** | **`weapon base damage` composite is the product.** Same item with `<WeaponDamage>1.5</WeaponDamage>`, priority `{"stat":"weapon base damage","tier":1}` yields `realizedStats["weapon base damage"] == 10.5` (`1.5 × 7.0`). |
+| **AC-53** | **Tier-4 weapon baseline, not bare presence.** Priority `{"stat":"critical multiplier","tier":4}` against a fixture where every legal `Weapon1` candidate is x2: `present_s` for `critical multiplier` is `0` (baseline `≥3` not met by any candidate), and the stat is listed in `unmetTier4` — confirms `θ_s` is the corpus baseline, not a trivial "any weapon is equipped" check. |
+
+### 15.10 New edge case (append to §11)
+
+| ID | Case | Required behavior |
+|---|---|---|
+| **EC-29** | Priority list contains both `weapon base damage` and one of its components (`weapon damage` or `base damage dice`) | This is a **frontend-only validation rule** (§15.3) — the backend has no special-case logic for it and will simply compute both stats independently if given such a payload (no backend-side rejection, no backend-side double-counting guard). The Tiered Solver Frontend spec must block this combination client-side before a payload is ever sent. |
