@@ -21,6 +21,13 @@ import (
 //go:embed python/dist/solver
 var solverBinary []byte
 
+// defaultStatSets is the bundled stat-set preset library. It is the fallback
+// used by GetStatSets whenever no readable/valid ./stat_sets.json override
+// exists — see docs/TIERED_SOLVER_FRONTEND_SPEC.md §6.2.
+//
+//go:embed data/stat_sets.default.json
+var defaultStatSets []byte
+
 // App struct
 type App struct {
 	ctx        context.Context
@@ -29,7 +36,28 @@ type App struct {
 	itemsCache     []models.XMLItem
 	augmentsCache  []models.XMLAugment
 	filigreesCache []models.XMLFiligree
-	initOnce       sync.Once
+	setBonusCache  []models.XMLSetBonus
+
+	// Name -> index into the corresponding cache, so the item-detail panel's
+	// exact-name lookups are O(1) instead of a linear scan over ~8,800 items.
+	// If two entries share a name the LAST one parsed wins; duplicate names are
+	// not expected in DDOBuilder's data and this is an accepted tiebreak, not an
+	// error (docs/ITEM_DETAIL_SPEC.md §4.2 / EC-11).
+	itemsByName     map[string]int
+	augmentsByName  map[string]int
+	filigreesByName map[string]int
+	setsByName      map[string]int
+
+	initOnce sync.Once
+}
+
+// buildNameIndex maps each entry's name to its index in items.
+func buildNameIndex[T any](items []T, nameOf func(T) string) map[string]int {
+	idx := make(map[string]int, len(items))
+	for i, it := range items {
+		idx[nameOf(it)] = i
+	}
+	return idx
 }
 
 // NewApp creates a new App application struct
@@ -46,37 +74,110 @@ func (a *App) startup(ctx context.Context) {
 	a.logs = make([]string, 0)
 	
 	// Load item cache for UI dropdowns
-	go func() {
-		items, err := services.ParseItems("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Items")
-		if err == nil {
-			a.itemsCache = items
-			a.addLog(fmt.Sprintf("Cached %d items for Gearset Editor", len(items)))
-		} else {
-			a.addLog("Failed to cache items: " + err.Error())
-		}
-		
-		augments, errAugs := services.ParseAugments("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Augments")
-		if errAugs == nil {
-			a.augmentsCache = augments
-			a.addLog(fmt.Sprintf("Cached %d augments for Gearset Editor", len(augments)))
-		} else {
-			a.addLog("Failed to cache augments: " + errAugs.Error())
-		}
-		
-		filigrees, errFils := services.ParseFiligrees("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/FiligreeSets")
-		if errFils == nil {
-			a.filigreesCache = filigrees
-			a.addLog(fmt.Sprintf("Cached %d filigrees for Gearset Editor", len(filigrees)))
-		} else {
-			a.addLog("Failed to cache filigrees: " + errFils.Error())
-		}
-	}()
+	go a.loadCaches("Cached")
 
 	a.initOnce.Do(func() {
 		if err := a.extractSolver(); err != nil {
 			a.addLog("Warning: failed to extract bundled solver: " + err.Error())
 		}
 	})
+}
+
+// DDOBuilder data-file locations. Previously repeated inline at both cache-load
+// sites; centralized here so startup() and UpdateExternalSources() cannot drift.
+const (
+	ddoDataRoot         = "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles"
+	ddoItemsPath        = ddoDataRoot + "/Items"
+	ddoAugmentsPath     = ddoDataRoot + "/Augments"
+	ddoFiligreeSetsPath = ddoDataRoot + "/FiligreeSets"
+	// A single file, not a directory. ParseSetBonuses accepts either, and
+	// pointing it at the file avoids walking (and reporting as "skipped") every
+	// unrelated .xml in DataFiles.
+	ddoSetBonusesPath = ddoDataRoot + "/SetBonuses.xml"
+
+	packMappingsPath = "data/PackMappings.json"
+	// No raids data source exists in this repo. Raid detection is therefore
+	// unavailable and every item reports IsRaid == false — this is a deliberate,
+	// documented scoping decision (docs/ITEM_DETAIL_SPEC.md §4.3, §11.1), not an
+	// oversight, and the item panel says so rather than claiming "not a raid".
+	raidsPath = ""
+)
+
+// loadCaches parses every data source, rebuilds all four name indexes, and runs
+// the one-time acquisition-enrichment pass over the items.
+//
+// Each Parse* call is per-file fault tolerant (docs/ITEM_DETAIL_SPEC.md §3.1):
+// a returned error now means a filesystem-level failure, while individual
+// unparseable files arrive in `skipped` and are logged. A cache is only left
+// untouched on a genuine walk error, so one bad file can no longer empty the UI.
+//
+// verb distinguishes the startup log wording from the reload wording.
+func (a *App) loadCaches(verb string) {
+	raidsLoaded, err := services.InitEnrichment(packMappingsPath, raidsPath)
+	if err != nil {
+		// Fatal for enrichment only: items still load, they just carry no pack
+		// attribution. Everything else in the app is unaffected.
+		a.addLog("Failed to load pack mappings, item pack attribution unavailable: " + err.Error())
+	}
+	if !raidsLoaded {
+		a.addLog("Raid detection is disabled: no raids data source is available.")
+	}
+
+	logSkipped := func(kind string, skipped []string) {
+		if len(skipped) > 0 {
+			a.addLog(fmt.Sprintf("Skipped %d unparseable %s file(s); the rest loaded normally.", len(skipped), kind))
+		}
+	}
+
+	items, skippedItems, errItems := services.ParseItems(ddoItemsPath)
+	logSkipped("item", skippedItems)
+	if errItems == nil {
+		for i := range items {
+			services.EnrichItemInPlace(&items[i])
+		}
+		a.itemsCache = items
+		a.itemsByName = buildNameIndex(items, func(it models.XMLItem) string { return it.Name })
+		a.addLog(fmt.Sprintf("%s %d items for Gearset Editor", verb, len(items)))
+	} else {
+		a.addLog("Failed to cache items: " + errItems.Error())
+	}
+
+	augments, skippedAugs, errAugs := services.ParseAugments(ddoAugmentsPath)
+	logSkipped("augment", skippedAugs)
+	if errAugs == nil {
+		a.augmentsCache = augments
+		a.augmentsByName = buildNameIndex(augments, func(g models.XMLAugment) string { return g.Name })
+		a.addLog(fmt.Sprintf("%s %d augments for Gearset Editor", verb, len(augments)))
+	} else {
+		a.addLog("Failed to cache augments: " + errAugs.Error())
+	}
+
+	filigrees, skippedFils, errFils := services.ParseFiligrees(ddoFiligreeSetsPath)
+	logSkipped("filigree", skippedFils)
+	if errFils == nil {
+		a.filigreesCache = filigrees
+		a.filigreesByName = buildNameIndex(filigrees, func(f models.XMLFiligree) string { return f.Name })
+		a.addLog(fmt.Sprintf("%s %d filigrees for Gearset Editor", verb, len(filigrees)))
+	} else {
+		a.addLog("Failed to cache filigrees: " + errFils.Error())
+	}
+
+	// Item/armor set bonuses and filigree set bonuses share one cache and one
+	// index so the panel resolves any set name through a single lookup.
+	sets, skippedSets, errSets := services.ParseSetBonuses(ddoSetBonusesPath)
+	logSkipped("set bonus", skippedSets)
+	if errSets != nil {
+		a.addLog("Failed to cache set bonuses: " + errSets.Error())
+	} else {
+		filigreeSets, skippedFilSets, errFilSets := services.ParseFiligreeSetBonuses(ddoFiligreeSetsPath)
+		logSkipped("filigree set bonus", skippedFilSets)
+		if errFilSets == nil {
+			sets = append(sets, filigreeSets...)
+		}
+		a.setBonusCache = sets
+		a.setsByName = buildNameIndex(sets, func(s models.XMLSetBonus) string { return s.Type })
+		a.addLog(fmt.Sprintf("%s %d set bonuses", verb, len(sets)))
+	}
 }
 
 // extractSolver writes the embedded solver binary to a temp path and makes it executable.
@@ -94,12 +195,29 @@ func (a *App) extractSolver() error {
 	return nil
 }
 
-// StatPriorityEntry preserves the user's entry order for a stat priority, which
-// matters for filigree-selection weighting (see docs/PHASE9_PLAN.md, Phase 9.1) —
-// a plain map loses ordering once marshaled to JSON (Go sorts map keys).
+// StatPriorityEntry is one user priority (Phase 10, docs/PHASE10_PLAN.md §2.2).
+//
+// Array order is load-bearing: intra-tier rank is the index of appearance among
+// the entries sharing a Tier, which is why this is a slice and not a map (a map
+// loses ordering once marshaled — Go sorts map keys).
+//
+// Wire-shape notes, verified against python/solver.py's parse_stat_priorities:
+//   - `tier` carries `omitempty` on purpose. parse_stat_priorities detects the
+//     new tiered format ("Shape C") by the *presence* of a `tier` key on any
+//     element, and rejects a Shape-C list that has an element without one. Old
+//     saved .ddogearset files carry only `value`; they deserialize here with
+//     Tier == 0, and omitempty keeps `tier` off the wire so Python still sees a
+//     legacy "Shape B" list and runs its value->tier migration. Tier is never
+//     legitimately 0 (valid range is 1..5), so nothing real is ever dropped.
+//   - There is deliberately no `order` field. Python derives `order` from array
+//     position; sending one would be ignored.
 type StatPriorityEntry struct {
-	Stat  string `json:"stat"`
-	Value int    `json:"value"`
+	Stat string `json:"stat"`
+	Tier int    `json:"tier,omitempty"` // 1..5; omitted (0) only for legacy payloads
+	Cap  *int   `json:"cap,omitempty"`  // pointer so "no cap" and "cap 0" differ on the wire
+	// Value is LEGACY ONLY: solver.py migrates it to a tier. New code never
+	// writes it, but it must survive a round trip so old saved gearsets load.
+	Value int `json:"value,omitempty"`
 }
 
 type OptimizationPayload struct {
@@ -129,6 +247,63 @@ type OptimizationPayload struct {
 	PreFilledAugments          map[string]interface{} `json:"pre_filled_augments"`
 	PreFilledFiligrees         map[string][]string `json:"pre_filled_filigrees"`
 	CalculateOnly              bool                `json:"calculate_only"`
+	// MaxSearchTime is the TOTAL wall-clock budget in seconds shared across all
+	// solve stages (not a per-solve limit). The frontend has produced this value
+	// since Phase 9 but it was absent from this struct and therefore silently
+	// dropped before Python ever saw it. Python clamps it to [10, 1800] and
+	// defaults to 60 when absent/zero.
+	MaxSearchTime int `json:"max_search_time,omitempty"`
+	// Mode is "optimize" | "calculate" | "alternatives". Empty falls back to
+	// CalculateOnly (legacy) and then to "optimize" in solver.py's
+	// normalize_mode. An unrecognized value is a validation failure.
+	Mode string `json:"mode,omitempty"`
+}
+
+// AlternativesPayload drives the on-demand "what else could go in this slot"
+// query (docs/PHASE10_PLAN.md §7). It embeds OptimizationPayload so the
+// candidate pool is filtered exactly like the main solve's.
+type AlternativesPayload struct {
+	OptimizationPayload
+	TargetSlot    string            `json:"target_slot"`
+	CurrentItem   string            `json:"current_item"`
+	EquippedItems map[string]string `json:"equipped_items"`
+	Count         int               `json:"count"` // clamped to [3, 10] before sending
+}
+
+// AugmentAssignment is one color slot filled on a candidate item.
+type AugmentAssignment struct {
+	Color string `json:"color"`
+	Name  string `json:"name"`
+}
+
+// AlternativeItem is one ranked candidate for the target slot.
+type AlternativeItem struct {
+	Rank     int    `json:"rank"`
+	ItemName string `json:"itemName"`
+	Slot     string `json:"slot"`
+	ML       int    `json:"ml"`
+	IsRaid   bool   `json:"isRaid"`
+	// TierScores ("1".."5") is the AUTHORITATIVE ranking vector; compare
+	// candidates lexicographically on it. Only populated tiers appear.
+	TierScores map[string]float64 `json:"tierScores"`
+	// ObjectiveScore is the §7.6 display collapse
+	// (10000*G1 + 1000*G2 + 100*G3 + 10*G4 + G5). It is display sugar ONLY and
+	// is NOT authoritative: it preserves the lexicographic order only when the
+	// higher-tier gap exceeds ~0.333. Sort by Rank, compare via TierScores.
+	ObjectiveScore float64             `json:"objectiveScore"`
+	StatDeltas     map[string]float64  `json:"statDeltas"` // vs. baseline, per priority stat
+	Augments       []AugmentAssignment `json:"augments"`
+	Filigrees      map[string][]string `json:"filigrees"` // "weapon" / "artifact"
+}
+
+// AlternativesResult is what GetSlotAlternatives hands back to the UI.
+type AlternativesResult struct {
+	Success            bool               `json:"success"`
+	Slot               string             `json:"slot"`
+	BaselineTierScores map[string]float64 `json:"baselineTierScores"`
+	Alternatives       []AlternativeItem  `json:"alternatives"`
+	Warnings           []string           `json:"warnings,omitempty"`
+	ErrorMessage       string             `json:"errorMessage,omitempty"`
 }
 
 type ResultPayload struct {
@@ -145,6 +320,74 @@ type ResultPayload struct {
 	// re-deriving state from GearSet/Filigrees/ActiveSets where possible.
 	Slots        map[string]interface{} `json:"slots,omitempty"`
 	ErrorMessage string                 `json:"errorMessage,omitempty"`
+
+	// --- Phase 10 tiered-solver additions (docs/PHASE10_PLAN.md §9) ---
+
+	// TierReport is the per-stage trace of the sequential lexicographic solve.
+	TierReport *TierReport `json:"tierReport,omitempty"`
+	// TierScores maps tier number ("1".."5") to the goal value G_t recomputed
+	// from the FINAL reconciled solution — not echoed from the stage records.
+	// Only populated tiers appear. Empty in calculate mode.
+	TierScores map[string]float64 `json:"tierScores,omitempty"`
+	// PriorityTiers maps each priority's base stat name to its tier.
+	PriorityTiers map[string]int `json:"priorityTiers,omitempty"`
+	// UnmetTier4 lists tier-4 stats the solve could not include at all. Not an
+	// error: tier 4 is breadth-before-magnitude and is subordinate to tiers 1-3.
+	UnmetTier4 []string `json:"unmetTier4,omitempty"`
+	// UnmatchedPriorities lists priority stats with zero sources anywhere in the
+	// parsed data (typos, or nothing in the game grants them).
+	UnmatchedPriorities []string `json:"unmatchedPriorities,omitempty"`
+	// Degraded is a convenience mirror of TierReport.Degraded, populated by Go
+	// after unmarshaling so callers need not walk into the report. Python emits
+	// it only inside tierReport.
+	Degraded bool `json:"degraded,omitempty"`
+}
+
+// TierStageReport is one tier stage of the sequential solve.
+type TierStageReport struct {
+	Tier int `json:"tier"`
+	// GoalValue is nil when the stage produced no usable incumbent.
+	GoalValue *float64 `json:"goalValue"`
+	// Status is "optimal" | "time_limited" | "no_incumbent" | "infeasible" |
+	// "lock_violation" | "unknown".
+	Status         string  `json:"status"`
+	Proven         bool    `json:"proven"`
+	BudgetSeconds  float64 `json:"budgetSeconds"`
+	ElapsedSeconds float64 `json:"elapsedSeconds"`
+	// Folded lists earlier tiers whose goals were folded into this stage's
+	// objective because their own stage produced no incumbent.
+	Folded []int `json:"folded"`
+}
+
+// ConsolidationReport covers the stage that sheds items and redundant sources
+// once every tier goal is locked. Nil in calculate mode.
+type ConsolidationReport struct {
+	// Status is "optimal" | "time_limited" | "restored".
+	Status           string  `json:"status"`
+	ElapsedSeconds   float64 `json:"elapsedSeconds"`
+	ItemsEquipped    int     `json:"itemsEquipped"`
+	DuplicateSources int     `json:"duplicateSources"`
+}
+
+// ReconciliationReport covers the final pure LP that maximizes the displayed
+// totals over the already-fixed equipment.
+type ReconciliationReport struct {
+	Status         string  `json:"status"` // "optimal" | "failed"
+	ElapsedSeconds float64 `json:"elapsedSeconds"`
+}
+
+// TierReport is the trace of a tiered solve. In calculate mode Stages is empty
+// and Consolidation is nil — both are skipped by design.
+type TierReport struct {
+	Stages              []TierStageReport     `json:"stages"`
+	Consolidation       *ConsolidationReport  `json:"consolidation"`
+	Reconciliation      *ReconciliationReport `json:"reconciliation"`
+	TotalElapsedSeconds float64               `json:"totalElapsedSeconds"`
+	// Degraded is true when the run completed but had to fall back somewhere
+	// (a stage timed out with no incumbent, a lock was violated, consolidation
+	// or reconciliation was rolled back). The result is still usable.
+	Degraded bool     `json:"degraded"`
+	Notes    []string `json:"notes"`
 }
 
 func (a *App) addLog(msg string) {
@@ -159,23 +402,45 @@ func (a *App) ParseMetadata(filePath string) error {
 	return nil
 }
 
-// RunOptimization triggers the bundled solver binary with the given payload.
-func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error) {
+// runSolver marshals payload, writes it to a UNIQUE temp file, invokes the
+// bundled solver, and returns the raw JSON from the captured JSON_RESULT line.
+//
+// Two behaviors that matter (docs/PHASE10_PLAN.md §2.7, §7.2):
+//
+//  1. The payload file is created with os.CreateTemp rather than a hardcoded
+//     path. RunOptimization and GetSlotAlternatives are independent entry
+//     points and the UI can fire one while the other is running; a shared
+//     filename would let two calls clobber each other's payload.
+//  2. If a JSON_RESULT line was captured, it is returned REGARDLESS of exit
+//     code. solver.py exits 1 on every validation failure after printing the
+//     real message, so discarding the captured payload on a non-zero exit
+//     would surface every one of those messages to the user as "exit status 1".
+//     An error is synthesized from cmd.Wait only when no JSON_RESULT was seen.
+func (a *App) runSolver(payload any) (json.RawMessage, error) {
 	if a.solverPath == "" {
-		err := a.extractSolver()
-		if err != nil {
-			return ResultPayload{Success: false, ErrorMessage: "Solver not available: " + err.Error()}, err
+		if err := a.extractSolver(); err != nil {
+			return nil, fmt.Errorf("solver not available: %w", err)
 		}
 	}
 
 	a.addLog("Serializing payload...")
-	payloadBytes, err := json.Marshal(config)
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+		return nil, err
 	}
-	tmpFile := filepath.Join(os.TempDir(), "ddo_payload.json")
-	if err := os.WriteFile(tmpFile, payloadBytes, 0644); err != nil {
-		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+
+	tmp, err := os.CreateTemp("", "ddo_payload_*.json")
+	if err != nil {
+		return nil, err
+	}
+	tmpFile := tmp.Name()
+	defer os.Remove(tmpFile)
+	if _, err := tmp.Write(payloadBytes); err != nil {
+		tmp.Close()
+		return nil, err
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, err
 	}
 
 	a.addLog("Invoking solver...")
@@ -184,33 +449,113 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 	cmd.Stderr = cmd.Stdout
 
 	if err := cmd.Start(); err != nil {
-		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+		return nil, err
 	}
-	var richResult ResultPayload
+
+	var captured json.RawMessage
 	scanner := bufio.NewScanner(stdout)
+	// The solver's JSON_RESULT line carries the full gearset and can far exceed
+	// bufio.Scanner's 64KiB default line limit.
+	scanner.Buffer(make([]byte, 0, 64*1024), solverMaxLine)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "JSON_RESULT:") {
-			jsonStr := strings.TrimPrefix(line, "JSON_RESULT:")
-			json.Unmarshal([]byte(jsonStr), &richResult)
+			captured = json.RawMessage(strings.TrimPrefix(line, "JSON_RESULT:"))
 		} else {
 			a.addLog(line)
 		}
 	}
-	if err := cmd.Wait(); err != nil {
-		a.addLog("Solver exited with error: " + err.Error())
-		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+
+	waitErr := cmd.Wait()
+	if waitErr != nil {
+		a.addLog("Solver exited with error: " + waitErr.Error())
+		if captured == nil {
+			return nil, waitErr
+		}
+		// A JSON_RESULT was captured — it carries the real message.
+		return captured, nil
+	}
+	if captured == nil {
+		return nil, fmt.Errorf("solver produced no result")
 	}
 	a.addLog("Solver completed successfully.")
-	
+	return captured, nil
+}
+
+// solverMaxLine bounds a single JSON_RESULT line. 16 MiB is far above any real
+// gearset payload while still refusing to grow without limit.
+const solverMaxLine = 16 * 1024 * 1024
+
+// RunOptimization triggers the bundled solver binary with the given payload.
+func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error) {
+	if config.Mode == "" && config.CalculateOnly {
+		config.Mode = "calculate"
+	}
+
+	raw, err := a.runSolver(config)
+	if err != nil {
+		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+	}
+
+	var richResult ResultPayload
+	if err := json.Unmarshal(raw, &richResult); err != nil {
+		return ResultPayload{Success: false, ErrorMessage: "Could not read the solver's result: " + err.Error()}, err
+	}
+
 	if !richResult.Success && richResult.ErrorMessage != "" {
-		// Solver explicitly returned a failure JSON payload
+		// Solver explicitly returned a failure JSON payload.
 		return richResult, nil
 	}
 	richResult.Success = true
 	richResult.TimeTaken = 0
+	if richResult.TierReport != nil {
+		richResult.Degraded = richResult.TierReport.Degraded
+	}
 	return richResult, nil
 }
+
+// GetSlotAlternatives ranks the other items that could occupy TargetSlot, with
+// every other slot hard-locked to the passed-in EquippedItems.
+//
+// It is COLD-CALLABLE (docs/PHASE10_PLAN.md §7.1): no prior RunOptimization is
+// required. Baseline tier scores are computed directly from whatever
+// EquippedItems map is supplied, including one the user assembled by hand in
+// the editor. A target slot with zero legal candidates is a success with an
+// empty Alternatives list, not an error.
+func (a *App) GetSlotAlternatives(payload AlternativesPayload) (AlternativesResult, error) {
+	payload.Mode = "alternatives"
+	payload.CalculateOnly = false
+
+	// Clamp before sending so Python and the UI agree on what was asked for.
+	if payload.Count < minAlternatives {
+		payload.Count = minAlternatives
+	} else if payload.Count > maxAlternatives {
+		payload.Count = maxAlternatives
+	}
+
+	raw, err := a.runSolver(payload)
+	if err != nil {
+		return AlternativesResult{Success: false, Slot: payload.TargetSlot, ErrorMessage: err.Error()}, err
+	}
+
+	var result AlternativesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return AlternativesResult{
+			Success:      false,
+			Slot:         payload.TargetSlot,
+			ErrorMessage: "Could not read the solver's result: " + err.Error(),
+		}, err
+	}
+	if result.Slot == "" {
+		result.Slot = payload.TargetSlot
+	}
+	return result, nil
+}
+
+const (
+	minAlternatives = 3
+	maxAlternatives = 10
+)
 
 // GetSystemLogs retrieves real-time execution logs.
 func (a *App) GetSystemLogs() []string {
@@ -245,12 +590,44 @@ func (a *App) GetAvailableItems(slot string, maxLevel int, searchTerm string) []
 
 // GetItemDetails returns the full XMLItem for a given item name
 func (a *App) GetItemDetails(itemName string) models.XMLItem {
-	for _, item := range a.itemsCache {
-		if item.Name == itemName {
-			return item
-		}
+	if idx, ok := a.itemsByName[itemName]; ok && idx < len(a.itemsCache) {
+		return a.itemsCache[idx]
 	}
 	return models.XMLItem{}
+}
+
+// GetSetBonus returns a named set's full tier detail.
+//
+// GetSetBonus, GetAugmentByName and GetFiligreeByName share one contract: exact
+// name match, index-backed, and a ZERO-VALUE struct (not an error) on a miss, so
+// the frontend can treat an empty Type/Name as the single not-found signal.
+func (a *App) GetSetBonus(name string) models.XMLSetBonus {
+	if idx, ok := a.setsByName[name]; ok && idx < len(a.setBonusCache) {
+		return a.setBonusCache[idx]
+	}
+	return models.XMLSetBonus{}
+}
+
+// GetAugmentByName returns one augment's full detail by exact name.
+//
+// Deliberately NOT filtered by MinLevel or slot color, unlike
+// GetAvailableAugments: an augment that is already socketed must stay resolvable
+// for display regardless of the current max_level setting or which color slot it
+// occupies (docs/ITEM_DETAIL_SPEC.md §4.5, EC-9).
+func (a *App) GetAugmentByName(name string) models.XMLAugment {
+	if idx, ok := a.augmentsByName[name]; ok && idx < len(a.augmentsCache) {
+		return a.augmentsCache[idx]
+	}
+	return models.XMLAugment{}
+}
+
+// GetFiligreeByName returns one filigree's full detail by exact name, unfiltered
+// — same rationale as GetAugmentByName.
+func (a *App) GetFiligreeByName(name string) models.XMLFiligree {
+	if idx, ok := a.filigreesByName[name]; ok && idx < len(a.filigreesCache) {
+		return a.filigreesCache[idx]
+	}
+	return models.XMLFiligree{}
 }
 
 // GetAvailableAugments returns augments matching a given slot type (e.g. Green), maxLevel, and search term
@@ -323,32 +700,11 @@ func (a *App) UpdateExternalSources() (string, error) {
 	
 	a.addLog(fmt.Sprintf("Git Pull Result: %s", string(out)))
 	
-	// Reload caches
-	a.addLog("Reloading item and augment caches...")
-	items, errItems := services.ParseItems("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Items")
-	if errItems == nil {
-		a.itemsCache = items
-		a.addLog(fmt.Sprintf("Successfully reloaded %d items.", len(items)))
-	} else {
-		a.addLog("Failed to reload items: " + errItems.Error())
-	}
-	
-	augments, errAugs := services.ParseAugments("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/Augments")
-	if errAugs == nil {
-		a.augmentsCache = augments
-		a.addLog(fmt.Sprintf("Successfully reloaded %d augments.", len(augments)))
-	} else {
-		a.addLog("Failed to reload augments: " + errAugs.Error())
-	}
-	
-	filigrees, errFils := services.ParseFiligrees("/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles/FiligreeSets")
-	if errFils == nil {
-		a.filigreesCache = filigrees
-		a.addLog(fmt.Sprintf("Successfully reloaded %d filigrees.", len(filigrees)))
-	} else {
-		a.addLog("Failed to reload filigrees: " + errFils.Error())
-	}
-	
+	// Reload every cache, name index and the enrichment pass together, so no
+	// index can survive pointing into a cache that has since been replaced.
+	a.addLog("Reloading item, augment, filigree and set-bonus caches...")
+	a.loadCaches("Reloaded")
+
 	return string(out), nil
 }
 
@@ -395,4 +751,66 @@ func (a *App) SaveGearset(payload OptimizationPayload, result ResultPayload) (st
 	
 	err = os.WriteFile(path, bytes, 0644)
 	return path, err
+}
+
+// --- Stat sets (docs/TIERED_SOLVER_FRONTEND_SPEC.md §6) ---------------------
+
+// StatSetsFileVersion is the only schema version this build understands. An
+// override file declaring anything else is treated exactly like a parse
+// failure (spec EC-5) rather than migrated, since only one version exists.
+const StatSetsFileVersion = 1
+
+// StatSetPriority is one entry of a preset. Deliberately NOT StatPriorityEntry:
+// presets never carry the legacy `value` field, and `tier` is mandatory here.
+type StatSetPriority struct {
+	Stat string `json:"stat"`
+	Tier int    `json:"tier"`
+	Cap  *int   `json:"cap,omitempty"`
+}
+
+// StatSet is one named, hand-authored bundle of priorities.
+type StatSet struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// BuildTypes drives SOFT ordering in the UI only (matching sets float to
+	// the top). It is never a hard filter — see spec §6.1/EC-4.
+	BuildTypes  []string          `json:"buildTypes"`
+	Description string            `json:"description"`
+	Notes       *string           `json:"notes"` // pointer: the schema uses explicit null
+	Priorities  []StatSetPriority `json:"priorities"`
+}
+
+type StatSetsFile struct {
+	Version int       `json:"version"`
+	Sets    []StatSet `json:"sets"`
+}
+
+// GetStatSets returns the user's stat-set presets. It checks for a
+// hand-editable override file first (./stat_sets.json, alongside the existing
+// gearsets/ directory), and falls back to the bundled default embedded in the
+// binary if no override file exists, it fails to parse, or it declares an
+// unsupported version.
+//
+// Re-reads the override file from disk on every call — no caching — so
+// hand-edits take effect on the next call with no app restart required.
+func (a *App) GetStatSets() (StatSetsFile, error) {
+	if data, err := os.ReadFile("stat_sets.json"); err == nil {
+		var parsed StatSetsFile
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			a.addLog("Warning: stat_sets.json exists but failed to parse; using bundled defaults.")
+		} else if parsed.Version != StatSetsFileVersion {
+			a.addLog(fmt.Sprintf("Warning: stat_sets.json declares unsupported version %d (expected %d); using bundled defaults.", parsed.Version, StatSetsFileVersion))
+		} else {
+			return parsed, nil
+		}
+	}
+
+	var parsed StatSetsFile
+	if err := json.Unmarshal(defaultStatSets, &parsed); err != nil {
+		// The embedded file is compiled in, so this is a build-time defect
+		// rather than a user-recoverable condition; surface it instead of
+		// silently returning an empty list.
+		return StatSetsFile{Version: StatSetsFileVersion}, fmt.Errorf("bundled stat sets are corrupt: %w", err)
+	}
+	return parsed, nil
 }

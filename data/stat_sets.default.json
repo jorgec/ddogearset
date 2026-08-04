@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "sets": [
+    {
+      "id": "melee-physical",
+      "name": "Melee Physical",
+      "buildTypes": ["Melee", "Tank"],
+      "description": "Standard melee DPS: damage scaling first, then attack frequency.",
+      "notes": "Off-Hand Attack Bonus matters only for Two Weapon Fighting; remove it otherwise.",
+      "priorities": [
+        { "stat": "melee power", "tier": 1 },
+        { "stat": "doublestrike", "tier": 1 },
+        { "stat": "seeker", "tier": 2 },
+        { "stat": "armor piercing", "tier": 3 },
+        { "stat": "melee alacrity", "tier": 3 },
+        { "stat": "offhand attack bonus", "tier": 5 }
+      ]
+    },
+    {
+      "id": "melee-weapon-focused",
+      "name": "Melee (Weapon-Focused)",
+      "buildTypes": ["Melee", "Tank"],
+      "description": "Melee Physical plus weapon base damage and crit profile as explicit priorities.",
+      "notes": "Weapon-property stats only affect Weapon1 — see docs/PHASE10_PLAN.md §15.4.",
+      "priorities": [
+        { "stat": "melee power", "tier": 1 },
+        { "stat": "doublestrike", "tier": 1 },
+        { "stat": "weapon base damage", "tier": 2 },
+        { "stat": "critical multiplier", "tier": 3 },
+        { "stat": "critical threat range", "tier": 3 },
+        { "stat": "seeker", "tier": 4 }
+      ]
+    },
+    {
+      "id": "ranged-physical",
+      "name": "Ranged Physical",
+      "buildTypes": ["Ranged"],
+      "description": "Bow and crossbow DPS.",
+      "notes": null,
+      "priorities": [
+        { "stat": "ranged power", "tier": 1 },
+        { "stat": "doubleshot", "tier": 1 },
+        { "stat": "seeker", "tier": 2 },
+        { "stat": "armor piercing", "tier": 3 },
+        { "stat": "ranged alacrity", "tier": 3 }
+      ]
+    },
+    {
+      "id": "unarmed-monk",
+      "name": "Unarmed / Monk",
+      "buildTypes": ["Melee"],
+      "description": "Centered unarmed scaling.",
+      "notes": "Set Weapon Style to a centered option; this set does not change weapon filtering.",
+      "priorities": [
+        { "stat": "melee power", "tier": 1 },
+        { "stat": "doublestrike", "tier": 1 },
+        { "stat": "seeker", "tier": 2 },
+        { "stat": "melee alacrity", "tier": 3 }
+      ]
+    },
+    {
+      "id": "spell-caster-fire",
+      "name": "Spell Caster (Fire / Evocation)",
+      "buildTypes": ["Caster"],
+      "description": "Single-element caster template. Swap the element and school to match your build.",
+      "notes": "Replace 'fire' with your element and 'evocation' with your school. Fire Caster Level is undocumented in the data files and may match nothing.",
+      "priorities": [
+        { "stat": "fire spellpower", "tier": 1 },
+        { "stat": "evocation spelldc", "tier": 1 },
+        { "stat": "fire spelllore", "tier": 2 },
+        { "stat": "fire spellcriticaldamage", "tier": 2 },
+        { "stat": "spell points", "tier": 4 },
+        { "stat": "fire caster level", "tier": 5 }
+      ]
+    },
+    {
+      "id": "warlock-eldritch-blast",
+      "name": "Warlock (Eldritch Blast)",
+      "buildTypes": ["Caster"],
+      "description": "Pact dice scaling. Deliberately omits Spell DC and elemental spellpower.",
+      "notes": "Do not add traditional Spell DC. Spellpower is Tier 5 here because it only affects personal buff spells.",
+      "priorities": [
+        { "stat": "pact dice", "tier": 1 },
+        { "stat": "fire spelllore", "tier": 1 },
+        { "stat": "fire spellcriticaldamage", "tier": 2 },
+        { "stat": "spell points", "tier": 4 },
+        { "stat": "fire spellpower", "tier": 5 }
+      ]
+    },
+    {
+      "id": "mixed-attack-spell",
+      "name": "Mixed (Attack + Spell)",
+      "buildTypes": ["Melee", "Caster"],
+      "description": "Dual-purpose build leaning on procs that trigger from both attacks and spells.",
+      "notes": "Pick your dominant damage source for Tier 1; the other side sits at Tier 2-3.",
+      "priorities": [
+        { "stat": "melee power", "tier": 1 },
+        { "stat": "doublestrike", "tier": 2 },
+        { "stat": "fire spellpower", "tier": 2 },
+        { "stat": "evocation spelldc", "tier": 3 },
+        { "stat": "spell points", "tier": 5 }
+      ]
+    }
+  ]
+}

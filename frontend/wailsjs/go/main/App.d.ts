@@ -3,13 +3,23 @@
 import {models} from '../models';
 import {main} from '../models';
 
+export function GetAugmentByName(arg1:string):Promise<models.XMLAugment>;
+
 export function GetAvailableAugments(arg1:string,arg2:number,arg3:string):Promise<Array<models.XMLAugment>>;
 
 export function GetAvailableFiligrees(arg1:string):Promise<Array<models.XMLFiligree>>;
 
 export function GetAvailableItems(arg1:string,arg2:number,arg3:string):Promise<Array<models.XMLItem>>;
 
+export function GetFiligreeByName(arg1:string):Promise<models.XMLFiligree>;
+
 export function GetItemDetails(arg1:string):Promise<models.XMLItem>;
+
+export function GetSetBonus(arg1:string):Promise<models.XMLSetBonus>;
+
+export function GetSlotAlternatives(arg1:main.AlternativesPayload):Promise<main.AlternativesResult>;
+
+export function GetStatSets():Promise<main.StatSetsFile>;
 
 export function GetSystemLogs():Promise<Array<string>>;
 
