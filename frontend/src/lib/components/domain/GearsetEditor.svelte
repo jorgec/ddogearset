@@ -1,8 +1,8 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
-  import { GetAvailableItems, GetItemDetails, RunOptimization, GetAvailableAugments, GetAvailableFiligrees } from '../../../../wailsjs/go/main/App';
-  import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime';
-  import { models } from '../../../../wailsjs/go/models';
+  import { GetAvailableItems, GetItemDetails, RunOptimization, GetAvailableFiligrees } from '../../../../wailsjs/go/main/App';
+  import type { models, main } from '../../../../wailsjs/go/models';
+  import ItemDetail from './ItemDetail.svelte';
 
   const baseSlots = ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring_1', 'Ring_2', 'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2'];
 
@@ -11,12 +11,6 @@
   let isFetchingItems = false;
   let searchQuery = "";
   let searchTimeout: any;
-  
-  let editingAugmentSlotIdx: number | null = null;
-  let availableAugments: models.XMLAugment[] = [];
-  let isFetchingAugments = false;
-  let augmentSearchQuery = "";
-  let augmentSearchTimeout: any;
   
   let editingFiligreeIdx: number | null = null;
   let editingFiligreeType: "weapon" | "artifact" | null = null;
@@ -112,7 +106,6 @@
   async function handleItemClick(slot: string, itemName: string) {
       selectedSlot = slot;
       availableItems = [];
-      editingAugmentSlotIdx = null;
       editingFiligreeIdx = null;
       editingFiligreeType = null;
       try {
@@ -191,98 +184,6 @@
       }
   }
   
-  async function openAugmentPicker(idx: number, type: string) {
-      editingAugmentSlotIdx = idx;
-      augmentSearchQuery = "";
-      await fetchAugments(type, "");
-  }
-  
-  async function fetchAugments(type: string, query: string) {
-      isFetchingAugments = true;
-      const maxLvl = $configStore.max_level || 34;
-      try {
-          availableAugments = await GetAvailableAugments(type, maxLvl, query) || [];
-      } catch (e) {
-          console.error(e);
-      } finally {
-          isFetchingAugments = false;
-      }
-  }
-  
-  function handleAugmentSearchInput(type: string) {
-      clearTimeout(augmentSearchTimeout);
-      augmentSearchTimeout = setTimeout(() => {
-          fetchAugments(type, augmentSearchQuery);
-      }, 300);
-  }
-  
-  function getAugmentOccurrenceIndex(idx: number, color: string) {
-      if (!selectedItemDetails) return 0;
-      let count = 0;
-      for (let i = 0; i < idx; i++) {
-          if (selectedItemDetails.ItemAugments[i].Type === color) count++;
-      }
-      return count;
-  }
-
-  function getAugmentName(idx: number, color: string) {
-      if (!selectedSlot || !$configStore.pre_filled_augments[selectedSlot]) return null;
-      const val = $configStore.pre_filled_augments[selectedSlot][color];
-      if (!val) return null;
-      if (Array.isArray(val)) {
-          const occ = getAugmentOccurrenceIndex(idx, color);
-          return val[occ] || null;
-      }
-      // If it's just a single string, and occurrence is 0, return it
-      const occ = getAugmentOccurrenceIndex(idx, color);
-      return occ === 0 ? val : null;
-  }
-
-  function selectAugment(idx: number, color: string, aug: models.XMLAugment) {
-      if (!selectedSlot) return;
-      if (!$configStore.pre_filled_augments[selectedSlot]) {
-          $configStore.pre_filled_augments[selectedSlot] = {};
-      }
-      const occ = getAugmentOccurrenceIndex(idx, color);
-      const existing = $configStore.pre_filled_augments[selectedSlot][color];
-      
-      if (Array.isArray(existing)) {
-          existing[occ] = aug.Name;
-          $configStore.pre_filled_augments[selectedSlot][color] = existing;
-      } else if (existing && occ > 0) {
-          // Upgrade to array
-          const arr = [existing];
-          arr[occ] = aug.Name;
-          $configStore.pre_filled_augments[selectedSlot][color] = arr;
-      } else {
-          // If occ == 0 and not array, or no existing
-          if (occ > 0) {
-             const arr = [];
-             arr[occ] = aug.Name;
-             $configStore.pre_filled_augments[selectedSlot][color] = arr;
-          } else {
-             $configStore.pre_filled_augments[selectedSlot][color] = aug.Name;
-          }
-      }
-
-      $configStore.pre_filled_augments = {...$configStore.pre_filled_augments};
-      editingAugmentSlotIdx = null;
-  }
-  
-  function clearAugment(idx: number, color: string) {
-      if (!selectedSlot || !$configStore.pre_filled_augments[selectedSlot]) return;
-      const occ = getAugmentOccurrenceIndex(idx, color);
-      const existing = $configStore.pre_filled_augments[selectedSlot][color];
-      
-      if (Array.isArray(existing)) {
-          existing[occ] = ""; // Keep array length intact
-          $configStore.pre_filled_augments[selectedSlot][color] = existing;
-      } else if (occ === 0) {
-          delete $configStore.pre_filled_augments[selectedSlot][color];
-      }
-      $configStore.pre_filled_augments = {...$configStore.pre_filled_augments};
-  }
-
   async function openFiligreePicker(idx: number, type: "weapon" | "artifact") {
       editingFiligreeIdx = idx;
       editingFiligreeType = type;
@@ -329,14 +230,6 @@
       $configStore.pre_filled_filigrees = {...$configStore.pre_filled_filigrees};
   }
 
-  function getWikiUrl(itemName: string): string {
-      return `https://ddowiki.com/page/Item:${itemName.replace(/ /g, '_')}`;
-  }
-  
-  function openWiki(itemName: string) {
-      BrowserOpenURL(getWikiUrl(itemName));
-  }
-  
   function clearAll() {
       $resultStore = { success: true, timeTaken: 0, gearSet: {}, realizedStats: {}, activeSets: [], filigrees: [] };
       $configStore.pre_equipped = {};
@@ -360,8 +253,15 @@
               $configStore.pre_filled_augments = hydrated.pre_filled_augments;
               $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
           }
-          $configStore.calculate_only = true;
-          const res = await RunOptimization($configStore);
+          // Calculate mode travels on the request, not on the shared store.
+          // The old mutate-then-restore made "calculate_only" briefly visible
+          // to every other subscriber for the duration of the call, and was
+          // unsafe if the user triggered a second action mid-flight.
+          // Cast mirrors store.ts: the spread drops the wails class's
+          // convertValues method, which nothing on this path calls.
+          const res = await RunOptimization(
+              { ...$configStore, mode: 'calculate' } as unknown as main.OptimizationPayload
+          );
           if (res && res.success) {
               $resultStore = res;
               showToast('Stats recalculated.', 'success');
@@ -372,7 +272,6 @@
           console.error(e);
           showToast('Calculation failed: ' + e, 'error');
       } finally {
-          $configStore.calculate_only = false;
           $isOptimizing = false;
       }
   }
@@ -441,91 +340,18 @@
               {/if}
           </div>
       {:else if selectedItemDetails}
-          <div class="space-y-6">
-              <div class="flex items-start justify-between">
-                  <div>
-                      <h3 class="text-2xl font-bold tracking-tight">{selectedItemDetails.Name}</h3>
-                      <p class="text-sm text-muted-foreground mt-1">ML: {selectedItemDetails.MinLevel}</p>
-                  </div>
-                  <label class="flex items-center space-x-2 text-sm cursor-pointer border border-border p-2 rounded hover:bg-muted/50 transition-colors">
-                      <input 
-                          type="checkbox" 
-                          checked={selectedItemDetails.MinorArtifact !== undefined && selectedItemDetails.MinorArtifact !== null}
-                          on:change={(e) => handleMinorArtifactToggle(e.currentTarget.checked)}
-                          class="rounded border-input text-primary focus:ring-primary"
-                      />
-                      <span>Is Minor Artifact?</span>
-                  </label>
-              </div>
-              
-              <div class="flex space-x-3">
-                  <button on:click={() => openWiki(selectedItemDetails.Name)} class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 cursor-pointer transition-colors">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 lucide lucide-external-link"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
-                      DDO Wiki Search
-                  </button>
-              </div>
-
-              {#if selectedItemDetails.Description}
-                  <div class="prose prose-sm dark:prose-invert max-w-none">
-                      <!-- Render HTML description from DDOBuilder safely or plainly -->
-                      {@html selectedItemDetails.Description}
-                  </div>
-              {:else}
-                  <p class="text-muted-foreground italic">No stat description available.</p>
-              {/if}
-              
-              <!-- Augments -->
-              {#if selectedItemDetails.ItemAugments && selectedItemDetails.ItemAugments.length > 0}
-                  <div class="mt-6 pt-4 border-t border-border/50">
-                      <h4 class="font-semibold text-lg mb-3">Augment Slots</h4>
-                      <div class="space-y-3">
-                          {#each selectedItemDetails.ItemAugments as aug, idx}
-                              <div class="flex flex-col space-y-1">
-                                  <div class="flex justify-between items-center text-sm font-medium">
-                                      <span>{aug.Type} Slot</span>
-                                      {#if getAugmentName(idx, aug.Type)}
-                                          <button class="text-xs text-destructive hover:underline" on:click={() => clearAugment(idx, aug.Type)}>Remove</button>
-                                      {/if}
-                                  </div>
-                                  {#if editingAugmentSlotIdx === idx}
-                                      <div class="mt-2 p-3 bg-muted/30 rounded border border-border">
-                                          <div class="flex justify-between items-center mb-2">
-                                              <input type="text" bind:value={augmentSearchQuery} on:input={() => handleAugmentSearchInput(aug.Type)} placeholder="Search {aug.Type} augments..." class="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs mr-2" />
-                                              <button class="text-xs text-muted-foreground hover:text-primary" on:click={() => editingAugmentSlotIdx = null}>Cancel</button>
-                                          </div>
-                                          <div class="max-h-40 overflow-y-auto space-y-1">
-                                              {#if isFetchingAugments}
-                                                  <p class="text-xs text-muted-foreground animate-pulse">Loading...</p>
-                                              {:else}
-                                                  {#each availableAugments as availableAug}
-                                                      <button on:click={() => selectAugment(idx, aug.Type, availableAug)} class="w-full text-left p-2 rounded text-xs bg-card hover:bg-muted transition-colors border border-transparent hover:border-primary">
-                                                          <div class="font-semibold">{availableAug.Name}</div>
-                                                          <div class="text-[10px] text-muted-foreground truncate">{availableAug.Description} (ML: {availableAug.MinLevel})</div>
-                                                      </button>
-                                                  {/each}
-                                                  {#if availableAugments.length === 0}
-                                                      <p class="text-xs text-muted-foreground">No matching augments found.</p>
-                                                  {/if}
-                                              {/if}
-                                          </div>
-                                      </div>
-                                  {:else}
-                                      <button on:click={() => openAugmentPicker(idx, aug.Type)} class="w-full text-left p-2 rounded bg-muted/50 hover:bg-muted border border-transparent hover:border-primary transition-colors text-sm flex items-center justify-between">
-                                          {#if getAugmentName(idx, aug.Type)}
-                                              <span class="text-primary font-medium">{getAugmentName(idx, aug.Type)}</span>
-                                          {:else}
-                                              <span class="text-muted-foreground italic">Empty (Click to add)</span>
-                                          {/if}
-                                      </button>
-                                  {/if}
-                              </div>
-                          {/each}
-                      </div>
-                  </div>
-              {/if}
-              
-
-          </div>
+          <!-- The whole detail view now lives in ItemDetail.svelte, which
+               self-fetches the full item (buffs, weapon/armor profile, augment
+               choices, set bonuses, effects, acquisition) and owns the augment
+               picker. slotDetail comes from the same slot being displayed so the
+               credited-marker badges refer to the right solve output (EC-12). -->
+          <ItemDetail
+              itemName={selectedItemDetails.Name}
+              slot={selectedSlot}
+              slotDetail={selectedSlot ? ($resultStore?.slots?.[selectedSlot] ?? null) : null}
+              mode="edit"
+              on:minorArtifactToggle={(e) => handleMinorArtifactToggle(e.detail.checked)}
+          />
       {:else}
           <div class="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground p-12">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-4 opacity-50"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>

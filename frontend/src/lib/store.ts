@@ -78,6 +78,29 @@ export interface SlotDetail {
 }
 
 export const resultStore = writable<main.ResultPayload | null>(null);
+
+// Snapshot of stat_priorities taken immediately before the last stat-set apply,
+// backing the single-step Undo offered in that apply's toast
+// (docs/TIERED_SOLVER_FRONTEND_SPEC.md §6.4). It is overwritten by the next
+// apply and cleared by any other priority-list mutation, so "Undo" always means
+// "undo the last stat-set apply specifically" and never restores stale state.
+export const statSetUndoSnapshot = writable<main.StatPriorityEntry[] | null>(null);
+
+// Lowercased stat names to flash briefly in StatPriorityEditor after a stat-set
+// apply, so the user can see at a glance which stats the set disagreed with
+// without having to parse the toast text (§6.4).
+export const highlightedStats = writable<string[]>([]);
+
+export function flashStats(stats: string[], durationMs = 3000) {
+    if (stats.length === 0) return;
+    const lowered = stats.map(s => s.toLowerCase());
+    highlightedStats.set(lowered);
+    setTimeout(() => {
+        highlightedStats.update(current =>
+            current === lowered || current.join('|') === lowered.join('|') ? [] : current
+        );
+    }, durationMs);
+}
 export const logsStore = writable<string[]>([]);
 export const isParsing = writable(false);
 export const isOptimizing = writable(false);
@@ -144,21 +167,42 @@ export function hydrateConfigFromSlots(
 // Lightweight in-app toast system used to confirm completion of user-triggered
 // operations (save, load, calculate, hydrate, auto-solve, data update) since
 // these run silently otherwise. Rendered by Toast.svelte, mounted once in App.svelte.
+export interface ToastAction {
+    label: string;
+    onClick: () => void;
+}
+
 export interface ToastMessage {
     id: number;
     text: string;
     kind: 'success' | 'error' | 'info';
+    // Actions turn a toast into a decision point (the Undo / Replace-instead
+    // pair after applying a stat set). A toast carrying actions must not vanish
+    // on the standard timer — see TOAST_ACTION_DURATION_MS below.
+    actions?: ToastAction[];
 }
 
 export const toastStore = writable<ToastMessage[]>([]);
 
 let toastCounter = 0;
 const TOAST_DURATION_MS = 3500;
+// Long enough to read and decide, short enough that abandoned action toasts
+// don't accumulate on screen indefinitely.
+const TOAST_ACTION_DURATION_MS = 8000;
 
-export function showToast(text: string, kind: ToastMessage['kind'] = 'success') {
+export function dismissToast(id: number) {
+    toastStore.update(list => list.filter(t => t.id !== id));
+}
+
+export function showToast(
+    text: string,
+    kind: ToastMessage['kind'] = 'success',
+    actions?: ToastAction[]
+) {
     const id = ++toastCounter;
-    toastStore.update(list => [...list, { id, text, kind }]);
+    toastStore.update(list => [...list, { id, text, kind, actions }]);
     setTimeout(() => {
-        toastStore.update(list => list.filter(t => t.id !== id));
-    }, TOAST_DURATION_MS);
+        dismissToast(id);
+    }, actions && actions.length > 0 ? TOAST_ACTION_DURATION_MS : TOAST_DURATION_MS);
+    return id;
 }

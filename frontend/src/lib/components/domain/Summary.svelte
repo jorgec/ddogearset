@@ -1,11 +1,34 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
   import { RunOptimization, SaveGearset } from '../../../../wailsjs/go/main/App';
-  
-  // Sort priority stats based on their weight (descending)
+  import TierReport from './TierReport.svelte';
+  import { migrateLegacyCasterFields } from '$lib/data/statPriorities';
+  import type { main } from '../../../../wailsjs/go/models';
+
+  // Ordered by tier, then by array position within the tier — which IS the
+  // intra-tier rank. The old sort keyed on `value`, a field the tiered model
+  // no longer has; serialization already emits entries in exactly this order,
+  // so this is a stable copy rather than a re-sort.
   $: sortedPriorities = ($configStore.stat_priorities ?? [])
-      .map(p => [p.stat, p.value] as [string, number])
-      .sort(([, weightA], [, weightB]) => weightB - weightA);
+      .map((p, i) => ({ stat: p.stat, tier: p.tier ?? 1, cap: p.cap, i }))
+      .sort((a, b) => (a.tier - b.tier) || (a.i - b.i));
+
+  // Folds a legacy gearset's caster_spellpowers/caster_schools into Tier 1 and
+  // clears them, so the migration runs exactly once per load rather than on
+  // every reactive tick (docs/TIERED_SOLVER_FRONTEND_SPEC.md §5.3).
+  function migrateLegacyConfig(config: main.OptimizationPayload): main.OptimizationPayload {
+      const { priorities, migrated } = migrateLegacyCasterFields(
+          config.stat_priorities,
+          config.caster_spellpowers,
+          config.caster_schools
+      );
+      if (migrated > 0) {
+          showToast(`Imported ${migrated} caster stat(s) from a saved gearset into Tier 1.`, 'info');
+      }
+      // Cast mirrors store.ts: the spread drops the wails class's convertValues
+      // method, which nothing on this path calls.
+      return { ...config, stat_priorities: priorities, caster_spellpowers: [], caster_schools: [] } as unknown as main.OptimizationPayload;
+  }
 
   // Group all effects by their stat name, then sort alphabetically
   $: groupedEffects = $resultStore?.allEffects ? 
@@ -129,7 +152,7 @@
                   if (data.config && data.result) {
                       // Full format: hydrate both config params and result
                       const loadedConfig = {...$configStore, ...data.config, calculate_only: false};
-                      $configStore = loadedConfig;
+                      $configStore = migrateLegacyConfig(loadedConfig);
                       $resultStore = data.result;
                   } else if (data.gearSet) {
                       $resultStore = data;
@@ -165,8 +188,11 @@
               $configStore.pre_filled_augments = hydrated.pre_filled_augments;
               $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
           }
-          $configStore.calculate_only = true;
-          const res = await RunOptimization($configStore);
+          // Calculate mode travels on the request, not on the shared store —
+          // see the matching note in GearsetEditor.calculateGearSet().
+          const res = await RunOptimization(
+              { ...$configStore, mode: 'calculate' } as unknown as main.OptimizationPayload
+          );
           if (res && res.success) {
               $resultStore = res;
               showToast('Gearset loaded and stats recalculated.', 'success');
@@ -177,7 +203,6 @@
           console.error(e);
           showToast('Calculation failed: ' + e, 'error');
       } finally {
-          $configStore.calculate_only = false;
           $isOptimizing = false;
       }
   }
@@ -263,6 +288,9 @@
 
       <div class="h-px bg-border/50 w-full my-4"></div>
 
+      <!-- Renders nothing at all until a tiered solve has produced a report. -->
+      <TierReport />
+
       <!-- Priorities Section -->
       <section class="space-y-4">
           <h3 class="text-lg font-semibold flex items-center text-primary">
@@ -270,12 +298,12 @@
               Optimized Priority Targets
           </h3>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {#each sortedPriorities as [stat, weight], i}
+              {#each sortedPriorities as { stat, tier, cap }, i}
                   <div class="p-4 rounded-lg bg-card border border-border relative overflow-hidden group hover:border-primary/50 transition-colors">
                       <div class="absolute top-0 right-0 w-16 h-16 bg-primary/10 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
                       <div class="text-xs text-muted-foreground font-medium mb-1 uppercase tracking-wider flex justify-between">
                           <span>Priority #{i+1}</span>
-                          <span class="text-primary/70">W: {weight}</span>
+                          <span class="text-primary/70">Tier {tier}{cap ? ` · cap ${cap}` : ''}</span>
                       </div>
                       <div class="text-base font-semibold leading-tight mb-2 text-foreground pr-4 truncate" title={stat}>{stat}</div>
                       <div class="text-2xl font-bold text-primary">

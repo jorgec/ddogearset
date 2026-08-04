@@ -1,14 +1,27 @@
 <script lang="ts">
+  // Thin layout/orchestrator for the solver form
+  // (docs/TIERED_SOLVER_FRONTEND_SPEC.md §9). The stat-priority UI, the preset
+  // picker and the collapsible chrome all live in their own components; this
+  // file only arranges them and owns the submit action.
+  //
+  // The caster spellpower/school checkbox grid that used to live here is gone
+  // entirely (§5), not hidden: caster_spellpowers/caster_schools are read
+  // nowhere in the solver — they were purely a client-side mechanism that
+  // auto-injected picks into stat_priorities, with a standing reactive sync
+  // that could add but never remove. The fields stay on the payload struct for
+  // old-file deserialization (INV-3), and old files are migrated into Tier 1
+  // once at load time in Summary.svelte, but nothing writes them again.
+
   import { configStore, isOptimizing, resultStore, currentTab, showToast } from '$lib/store';
   import { RunOptimization, UpdateExternalSources } from '../../../../wailsjs/go/main/App';
   import { hydrateConfigFromSlots } from '../../store';
+  import type { main } from '../../../../wailsjs/go/models';
   import { onMount } from 'svelte';
+  import Accordion from '$lib/components/ui/Accordion.svelte';
+  import StatPriorityEditor from './StatPriorityEditor.svelte';
+  import StatSetPicker from './StatSetPicker.svelte';
 
-  let newStatName = '';
-  let newStatWeight = 100;
-  let showExcludedPacks = false;
   let isUpdatingData = false;
-
   let expansions: string[] = [];
 
   onMount(async () => {
@@ -21,13 +34,6 @@
     }
   });
 
-  const spellSchools = [
-    'Abjuration', 'Conjuration', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation'
-  ];
-  const spellpowers = [
-    'Acid', 'Cold', 'Electric', 'Fire', 'Force', 'Light', 'Negative', 'Positive', 'Repair', 'Sonic'
-  ];
-
   function togglePack(pack: string) {
     if (!$configStore.excluded_packs) {
       $configStore.excluded_packs = [];
@@ -39,68 +45,18 @@
     }
   }
 
-  function addStatPriority() {
-    if (newStatName.trim()) {
-      const name = newStatName.trim();
-      const existingIdx = $configStore.stat_priorities.findIndex(e => e.stat === name);
-      if (existingIdx >= 0) {
-        $configStore.stat_priorities[existingIdx] = { stat: name, value: newStatWeight };
-      } else {
-        $configStore.stat_priorities = [...$configStore.stat_priorities, { stat: name, value: newStatWeight }];
-      }
-      newStatName = '';
-      newStatWeight = 100;
-    }
-  }
-
-  function handleStatKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
-      addStatPriority();
-    }
-  }
-
-  function editStatPriority(stat: string, weight: number) {
-    newStatName = stat;
-    newStatWeight = weight;
-  }
-
-  function removeStatPriority(key: string) {
-    $configStore.stat_priorities = $configStore.stat_priorities.filter(e => e.stat !== key);
-  }
-
-  function moveStatPriority(index: number, direction: 'up' | 'down') {
-    const newIdx = direction === 'up' ? index - 1 : index + 1;
-    if (newIdx < 0 || newIdx >= $configStore.stat_priorities.length) return;
-    
-    const priorities = [...$configStore.stat_priorities];
-    [priorities[index], priorities[newIdx]] = [priorities[newIdx], priorities[index]];
-    $configStore.stat_priorities = priorities;
-  }
-
-  // Mirrors the filigree-selection allocation rule implemented in
-  // python/optimizer.py (see docs/PHASE9_PLAN.md, Phase 9.1):
-  //  - exactly one priority at 100 -> all weight to that stat
-  //  - multiple priorities at 100 -> geometric decay (60/40, ~51/31/18, ...) in entry order
-  //  - no 100s -> prorate every listed stat by its value's share of the total
-  function computeFiligreeBias(priorities: { stat: string; value: number }[]): { stat: string; pct: number }[] {
-    if (!priorities || priorities.length === 0) return [];
-    const hundreds = priorities.filter(p => p.value >= 100);
-    if (hundreds.length > 0) {
-      const raw = hundreds.map((_, i) => 0.6 * Math.pow(0.4, i));
-      const sum = raw.reduce((a, b) => a + b, 0);
-      return hundreds.map((p, i) => ({ stat: p.stat, pct: Math.round((raw[i] / sum) * 1000) / 10 }));
-    }
-    const total = priorities.reduce((a, p) => a + p.value, 0);
-    if (total <= 0) return [];
-    return priorities.map(p => ({ stat: p.stat, pct: Math.round((p.value / total) * 1000) / 10 }));
-  }
-
-  $: filigreeBias = computeFiligreeBias($configStore.stat_priorities);
-
   async function handleOptimize() {
     $isOptimizing = true;
     try {
-      const result = await RunOptimization($configStore);
+      // Per-call shallow copy rather than a store mutation, for the same reason
+      // as the calculate path: mode is a property of THIS request, not state
+      // every other store subscriber should observe mid-flight.
+      // The cast mirrors store.ts: spreading a wails-generated class produces a
+      // plain object without its convertValues method, which the generated
+      // signature nominally requires but never calls on the request path.
+      const result = await RunOptimization(
+        { ...$configStore, mode: 'optimize' } as unknown as main.OptimizationPayload
+      );
       if (result.success) {
         $resultStore = result;
         const hydrated = hydrateConfigFromSlots($configStore, result.slots);
@@ -157,45 +113,21 @@
     }
   }
 
-  $: {
-    if ($configStore.build_type === 'Caster') {
-      if (!$configStore.caster_spellpowers) $configStore.caster_spellpowers = [];
-      if (!$configStore.caster_schools) $configStore.caster_schools = [];
-
-      // Inject selected spellpowers
-      $configStore.caster_spellpowers.forEach(sp => {
-        if (!$configStore.stat_priorities.find(p => p.stat === sp)) {
-          $configStore.stat_priorities = [...$configStore.stat_priorities, { stat: sp, value: 100 }];
-        }
-      });
-      // Inject selected schools
-      $configStore.caster_schools.forEach(sch => {
-        if (!$configStore.stat_priorities.find(p => p.stat === sch)) {
-          $configStore.stat_priorities = [...$configStore.stat_priorities, { stat: sch, value: 100 }];
-        }
-      });
-    }
-  }
-
-  function toggleCasterOption(type: 'spellpower' | 'school', option: string) {
-    if (type === 'spellpower') {
-      if ($configStore.caster_spellpowers.includes(option)) {
-        $configStore.caster_spellpowers = $configStore.caster_spellpowers.filter(o => o !== option);
-      } else {
-        $configStore.caster_spellpowers = [...$configStore.caster_spellpowers, option];
-      }
-    } else {
-      if ($configStore.caster_schools.includes(option)) {
-        $configStore.caster_schools = $configStore.caster_schools.filter(o => o !== option);
-      } else {
-        $configStore.caster_schools = [...$configStore.caster_schools, option];
-      }
-    }
-  }
-
-  $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 'Thrown', 'Shuriken'] : 
+  $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 'Thrown', 'Shuriken'] :
                     $configStore.build_type === 'Caster' ? ['None'] :
                     ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'];
+
+  // Collapsed-state digests
+  $: artifactSummary = `Reserved: ${$configStore.reserved_minor_artifact_slot || 'Any'} · ${$configStore.minor_artifact_filigree_slots ?? 0} filigree slots`;
+  $: excludedSummary = `${$configStore.excluded_packs?.length ?? 0} excluded`;
+  $: priorityCount = $configStore.stat_priorities?.length ?? 0;
+  $: solverSummary = `${$configStore.max_search_time}s total`;
+
+  // Post-solve feedback for the search-time slider: the concrete, actionable
+  // signal for "you should raise this", sourced from the solver's own report
+  // rather than a separate client-side computation.
+  $: lastRunSeconds = $resultStore?.tierReport?.totalElapsedSeconds;
+  $: hasUnprovenStage = ($resultStore?.tierReport?.stages ?? []).some((s) => !s.proven);
 </script>
 
 <div class="glass-panel p-6 space-y-6">
@@ -204,6 +136,7 @@
     <p class="text-sm text-muted-foreground">Configure your character build and optimizer constraints.</p>
   </div>
 
+  <!-- 1. Build Profile — always visible, never collapsible -->
   <div class="grid grid-cols-2 gap-4">
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="build-type">Build Type</label>
@@ -214,7 +147,7 @@
         <option value="Tank" class="bg-background text-foreground">Tank</option>
       </select>
     </div>
-    
+
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="weapon-style">Weapon Style</label>
       <select id="weapon-style" bind:value={$configStore.weapon_style} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
@@ -223,43 +156,6 @@
         {/each}
       </select>
     </div>
-
-    {#if $configStore.build_type === 'Caster'}
-      <div class="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border border-border rounded-lg bg-card/30">
-        <div class="space-y-3">
-          <label class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Spell Schools</label>
-          <div class="grid grid-cols-2 gap-2">
-            {#each spellSchools as school}
-              <label class="flex items-center space-x-2 text-sm cursor-pointer hover:text-primary transition-colors">
-                <input 
-                  type="checkbox" 
-                  checked={$configStore.caster_schools?.includes(school)}
-                  on:change={() => toggleCasterOption('school', school)}
-                  class="h-4 w-4 rounded border-input bg-transparent text-primary"
-                />
-                <span>{school}</span>
-              </label>
-            {/each}
-          </div>
-        </div>
-        <div class="space-y-3">
-          <label class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Spellpowers</label>
-          <div class="grid grid-cols-2 gap-2">
-            {#each spellpowers as power}
-              <label class="flex items-center space-x-2 text-sm cursor-pointer hover:text-primary transition-colors">
-                <input 
-                  type="checkbox" 
-                  checked={$configStore.caster_spellpowers?.includes(power)}
-                  on:change={() => toggleCasterOption('spellpower', power)}
-                  class="h-4 w-4 rounded border-input bg-transparent text-primary"
-                />
-                <span>{power}</span>
-              </label>
-            {/each}
-          </div>
-        </div>
-      </div>
-    {/if}
 
     {#if $configStore.weapon_style === 'Single Weapon Fighting'}
       <div class="space-y-2">
@@ -279,11 +175,6 @@
     </div>
 
     <div class="space-y-2">
-      <label class="text-sm font-medium leading-none" for="raid-limit">Max Raid Items</label>
-      <input id="raid-limit" type="number" bind:value={$configStore.raid_item_limit} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
-    </div>
-
-    <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="armor-restriction">Armor Restriction</label>
       <select id="armor-restriction" bind:value={$configStore.armor_restriction} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <option value="Any" class="bg-background text-foreground">Any</option>
@@ -293,180 +184,150 @@
         <option value="Heavy" class="bg-background text-foreground">Heavy</option>
       </select>
     </div>
-
-    <div class="space-y-2 flex flex-col justify-center pt-6">
-      <label class="flex items-center space-x-2 text-sm cursor-pointer">
-        <input type="checkbox" bind:checked={$configStore.runearm_use} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
-        <span class="font-medium leading-none text-foreground">Runearm Use</span>
-      </label>
-    </div>
-
-    <div class="space-y-2 flex flex-col justify-center pt-6">
-      <label class="flex items-center space-x-2 text-sm cursor-pointer">
-        <input type="checkbox" bind:checked={$configStore.exclude_gem_of_many_facets} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
-        <span class="font-medium leading-none text-foreground">Exclude Gem of Many Facets</span>
-      </label>
-    </div>
-
-    <!-- Artifact Section -->
-    <div class="col-span-2 mt-4 space-y-3">
-      <h3 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-1">Artifact Configuration</h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-border rounded-lg bg-card/20">
-        <div class="space-y-2">
-          <label class="text-sm font-medium leading-none" for="reserved-minor-artifact">Reserved Slot</label>
-          <select id="reserved-minor-artifact" bind:value={$configStore.reserved_minor_artifact_slot} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-            <option value="" class="bg-background text-foreground">Any</option>
-            <option value="Helmet" class="bg-background text-foreground">Helmet</option>
-            <option value="Necklace" class="bg-background text-foreground">Necklace</option>
-            <option value="Trinket" class="bg-background text-foreground">Trinket</option>
-            <option value="Cloak" class="bg-background text-foreground">Cloak</option>
-            <option value="Belt" class="bg-background text-foreground">Belt</option>
-            <option value="Ring" class="bg-background text-foreground">Ring</option>
-            <option value="Gloves" class="bg-background text-foreground">Gloves</option>
-            <option value="Boots" class="bg-background text-foreground">Boots</option>
-            <option value="Bracers" class="bg-background text-foreground">Bracers</option>
-            <option value="Goggles" class="bg-background text-foreground">Goggles</option>
-            <option value="Armor" class="bg-background text-foreground">Armor</option>
-          </select>
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium leading-none" for="minor-artifact-slots">Filigree Slots</label>
-          <input id="minor-artifact-slots" type="number" bind:value={$configStore.minor_artifact_filigree_slots} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
-        </div>
-        <div class="flex items-center pt-6">
-          <label class="flex items-center space-x-2 text-sm cursor-pointer">
-            <input type="checkbox" bind:checked={$configStore.is_dino_artifact} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
-            <span class="font-medium leading-none text-foreground">Dinosaur Bone Artifact</span>
-          </label>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <div class="space-y-2 border-t border-border pt-4">
-    <button class="flex items-center justify-between w-full text-left" on:click={() => showExcludedPacks = !showExcludedPacks}>
-      <span class="text-sm font-medium leading-none">Excluded Expansion Packs</span>
-      <span class="text-muted-foreground">{showExcludedPacks ? '▲' : '▼'}</span>
-    </button>
-    {#if showExcludedPacks}
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-        {#each expansions as pack}
-          <label class="flex items-center space-x-2 text-sm cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={$configStore.excluded_packs?.includes(pack) ?? false}
-              on:change={() => togglePack(pack)}
-              class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
-            />
-            <span class="text-foreground">{pack}</span>
-          </label>
-        {/each}
-      </div>
-    {/if}
-  </div>
+  <!-- 2. Stat Sets -->
+  <Accordion title="Stat Sets" persistKey="stat-sets" summary="Presets">
+    <StatSetPicker />
+  </Accordion>
 
-  <div class="space-y-2 border-t border-border pt-4">
-    <label class="text-sm font-medium leading-none" for="stat-name">Stat Priorities (1-100)</label>
-    <div class="flex flex-col space-y-2">
-      <div class="flex space-x-2">
-        <input 
-          id="stat-name"
-          type="text" 
-          bind:value={newStatName}
-          on:keydown={handleStatKeydown}
-          placeholder="Stat (e.g. Constitution)"
-          class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        />
-        <button on:click={addStatPriority} class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-          Save
-        </button>
+  <!-- 3. Stat Priorities — always open, deliberately no persistKey (§8.3):
+       it is the primary input and must never silently start collapsed. -->
+  <Accordion title="Stat Priorities" open={true} summary={`${priorityCount} stats`}>
+    <StatPriorityEditor />
+  </Accordion>
+
+  <!-- 4. Equipment Constraints -->
+  <Accordion title="Equipment Constraints" persistKey="equipment-constraints">
+    <div class="grid grid-cols-2 gap-4">
+      <div class="space-y-2">
+        <label class="text-sm font-medium leading-none" for="raid-limit">Max Raid Items</label>
+        <input id="raid-limit" type="number" bind:value={$configStore.raid_item_limit} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
       </div>
+
+      <div class="space-y-2 flex flex-col justify-center pt-6">
+        <label class="flex items-center space-x-2 text-sm cursor-pointer">
+          <input type="checkbox" bind:checked={$configStore.runearm_use} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+          <span class="font-medium leading-none text-foreground">Runearm Use</span>
+        </label>
+      </div>
+
+      <div class="space-y-2 flex flex-col justify-center">
+        <label class="flex items-center space-x-2 text-sm cursor-pointer">
+          <input type="checkbox" bind:checked={$configStore.exclude_gem_of_many_facets} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+          <span class="font-medium leading-none text-foreground">Exclude Gem of Many Facets</span>
+        </label>
+      </div>
+    </div>
+  </Accordion>
+
+  <!-- 5. Artifact Configuration -->
+  <Accordion title="Artifact Configuration" persistKey="artifact-config" summary={artifactSummary}>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-border rounded-lg bg-card/20">
+      <div class="space-y-2">
+        <label class="text-sm font-medium leading-none" for="reserved-minor-artifact">Reserved Slot</label>
+        <select id="reserved-minor-artifact" bind:value={$configStore.reserved_minor_artifact_slot} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <option value="" class="bg-background text-foreground">Any</option>
+          <option value="Helmet" class="bg-background text-foreground">Helmet</option>
+          <option value="Necklace" class="bg-background text-foreground">Necklace</option>
+          <option value="Trinket" class="bg-background text-foreground">Trinket</option>
+          <option value="Cloak" class="bg-background text-foreground">Cloak</option>
+          <option value="Belt" class="bg-background text-foreground">Belt</option>
+          <option value="Ring" class="bg-background text-foreground">Ring</option>
+          <option value="Gloves" class="bg-background text-foreground">Gloves</option>
+          <option value="Boots" class="bg-background text-foreground">Boots</option>
+          <option value="Bracers" class="bg-background text-foreground">Bracers</option>
+          <option value="Goggles" class="bg-background text-foreground">Goggles</option>
+          <option value="Armor" class="bg-background text-foreground">Armor</option>
+        </select>
+      </div>
+      <div class="space-y-2">
+        <label class="text-sm font-medium leading-none" for="minor-artifact-slots">Filigree Slots</label>
+        <input id="minor-artifact-slots" type="number" bind:value={$configStore.minor_artifact_filigree_slots} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+      </div>
+      <div class="flex items-center pt-6">
+        <label class="flex items-center space-x-2 text-sm cursor-pointer">
+          <input type="checkbox" bind:checked={$configStore.is_dino_artifact} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+          <span class="font-medium leading-none text-foreground">Dinosaur Bone Artifact</span>
+        </label>
+      </div>
+    </div>
+  </Accordion>
+
+  <!-- 6. Content Filters -->
+  <Accordion title="Excluded Expansion Packs" persistKey="content-filters" summary={excludedSummary}>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+      {#each expansions as pack}
+        <label class="flex items-center space-x-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={$configStore.excluded_packs?.includes(pack) ?? false}
+            on:change={() => togglePack(pack)}
+            class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+          />
+          <span class="text-foreground">{pack}</span>
+        </label>
+      {/each}
+    </div>
+  </Accordion>
+
+  <!-- 7. Solver Settings -->
+  <Accordion title="Solver Settings" persistKey="solver-settings" summary={solverSummary}>
+    <div class="space-y-2">
+      <label class="text-sm font-medium leading-none" for="search-time">
+        Total Search Time (seconds — across all solve stages)
+      </label>
       <div class="flex items-center space-x-3">
-        <input 
-          type="range" 
-          bind:value={newStatWeight}
-          on:keydown={handleStatKeydown}
-          min="1"
-          max="100"
+        <input
+          id="search-time"
+          type="range"
+          min="10"
+          max="600"
+          step="5"
+          bind:value={$configStore.max_search_time}
           class="w-full accent-primary"
         />
-        <span class="text-sm font-medium w-8 text-right">{newStatWeight}</span>
+        <span class="text-sm font-medium w-10 text-right">{$configStore.max_search_time}</span>
       </div>
-    </div>
-    {#if $configStore.stat_priorities && $configStore.stat_priorities.length > 0}
-      <div class="grid grid-cols-1 gap-2 mt-3">
-        {#each $configStore.stat_priorities as { stat, value }, i (stat)}
-          <div class="flex justify-between items-center border border-border rounded-md px-3 py-2 text-sm bg-card text-card-foreground cursor-pointer hover:border-primary transition-colors" on:click={() => editStatPriority(stat, value)}>
-            <div class="flex items-center space-x-3 mr-2 min-w-0">
-              <div class="flex flex-col space-y-0.5">
-                <button 
-                  class="text-[10px] leading-none hover:text-primary disabled:opacity-30" 
-                  on:click|stopPropagation={() => moveStatPriority(i, 'up')}
-                  disabled={i === 0}
-                >▲</button>
-                <button 
-                  class="text-[10px] leading-none hover:text-primary disabled:opacity-30" 
-                  on:click|stopPropagation={() => moveStatPriority(i, 'down')}
-                  disabled={i === $configStore.stat_priorities.length - 1}
-                >▼</button>
-              </div>
-              <span class="font-medium truncate" title={stat}>{stat}</span>
-            </div>
-            <div class="flex items-center space-x-3">
-              <span class="text-muted-foreground">{value}</span>
-              <button class="text-destructive hover:text-destructive/80 focus:outline-none font-bold text-lg" on:click|stopPropagation={() => removeStatPriority(stat)} aria-label="Remove">&times;</button>
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
-    {#if filigreeBias.length > 0}
-      <p class="text-xs text-muted-foreground mt-2">
-        Filigree bias: {filigreeBias.map(b => `${b.pct}% ${b.stat}`).join(', ')}
+      <p class="text-[10px] text-muted-foreground">
+        Split across up to five tier stages plus a consolidation pass. Longer budgets help most
+        when you use many tiers. The backend clamps this to a hard ceiling of 1800 seconds.
       </p>
-    {/if}
-  </div>
-
-  <div class="space-y-2 border-t border-border pt-4">
-    <label class="text-sm font-medium leading-none" for="search-time">Max Search Time (seconds)</label>
-    <div class="flex items-center space-x-3">
-      <input 
-        id="search-time" 
-        type="range" 
-        min="5" 
-        max="300" 
-        step="5"
-        bind:value={$configStore.max_search_time} 
-        class="w-full accent-primary" 
-      />
-      <span class="text-sm font-medium w-8 text-right">{$configStore.max_search_time}</span>
+      {#if lastRunSeconds !== undefined}
+        <p class="text-[10px] {hasUnprovenStage ? 'text-amber-500' : 'text-muted-foreground'}">
+          Last run: {lastRunSeconds.toFixed(1)}s of {$configStore.max_search_time}s budget{hasUnprovenStage ? ' — a stage hit its time limit before proving optimality.' : '.'}
+        </p>
+      {/if}
     </div>
-    <p class="text-[10px] text-muted-foreground">Longer search times allow for deeper optimization but take more resources.</p>
-  </div>
+  </Accordion>
 
-  <button 
-    on:click={handleOptimize}
-    disabled={$isOptimizing}
-    class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 mt-6"
-  >
-    {#if $isOptimizing}
-      <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-      Running Optimization...
-    {:else}
-      Optimize Gear
-    {/if}
-  </button>
-  
-  <button 
-    on:click={handleUpdateData}
-    disabled={isUpdatingData}
-    class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border h-10 px-4 py-2 mt-4"
-  >
-    {#if isUpdatingData}
-      <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-      Updating...
-    {:else}
-      Update External Sources (DDOBuilderV2)
-    {/if}
-  </button>
+  <!-- Actions — always visible, so they stay reachable regardless of which
+       sections are expanded. -->
+  <div class="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-background/80 backdrop-blur border-t border-border space-y-3">
+    <button
+      on:click={handleOptimize}
+      disabled={$isOptimizing}
+      class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+    >
+      {#if $isOptimizing}
+        <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+        Running Optimization...
+      {:else}
+        Optimize Gear
+      {/if}
+    </button>
+
+    <button
+      on:click={handleUpdateData}
+      disabled={isUpdatingData}
+      class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border h-10 px-4 py-2"
+    >
+      {#if isUpdatingData}
+        <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+        Updating...
+      {:else}
+        Update External Sources (DDOBuilderV2)
+      {/if}
+    </button>
+  </div>
 </div>
