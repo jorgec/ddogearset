@@ -10,7 +10,9 @@ node_modules
 python/__pycache__/
 python/.venv/
 python/*.pyc
-python/*.spec
+# solver.spec is checked in on purpose — build-windows.ps1/build_releases.sh
+# both need it (pyinstaller --noconfirm solver.spec) and it must exist for a
+# fresh clone to build at all, same reasoning as keeping python/dist/solver.
 python/build/
 python/dist/
 # Fetched by ensureDDOBuilderData() (app.go) on first run — data, not source.
