@@ -32,4 +32,4 @@ frontend/wailsjs/runtime/runtime.d.ts
 
 frontend/wailsjs/runtime/runtime.js
 
-gearsets/.DS_Store
+.DS_Store

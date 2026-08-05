@@ -39,10 +39,10 @@
 #
 # DDOBuilderV2 (the game-data source) is NOT fetched by this script - the
 # built app clones/pulls it itself on first run (app.go's
-# ensureDDOBuilderData(), into a gitignored .\DDOBuilderV2). That requires
-# SSH access to git@github.com:Maetrim/DDOBuilderV2.git on whatever account
-# runs the app; this script checks that access and warns (not fails) if it
-# can't confirm it.
+# ensureDDOBuilderData(), into a gitignored .\DDOBuilderV2), over plain
+# HTTPS - it's a public repo, so no credentials of any kind are needed. This
+# script just checks that github.com is reachable and warns (not fails) if
+# it can't confirm that.
 
 $ErrorActionPreference = "Stop"
 
@@ -204,17 +204,17 @@ Get-ChildItem -Path $GlpkDir -Filter "*.dll" | ForEach-Object {
     Write-Ok "staged $BundleDir\$($_.Name)"
 }
 
-# == 7. DDOBuilderV2 SSH access check (not fetched here - see file header) ==
-Write-Step "Checking SSH access to DDOBuilderV2's repo (the built app clones this itself)..."
-$sshTest = & ssh -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com 2>&1
-if ($sshTest -match "successfully authenticated") {
-    Write-Ok "SSH access to github.com confirmed."
+# == 7. DDOBuilderV2 reachability check (not fetched here - see file header) ==
+Write-Step "Checking that DDOBuilderV2's repo is reachable over HTTPS (the built app clones this itself, no credentials needed - it's public)..."
+& git ls-remote https://github.com/Maetrim/DDOBuilderV2.git HEAD *> $null
+if ($LASTEXITCODE -eq 0) {
+    Write-Ok "github.com reachable over HTTPS."
 } else {
-    Write-Warn ("SSH access to github.com could not be confirmed. The app clones " + `
-        "git@github.com:Maetrim/DDOBuilderV2.git on first run (app.go's " + `
-        "ensureDDOBuilderData) - without SSH keys set up for that repo, the clone " + `
-        "will fail and every solve will error until you fix that or manually place " + `
-        "the repo at .\DDOBuilderV2 yourself.")
+    Write-Warn ("Could not reach https://github.com/Maetrim/DDOBuilderV2.git. The app " + `
+        "clones this (public, no credentials needed) on first run (app.go's " + `
+        "ensureDDOBuilderData) - if this machine has no network access to github.com, " + `
+        "the clone will fail and every solve will error until you fix that or manually " + `
+        "place the repo at .\DDOBuilderV2 yourself.")
 }
 
 # == 8. Build ==================================================================

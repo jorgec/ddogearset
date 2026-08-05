@@ -105,19 +105,20 @@ fi
 # ── DDOBuilderV2 data ────────────────────────────────────────────────────────
 # No longer this script's job: the app clones it itself into ./DDOBuilderV2 on
 # first run (app.go's ensureDDOBuilderData(), gitignored) if it isn't already
-# there. That requires SSH access to git@github.com:Maetrim/DDOBuilderV2.git —
-# check that now rather than finding out from a failed solve later.
+# there, over plain HTTPS — DDOBuilderV2 is a public repo, so no credentials
+# of any kind are needed on any machine that runs the app. Just check network
+# reachability now rather than finding out from a failed solve later.
 echo ""
 if [ -d "DDOBuilderV2" ]; then
     ok "DDOBuilderV2 already present at ./DDOBuilderV2 (the app will just git pull it)."
-elif ssh -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com 2>&1 | grep -qi "successfully authenticated"; then
-    ok "SSH access to github.com confirmed — the app will clone DDOBuilderV2 on first run."
+elif git ls-remote https://github.com/Maetrim/DDOBuilderV2.git HEAD >/dev/null 2>&1; then
+    ok "github.com reachable over HTTPS — the app will clone DDOBuilderV2 (public repo, no credentials needed) on first run."
 else
-    warn "./DDOBuilderV2 doesn't exist yet, and SSH access to github.com could not be" \
-         "confirmed. The app clones git@github.com:Maetrim/DDOBuilderV2.git on first run" \
-         "(app.go's ensureDDOBuilderData) — if you don't have SSH keys set up for that" \
-         "repo, the clone will fail and every solve will error until you either set that" \
-         "up or manually clone/place the repo at ./DDOBuilderV2 yourself."
+    warn "./DDOBuilderV2 doesn't exist yet, and https://github.com/Maetrim/DDOBuilderV2.git" \
+         "could not be reached. The app clones it on first run (app.go's" \
+         "ensureDDOBuilderData) — if this machine has no network access to github.com," \
+         "the clone will fail and every solve will error until you either fix that or" \
+         "manually clone/place the repo at ./DDOBuilderV2 yourself."
 fi
 
 echo ""

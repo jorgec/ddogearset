@@ -142,9 +142,19 @@ func (a *App) ensureDDOBuilderData() (string, error) {
 // here on first run if it's missing, so a fresh checkout is enough; nothing
 // needs to pre-exist outside the project. It's gitignored (see .gitignore) —
 // this is fetched data, not source.
+//
+// ddoRepoURL is HTTPS, not SSH (`git@github.com:...`) — confirmed via
+// `git ls-remote https://github.com/Maetrim/DDOBuilderV2.git` that the repo
+// is public and needs no credentials at all over HTTPS. An SSH URL would
+// require SSH keys configured for GitHub on every machine that ever runs
+// this app, which is a much heavier and more failure-prone requirement than
+// "public repo, plain HTTPS clone" — and on a machine without those keys set
+// up, `git clone` over SSH can hang entirely waiting on an interactive
+// host-key-verification prompt that a GUI app (no attached console) can
+// never answer.
 const (
 	ddoRepoDir  = "DDOBuilderV2"
-	ddoRepoURL  = "git@github.com:Maetrim/DDOBuilderV2.git"
+	ddoRepoURL  = "https://github.com/Maetrim/DDOBuilderV2.git"
 	ddoDataRoot = ddoRepoDir + "/Output/DataFiles"
 
 	ddoItemsPath        = ddoDataRoot + "/Items"

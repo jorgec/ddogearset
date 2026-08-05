@@ -94,6 +94,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- **`wails build -o DDOGearsetOptimizer` on Windows produced a file with no
+  extension at all** (`DDOGearsetOptimizer`, not `DDOGearsetOptimizer.exe`),
+  discovered from a real Windows build run. Unlike the assumption
+  `build-windows.ps1` was originally written against, Wails does not append
+  `.exe` to `-o` on Windows itself — it writes exactly the name given. Both
+  the plain build and the `-nsis` installer build now pass
+  `-o DDOGearsetOptimizer.exe` explicitly.
+
+- **`ensureDDOBuilderData()` used an SSH clone URL**
+  (`git@github.com:Maetrim/DDOBuilderV2.git`), requiring SSH keys configured
+  for GitHub on every machine that runs the app — and on a machine without
+  them (confirmed on a real Windows build machine), the clone can hang
+  entirely waiting on an interactive host-key prompt a GUI app can never
+  answer. `git ls-remote https://github.com/Maetrim/DDOBuilderV2.git HEAD`
+  confirmed the repo is public, so the URL is now plain HTTPS — zero
+  credentials needed anywhere. Verified end-to-end via Go with no SSH
+  configuration involved: cloned 20,308 files in ~19s. `install.sh` and
+  `build-windows.ps1`'s reachability checks updated to match (`git
+  ls-remote` over HTTPS instead of an SSH auth probe).
+
 - **`python/solver.spec` was never actually committed** — `.gitignore` had a
   blanket `python/*.spec` rule that silently excluded it. Every build script
   runs `pyinstaller --noconfirm solver.spec`, so a fresh clone couldn't
