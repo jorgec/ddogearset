@@ -5,6 +5,7 @@
   import FiligreeEditor from '$lib/components/domain/FiligreeEditor.svelte';
   import Summary from '$lib/components/domain/Summary.svelte';
   import ItemSearch from '$lib/components/domain/ItemSearch.svelte';
+  import OwnedItems from '$lib/components/domain/OwnedItems.svelte';
   import StatusConsole from '$lib/components/domain/StatusConsole.svelte';
   import Toast from '$lib/components/domain/Toast.svelte';
   import { ParseMetadata } from '../wailsjs/go/main/App';
@@ -40,6 +41,7 @@
       <button on:click={() => $currentTab = 'editor'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'editor' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Gearset Editor</button>
       <button on:click={() => $currentTab = 'filigrees'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'filigrees' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Filigrees</button>
       <button on:click={() => $currentTab = 'itemSearch'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'itemSearch' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Item Search</button>
+      <button on:click={() => $currentTab = 'ownedItems'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'ownedItems' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Owned Items</button>
       <button on:click={() => $currentTab = 'summary'} class="px-4 py-2 text-sm font-medium rounded-md transition-colors {$currentTab === 'summary' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}">Summary Breakdown</button>
     </div>
     
@@ -90,6 +92,10 @@
     {:else if $currentTab === 'itemSearch'}
       <div class="h-full flex-1">
         <ItemSearch />
+      </div>
+    {:else if $currentTab === 'ownedItems'}
+      <div class="h-full flex-1">
+        <OwnedItems />
       </div>
     {/if}
   </div>

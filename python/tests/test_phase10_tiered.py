@@ -6,6 +6,7 @@ Phase 10b).
 """
 
 import io
+import os
 import types
 import xml.etree.ElementTree as ET
 
@@ -1098,3 +1099,59 @@ def test_optimize_mode_still_enforces_raid_item_limit():
     equipped_raid = sum(1 for name in result["gearSet"].values()
                         if name in ("Raid Trinket", "Raid Belt"))
     assert equipped_raid <= 1
+
+
+# ---------------------------------------------------------------------------
+# docs/TROVE_INVENTORY_IMPORT_SPEC.md — owned_names item/augment pool filter
+#
+# Unlike the rest of this file, these exercise parse_items/parse_augments
+# directly against the real DDOBuilderV2 checkout rather than synthetic
+# make_item fixtures — owned_names is applied inside the XML-walking loop
+# itself (see optimizer.py), so a synthetic in-memory item list can't
+# exercise the actual code path. Skipped cleanly if DDOBuilderV2 hasn't been
+# fetched yet (e.g. a CI environment, or a fresh checkout before first run)
+# rather than failing the whole suite over missing external data.
+# ---------------------------------------------------------------------------
+
+_DDOBUILDER_DATA_DIR = "DDOBuilderV2/Output/DataFiles"
+_has_real_ddobuilder_data = os.path.isdir(_DDOBUILDER_DATA_DIR)
+_skip_without_real_data = pytest.mark.skipif(
+    not _has_real_ddobuilder_data,
+    reason="DDOBuilderV2 not fetched in this environment (see ensureDDOBuilderData in app.go)")
+
+
+@_skip_without_real_data
+def test_parse_items_owned_names_none_is_unrestricted():
+    items = optimizer.parse_items(
+        _DDOBUILDER_DATA_DIR, 34, [], "", [], [], True, "", owned_names=None)
+    items_default = optimizer.parse_items(
+        _DDOBUILDER_DATA_DIR, 34, [], "", [], [], True, "")
+    assert len(items) == len(items_default)
+
+
+@_skip_without_real_data
+def test_parse_items_owned_names_filters_to_exact_matches():
+    owned = {"Legendary Keylock Ring"}
+    items = optimizer.parse_items(
+        _DDOBUILDER_DATA_DIR, 34, [], "", [], [], True, "", owned_names=owned)
+    names = {i["name"] for i in items}
+    assert names == owned, f"expected exactly {owned}, got {names}"
+
+
+@_skip_without_real_data
+def test_parse_items_owned_names_never_drops_pre_equipped():
+    owned = {"Some Other Item"}
+    items = optimizer.parse_items(
+        _DDOBUILDER_DATA_DIR, 34, [], "", [], [], True, "",
+        pre_equipped_names=["Legendary Keylock Ring"], owned_names=owned)
+    names = {i["name"] for i in items}
+    assert "Legendary Keylock Ring" in names
+
+
+@_skip_without_real_data
+def test_parse_augments_owned_names_filters_to_exact_matches():
+    owned = {"Solar Gem of Healing Amplification (Legendary)"}
+    augments = optimizer.parse_augments(
+        _DDOBUILDER_DATA_DIR, 34, ["Healing Amplification"], owned_names=owned)
+    names = {a["name"] for a in augments}
+    assert names == owned, f"expected exactly {owned}, got {names}"

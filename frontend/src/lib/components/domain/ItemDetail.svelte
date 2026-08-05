@@ -43,6 +43,13 @@
   // only the newest token is allowed to commit its result.
   let fetchToken = 0;
 
+  // A click must never leave the panel spinning forever — cap the wait and
+  // surface a clear error past this point instead. GetItemDetails itself is a
+  // plain in-memory map lookup and returns instantly, but the caller (e.g. the
+  // Owned Items screen) may hand us a name whose backing data is unusual, and
+  // this is cheap insurance against any such case getting the user stuck.
+  const LOAD_TIMEOUT_MS = 8000;
+
   $: void loadItem(itemName);
 
   async function loadItem(name: string) {
@@ -54,14 +61,19 @@
       loading = true;
       loadError = '';
       try {
-          const fetched = await fetchItem(name);
+          const timeout = new Promise<never>((_, reject) => {
+              setTimeout(() => reject(new Error('timed out')), LOAD_TIMEOUT_MS);
+          });
+          const fetched = await Promise.race([fetchItem(name), timeout]);
           if (token !== fetchToken) return; // stale response — discard
           item = fetched && fetched.Name ? fetched : null;
           if (!item) loadError = `No data found for "${name}".`;
       } catch (e) {
           if (token !== fetchToken) return;
           item = null;
-          loadError = 'Could not load this item: ' + e;
+          loadError = e instanceof Error && e.message === 'timed out'
+              ? `Timed out loading "${name}". It may not be a real catalog item.`
+              : 'Could not load this item: ' + e;
       } finally {
           if (token === fetchToken) loading = false;
       }
@@ -223,8 +235,14 @@
   }
 
   // Resolve detail for anything socketed that slotDetail can't explain.
+  // ItemAugments is `null` (not `[]`) whenever an item has zero augment
+  // slots — Go's encoding/json emits nil slices that way — so this must not
+  // assume an array. Skipping the guard here previously threw mid-render for
+  // any augment-less item (starter gear, Anger's Gift, etc.), which looked
+  // like the drawer being permanently stuck on "Loading item…" even though
+  // GetItemDetails had already returned successfully.
   $: if (item) {
-      item.ItemAugments.forEach((aug, idx) => {
+      (item.ItemAugments ?? []).forEach((aug, idx) => {
           const name = getAugmentName(idx, aug.Type);
           if (name && !requestedAugments.has(name) && !augmentCreditBuffs(name)) {
               requestedAugments.add(name);
@@ -367,7 +385,7 @@
   function conditionalIsSelected(ref: SetRef): boolean {
       if (!ref.viaAugment) return true;
       if (!item) return false;
-      return item.ItemAugments.some((ia, idx) =>
+      return (item.ItemAugments ?? []).some((ia, idx) =>
           ia.SelectedAugment === ref.viaAugment || getAugmentName(idx, ia.Type) === ref.viaAugment
       );
   }

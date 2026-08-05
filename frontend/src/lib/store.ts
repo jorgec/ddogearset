@@ -17,6 +17,9 @@ export const configStore = writable<main.OptimizationPayload>(({
     exclude_gem_of_many_facets: false,
     runearm_use: false,
     excluded_packs: [],
+    // docs/TROVE_INVENTORY_IMPORT_SPEC.md — empty means unrestricted (today's
+    // full-catalog behavior); populated only after LoadTroveInventory runs.
+    owned_item_names: [] as string[],
     raid_item_limit: 2,
     max_search_time: 60,
     is_dino_artifact: false,
@@ -101,10 +104,52 @@ export function flashStats(stats: string[], durationMs = 3000) {
         );
     }, durationMs);
 }
+// --- Trove inventory import state -------------------------------------------
+// One shared store for both the solver-form accordion and the standalone
+// Owned Items screen. Two reasons this has to be a single store rather than
+// one per screen:
+//   1. Both screens live inside a `{#if $currentTab === ...}` block in
+//      App.svelte, so the component is destroyed and recreated on every tab
+//      switch — plain component-local state does not survive that.
+//   2. Loading a CSV from either screen must be visible from the other: the
+//      accordion needs the owned-name set (items + augments, unfiltered
+//      against the catalog — the solver itself does that matching) to
+//      constrain RunOptimization, while the Owned Items screen needs the
+//      catalog-matched item list to browse. A load in either place fetches
+//      both shapes (see the two screens' loadTroveCSV functions) and writes
+//      them here together, so whichever screen you check next already has
+//      the same file loaded.
+export interface TroveOwnedItem {
+    name: string;
+    minLevel: number;
+    packId?: string;
+}
+
+export interface TroveImportState {
+    fileName: string;
+    totalRows: number;
+    // Item + augment names, unfiltered against DDOBuilderV2 — what the solver
+    // constraint (configStore.owned_item_names) is built from.
+    ownedNames: string[];
+    // Catalog-matched items only — what the Owned Items screen browses.
+    items: TroveOwnedItem[];
+    // The actual on/off switch for the solver constraint. Defaults off;
+    // loading a CSV turns it on (docs/TROVE_INVENTORY_IMPORT_SPEC.md).
+    restrictToOwned: boolean;
+}
+
+export const troveImportStore = writable<TroveImportState>({
+    fileName: '',
+    totalRows: 0,
+    ownedNames: [],
+    items: [],
+    restrictToOwned: false,
+});
+
 export const logsStore = writable<string[]>([]);
 export const isParsing = writable(false);
 export const isOptimizing = writable(false);
-export const currentTab = writable<'solver' | 'editor' | 'filigrees' | 'summary' | 'itemSearch'>('solver');
+export const currentTab = writable<'solver' | 'editor' | 'filigrees' | 'summary' | 'itemSearch' | 'ownedItems'>('solver');
 
 // Computes hydrated pre_equipped/pre_filled_augments/pre_filled_filigrees from
 // the current config plus the last known solved/loaded gearset's per-slot

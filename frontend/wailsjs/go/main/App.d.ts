@@ -23,6 +23,10 @@ export function GetStatSets():Promise<main.StatSetsFile>;
 
 export function GetSystemLogs():Promise<Array<string>>;
 
+export function GetTroveOwnedItems(arg1:string):Promise<main.TroveOwnedItemsResult>;
+
+export function LoadTroveInventory(arg1:string):Promise<main.TroveInventoryResult>;
+
 export function OpenFile(arg1:string):Promise<void>;
 
 export function ParseMetadata(arg1:string):Promise<void>;

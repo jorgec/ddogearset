@@ -11,6 +11,50 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- **Constrain gearset generation to owned items via Trove inventory import**
+  (`docs/TROVE_INVENTORY_IMPORT_SPEC.md`). A new "Owned Items (Trove Import)"
+  section loads a Trove inventory CSV export and restricts item/augment
+  selection to gear you actually own, instead of the full DDOBuilderV2
+  catalog. Deliberately narrow scope, validated against a real 420-row
+  export before implementation: rows in `SharedCrafting` are excluded, only
+  `Binding ∈ {BtA, BtC}` rows are considered (this alone improved match
+  quality from 65% to 82%, since bound items skew toward real named gear
+  while unbound rows are mostly tradeable commodities), and a CSV name that
+  doesn't exactly match DDOBuilderV2 is silently dropped — no fuzzy
+  matching, no filigree matching (Trove's filigree names don't include
+  tier/value and don't match DDOBuilderV2's format at all), no random-loot
+  item support (procedurally-named items like `+1 Deflecting 2 Hide of
+  Light Resistance 3` have no corresponding catalog entry to match against).
+  New `LoadTroveInventory` RPC (`trove_inventory.go`) parses the CSV
+  client-side-content-in, matching how gearset files are already loaded
+  (`Summary.svelte`'s `loadGearset`) rather than Go opening a file by path.
+  `OptimizationPayload.owned_item_names` is empty/absent by default — an
+  opt-in filter, not a standing mode, so nobody who hasn't loaded a CSV gets
+  an accidentally-restricted item pool; the UI toggle is disabled until a
+  CSV is loaded for the same reason. `parse_items`/`parse_augments` gained
+  one more optional parameter mirroring the existing `excluded_packs`
+  filter, including the same "never drops a pre-equipped item" bypass.
+  Explicitly exempted from `stat_search` mode (browsing what's possible in
+  the game, not what you own). Verified end-to-end through the actual
+  compiled, bundled solver binary — not just source — using the real CSV:
+  Go's CSV parser reproduced an independent Python analysis exactly (420
+  total rows, 190 distinct owned names after filtering), and a real solve
+  correctly selected only owned items.
+
+- **New standalone "Owned Items" screen** for browsing a Trove export
+  directly, separate from the solver-constraint section above. Items-only by
+  design (no augments, kept simple) and pre-filtered in Go against the
+  already-loaded `itemsByName` index (`GetTroveOwnedItems`, new RPC) — no
+  Python round-trip needed, and nothing "non-usable" ever reaches the list
+  since matching happens before the frontend sees it. Clicking a name opens
+  a sliding drawer (`svelte/transition`'s `fly`, not a manually-toggled CSS
+  class — the drawer only exists in the DOM while open, so there's no
+  "closed" state for a plain transform transition to animate from) hosting
+  `ItemDetail.svelte` in read-only `mode="view"`, the same component
+  `GearsetEditor` already uses. Verified for real: `GetTroveOwnedItems`
+  against the actual CSV returned 152 matched items with correct names/ML/
+  pack; the built app launches cleanly with the new screen wired in.
+
 - **"Docent" added as an Armor Restriction option** (alongside Cloth, Light,
   Medium, Heavy). No backend change needed — `armor_restriction` matching
   was already a generic substring match against each item's XML `<Armor>`
