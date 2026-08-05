@@ -219,10 +219,12 @@ if ($sshTest -match "successfully authenticated") {
 
 # == 8. Build ==================================================================
 Write-Step "Running wails build (this compiles the frontend and the Go binary)..."
-# No .exe suffix here -- wails appends the platform-appropriate extension
-# itself (matches build-mac.sh's/build-linux.sh's `-o DDOGearsetOptimizer`;
-# passing .exe explicitly here would risk a DDOGearsetOptimizer.exe.exe).
-wails build -o DDOGearsetOptimizer
+# Confirmed by an actual Windows run: wails does NOT append .exe to -o itself
+# on Windows (unlike the assumption this script started with) -- it writes
+# exactly the name given. Without the explicit .exe here, the build produced
+# a plain 'DDOGearsetOptimizer' file with no extension at all. -o must
+# include .exe explicitly on Windows.
+wails build -o DDOGearsetOptimizer.exe
 if ($LASTEXITCODE -ne 0) { Fail "wails build failed - see output above." }
 
 $BuiltPath = "build\bin\DDOGearsetOptimizer.exe"
@@ -237,7 +239,7 @@ $Makensis = Get-Command makensis -ErrorAction SilentlyContinue
 $InstallerPath = $null
 if ($Makensis) {
     Write-Step "makensis found - also building an NSIS installer..."
-    wails build -o DDOGearsetOptimizer -nsis
+    wails build -o DDOGearsetOptimizer.exe -nsis
     if ($LASTEXITCODE -eq 0) {
         $found = Get-ChildItem "build\bin" -Filter "*-installer.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($found) {
