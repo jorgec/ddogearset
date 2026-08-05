@@ -7,6 +7,60 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.2.2] — 2026-08-06
+
+### Fixed
+
+- **The Owned Items drawer could get permanently stuck on "Loading item…"**
+  for any item with zero augment slots (e.g. `Anger's Gift`, `+1 Starter
+  Dagger`) even though the backend call had already returned successfully —
+  confirmed via the actual devtools network log, which showed a correct
+  `GetItemDetails` response arriving while the UI never updated. Root cause:
+  Go's `encoding/json` serializes a nil/empty slice as `null`, not `[]`, so
+  `XMLItem.ItemAugments` is `null` for any item with no augment slots, and
+  `ItemDetail.svelte`'s reactive augment-resolution block called
+  `item.ItemAugments.forEach(...)` with no null guard — a `TypeError` thrown
+  mid-render, before the DOM patch that would have shown the loaded item.
+  Items with at least one augment slot never hit this path, which is why it
+  looked isolated to specific items rather than a systemic bug. Fixed both
+  unguarded call sites (`item.ItemAugments ?? []`); also added a hard 8s
+  timeout around the load itself so a genuinely stuck fetch can no longer
+  leave the drawer spinning forever regardless of cause. (An earlier,
+  speculative fix in this same investigation — rejecting Trove-matched items
+  that lacked `EquipmentSlot` data — was reverted after real testing showed
+  it incorrectly hid legitimate gear like `Legendary Executioner's
+  Platemail`; the null-`ItemAugments` guard above was the actual bug.)
+
+- **A loaded Trove CSV silently vanished when switching tabs, and the
+  solver would stop respecting the "only use items I own" restriction even
+  though nothing was changed.** Both the solver-form accordion and the
+  Owned Items screen live inside an `{#if $currentTab === ...}` block in
+  `App.svelte`, so Svelte destroys and recreates the component on every tab
+  switch. The loaded-CSV state was plain component-local state, so it reset
+  to empty on remount — and worse, the accordion's reactive assignment
+  (`$configStore.owned_item_names = restrictToOwned && ... ? ... : []`)
+  fired immediately on remount with the now-empty local state, silently
+  clearing the solver constraint on every visit back to the solver tab.
+  Fixed by moving the state into a module-level store (`troveImportStore`
+  in `store.ts`), which lives outside the component lifecycle and survives
+  remounts. As part of the same fix, loading a CSV from either screen now
+  populates both — a single shared `loadTroveCsv()` helper
+  (`services/troveImport.ts`) fetches both the solver's name-list shape and
+  the browsing screen's matched-item shape together, so whichever screen
+  you check next already reflects the same loaded file.
+
+### Changed
+
+- **The "Only use items I own" toggle moved beside the "Load Trove CSV..."
+  button** in the solver form (previously below it, in its own row), and is
+  now visibly disabled (not just hidden) until a CSV has been loaded.
+  Behavior unchanged: defaults off, turns on automatically the moment a CSV
+  loads, and — confirmed by re-reading `parse_filigrees()` — filigrees were
+  never subject to this restriction in the first place, since
+  `owned_item_names` is only ever passed to `parse_items`/`parse_augments`;
+  filigrees remain fully available to the solver whether or not the
+  restriction is on.
+
 ## [0.2.1] — 2026-08-05
 
 ### Added
