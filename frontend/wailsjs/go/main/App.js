@@ -42,6 +42,14 @@ export function GetSystemLogs() {
   return window['go']['main']['App']['GetSystemLogs']();
 }
 
+export function GetTroveOwnedItems(arg1) {
+  return window['go']['main']['App']['GetTroveOwnedItems'](arg1);
+}
+
+export function LoadTroveInventory(arg1) {
+  return window['go']['main']['App']['LoadTroveInventory'](arg1);
+}
+
 export function OpenFile(arg1) {
   return window['go']['main']['App']['OpenFile'](arg1);
 }

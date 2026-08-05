@@ -12,8 +12,9 @@
   // old-file deserialization (INV-3), and old files are migrated into Tier 1
   // once at load time in Summary.svelte, but nothing writes them again.
 
-  import { configStore, isOptimizing, resultStore, currentTab, showToast } from '$lib/store';
+  import { configStore, isOptimizing, resultStore, currentTab, showToast, troveImportStore } from '$lib/store';
   import { RunOptimization, UpdateExternalSources } from '../../../../wailsjs/go/main/App';
+  import { loadTroveCsv } from '$lib/services/troveImport';
   import { hydrateConfigFromSlots } from '../../store';
   import type { main } from '../../../../wailsjs/go/models';
   import { onMount } from 'svelte';
@@ -23,6 +24,56 @@
 
   let isUpdatingData = false;
   let expansions: string[] = [];
+
+  // docs/TROVE_INVENTORY_IMPORT_SPEC.md — troveImportStore.ownedNames holds
+  // everything LoadTroveInventory returned (survives the toggle being
+  // switched off, and survives navigating away from this tab, and survives a
+  // load triggered from the Owned Items screen instead — see store.ts);
+  // restrictToOwned is the actual on/off switch. $configStore.owned_item_names
+  // (what the solver sees) is empty unless BOTH a CSV has been loaded AND the
+  // toggle is on — this is what keeps the restriction opt-in rather than a
+  // standing mode that could silently activate with nothing behind it.
+  let troveLoading = false;
+
+  $: $configStore.owned_item_names = ($troveImportStore.restrictToOwned && $troveImportStore.ownedNames.length > 0)
+    ? $troveImportStore.ownedNames
+    : [];
+  $: troveSummary = $troveImportStore.ownedNames.length > 0
+    ? `${$troveImportStore.restrictToOwned ? 'On' : 'Off'} — ${$troveImportStore.ownedNames.length} names from ${$troveImportStore.fileName}`
+    : 'Not loaded';
+
+  function loadTroveInventory() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      troveLoading = true;
+      const reader = new FileReader();
+      reader.onload = async (re) => {
+        try {
+          const csvContent = re.target?.result as string;
+          const result = await loadTroveCsv(csvContent, file.name);
+          if (!result.success) {
+            showToast('Failed to load Trove inventory: ' + (result.errorMessage || 'unknown error'), 'error');
+            return;
+          }
+          showToast(`Loaded ${result.totalRows} rows, ${result.ownedNamesCount} owned item/augment names.`, 'success');
+        } catch (e) {
+          showToast('Failed to load Trove inventory: ' + e, 'error');
+        } finally {
+          troveLoading = false;
+        }
+      };
+      reader.onerror = () => {
+        troveLoading = false;
+        showToast('Failed to read the selected file.', 'error');
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
 
   onMount(async () => {
     try {
@@ -269,6 +320,43 @@
           <span class="text-foreground">{pack}</span>
         </label>
       {/each}
+    </div>
+  </Accordion>
+
+  <!-- 6b. Owned Items (Trove Import) -->
+  <Accordion title="Owned Items (Trove Import)" persistKey="trove-inventory" summary={troveSummary}>
+    <div class="space-y-3">
+      <p class="text-[10px] text-muted-foreground">
+        Import a Trove inventory export (CSV) to restrict item/augment selection to
+        gear you actually own. Only rows outside SharedCrafting with Binding of BtA or
+        BtC are considered; names that don't exactly match DDOBuilderV2 are silently
+        ignored — no filigree matching, no random-loot items (see
+        docs/TROVE_INVENTORY_IMPORT_SPEC.md).
+      </p>
+      <div class="flex items-center space-x-4">
+        <button
+          type="button"
+          on:click={loadTroveInventory}
+          disabled={troveLoading}
+          class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded transition-colors disabled:opacity-50 shrink-0"
+        >
+          {troveLoading ? 'Loading...' : $troveImportStore.ownedNames.length > 0 ? 'Load a different CSV' : 'Load Trove CSV...'}
+        </button>
+        <label class="flex items-center space-x-2 text-sm" class:cursor-pointer={$troveImportStore.ownedNames.length > 0} class:opacity-40={$troveImportStore.ownedNames.length === 0}>
+          <input
+            type="checkbox"
+            disabled={$troveImportStore.ownedNames.length === 0}
+            bind:checked={$troveImportStore.restrictToOwned}
+            class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:cursor-not-allowed"
+          />
+          <span class="text-foreground">Only use items I own</span>
+        </label>
+      </div>
+      {#if $troveImportStore.ownedNames.length > 0}
+        <p class="text-[10px] text-muted-foreground">
+          {$troveImportStore.fileName} — {$troveImportStore.totalRows} rows, {$troveImportStore.ownedNames.length} owned names
+        </p>
+      {/if}
     </div>
   </Accordion>
 

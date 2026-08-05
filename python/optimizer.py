@@ -304,7 +304,7 @@ def _weapon_base_buffs(item_node, wanted):
     return out
 
 
-def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None, min_ml=29):
+def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None, min_ml=29, owned_names=None):
     items = []
     allowed_armor = allowed_armor.strip().lower() if allowed_armor else None
 
@@ -408,6 +408,16 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                     item_is_raid = True
 
                 if not is_pre_equipped and excluded_packs and item_pack in excluded_packs:
+                    continue
+
+                # docs/TROVE_INVENTORY_IMPORT_SPEC.md — exact-name membership
+                # only, no fuzzy matching; DDOBuilderV2 is the definitive
+                # source and a CSV name that doesn't match anything here is
+                # simply never seen again after LoadTroveInventory. Bypassed
+                # for pre-equipped items for the same reason as the ml/pack
+                # checks above: something already locked into the gearset
+                # must never be silently dropped by a pool filter.
+                if not is_pre_equipped and owned_names is not None and name not in owned_names:
                     continue
 
                 buffs = []
@@ -521,7 +531,7 @@ def flatten_pre_filled_augment_names(pre_filled_augments):
     return names
 
 
-def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, min_ml=29):
+def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, min_ml=29, owned_names=None):
     """`pre_filled_augment_names` mirrors parse_items' `pre_equipped_names` bypass
     (see is_pre_equipped there): an augment already slotted into a pre-equipped
     item is not optional gear-search inventory, it's a fact about the current
@@ -547,6 +557,12 @@ def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, 
                 ml_node = aug_node.find('MinLevel')
                 ml = int(ml_node.text) if ml_node is not None and ml_node.text else 0
                 if not is_pre_filled and (ml < min_ml or ml > max_ml):
+                    continue
+
+                # docs/TROVE_INVENTORY_IMPORT_SPEC.md — same exact-name
+                # membership check as parse_items, same pre-filled bypass
+                # rationale as the ML floor immediately above.
+                if not is_pre_filled and owned_names is not None and name not in owned_names:
                     continue
 
                 buffs = []

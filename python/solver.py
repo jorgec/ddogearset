@@ -362,6 +362,14 @@ def main():
         art_slot_input += ' (dino)'
     art_slots = parsed_data.get('minor_artifact_filigree_slots', 4)
     excluded_packs = parsed_data.get('excluded_packs', [])
+    # docs/TROVE_INVENTORY_IMPORT_SPEC.md — None (not []) means "no
+    # restriction": an ABSENT/empty owned_item_names must behave exactly
+    # like today's unrestricted catalog (AC-3), not "the player owns
+    # nothing". parse_items/parse_augments treat owned_names=None as
+    # unrestricted and an empty set as "match nothing", so this can't
+    # collapse the two cases.
+    owned_item_names_raw = parsed_data.get('owned_item_names')
+    owned_item_names = set(owned_item_names_raw) if owned_item_names_raw else None
     raid_item_limit = parsed_data.get('raid_item_limit', None)
     pre_equipped = parsed_data.get('pre_equipped', {})
     pre_filled_augments = parsed_data.get('pre_filled_augments', {})
@@ -415,16 +423,23 @@ def main():
         out_file.write("\n")
 
         min_ml = cap - 6 if mode == "stat_search" else 29
+        # owned_item_names constrains what the solver may SELECT for a
+        # gearset — stat_search is a browse-the-whole-catalog feature (what's
+        # possible in the game, not what you own), so it's deliberately
+        # exempt regardless of what was loaded via LoadTroveInventory.
+        pool_owned_names = owned_item_names if mode != "stat_search" else None
+        if pool_owned_names is not None:
+            out_file.write(f"Owned-items restriction: {len(pool_owned_names)} names loaded from Trove export\n")
         print(f"\nParsing Items (ML {min_ml}-{cap})...")
         pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
         if mode == "alternatives":
             pre_equipped_names = list((parsed_data.get('equipped_items') or {}).values())
-        items = optimizer.parse_items(base_dir, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names, min_ml=min_ml)
+        items = optimizer.parse_items(base_dir, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names, min_ml=min_ml, owned_names=pool_owned_names)
         print(f"Loaded {len(items)} items")
 
         print(f"Parsing Augments (ML {min_ml}-{cap})...")
         pre_filled_augment_names = optimizer.flatten_pre_filled_augment_names(pre_filled_augments)
-        augments = optimizer.parse_augments(base_dir, cap, priority_names, pre_filled_augment_names, min_ml=min_ml)
+        augments = optimizer.parse_augments(base_dir, cap, priority_names, pre_filled_augment_names, min_ml=min_ml, owned_names=pool_owned_names)
         print(f"Loaded {len(augments)} augments")
 
         filigrees = []

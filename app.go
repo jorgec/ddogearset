@@ -380,6 +380,12 @@ type OptimizationPayload struct {
 	ExcludeGemOfManyFacets     bool                `json:"exclude_gem_of_many_facets"`
 	RunearmUse                 bool                `json:"runearm_use"`
 	ExcludedPacks              []string            `json:"excluded_packs"`
+	// OwnedItemNames restricts item/augment selection to exact-name matches
+	// against this set (see docs/TROVE_INVENTORY_IMPORT_SPEC.md and
+	// LoadTroveInventory). Empty/absent means unrestricted — this is an
+	// opt-in filter, not a standing mode, so nobody who hasn't loaded a
+	// Trove export gets an accidentally-empty item pool.
+	OwnedItemNames             []string            `json:"owned_item_names,omitempty"`
 	RaidItemLimit              int                 `json:"raid_item_limit"`
 	IsDinoArtifact             bool                `json:"is_dino_artifact"`
 	OutputFilename             string              `json:"output_filename"`
