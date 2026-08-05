@@ -999,14 +999,33 @@ def make_augment(name, a_type, buffs):
     return {'name': name, 'type': a_type, 'buffs': list(buffs)}
 
 
-def test_augment_fits_slot_treats_colorless_as_universal():
-    # A real augment's `type` is a color (Blue/Red/Green/...), never literally
-    # "Colorless" — a Colorless item slot accepts any of them (DDO rule).
+def test_augment_fits_slot_treats_colorless_as_accepting_standard_colors():
+    # A real standard-color augment's `type` is a color (Blue/Red/Green/...),
+    # never literally "Colorless" — a Colorless item slot accepts any of the
+    # 8 standard colors (DDO rule).
     assert optimizer.augment_fits_slot('Blue', 'Colorless') is True
     assert optimizer.augment_fits_slot('Green', 'colorless') is True
+    assert optimizer.augment_fits_slot('Sun', 'Colorless') is True
+    assert optimizer.augment_fits_slot('Moon', 'Colorless') is True
     # Non-Colorless slots still require an actual color match.
     assert optimizer.augment_fits_slot('Blue', 'Red') is False
     assert optimizer.augment_fits_slot('Blue', 'Blue') is True
+
+
+def test_augment_fits_slot_rejects_special_family_augments_in_colorless():
+    # Regression: a dinosaur-artifact augment (type "IoD: Weapon: Fang Slot")
+    # was incorrectly matching ANY Colorless slot on an ordinary, non-dino
+    # item, because an earlier fix treated Colorless as accepting literally
+    # any augment type. Colorless only accepts the 8 standard colors — every
+    # other special slot family (dino IoD slots, Cannith crafting slots,
+    # Dolorous/Melancholic/Miserable/Woeful named slots, etc.) must still
+    # require an exact slot-type match and never fit a plain Colorless slot.
+    assert optimizer.augment_fits_slot('IoD: Weapon: Fang Slot', 'Colorless') is False
+    assert optimizer.augment_fits_slot('IoD: Accessory: Artifact Scale Slot', 'Colorless') is False
+    assert optimizer.augment_fits_slot('Cannith Ring Prefix', 'Colorless') is False
+    assert optimizer.augment_fits_slot('Dolorous Slot (Accessory)', 'Colorless') is False
+    # But a dino augment still fits its own matching slot exactly.
+    assert optimizer.augment_fits_slot('IoD: Weapon: Fang Slot', 'IoD: Weapon: Fang Slot') is True
 
 
 def test_calculate_only_credits_pre_filled_augment_in_a_colorless_slot():

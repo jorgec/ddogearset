@@ -142,18 +142,37 @@ def _is_stacking(b_type):
     return (b_type or '').lower().strip() in STACKING_TYPES
 
 
+# DDO rule: a 'Colorless' augment slot accepts any of the 8 standard
+# elemental/celestial gem colors — NOT any augment whatsoever. The augment
+# corpus also contains dozens of other special, item/system-specific slot
+# families (Cannith crafting prefix/suffix/extra slots, Dolorous/Melancholic/
+# Miserable/Woeful named slots, IoD dinosaur-artifact slots like "IoD:
+# Weapon: Fang Slot", "Nearly Complete: ..." slots, Reaper/Random/
+# Thunderforged/Slavelords slots, etc. — confirmed by enumerating every
+# distinct top-level <Augment><Type> across the corpus) that must NEVER be
+# treated as Colorless-compatible. A regression here previously let e.g. a
+# dinosaur Fang augment (type "IoD: Weapon: Fang Slot") match a plain
+# Colorless slot on an ordinary, non-dino item — this set is exactly the
+# fix for that class of bug.
+STANDARD_AUGMENT_COLORS = frozenset({
+    'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'sun', 'moon', 'colorless',
+})
+
+
 def augment_fits_slot(aug_type, slot_color):
-    """DDO rule: a 'Colorless' augment slot accepts an augment of ANY color, not
-    just an augment literally typed 'Colorless'. Without this special case, no
-    y variable is ever created for a Colorless slot (a real augment's `type` is
-    one of the six colors, never the literal string "Colorless"), so Colorless
-    slots are silently unfillable everywhere in the model: normal optimize runs
-    just never use them, and calculate-only runs go infeasible the moment a
-    saved gearset has anything slotted there (see create_model's
-    total_pre_filled_augments guard)."""
+    """A 'Colorless' slot accepts any STANDARD color augment (see
+    STANDARD_AUGMENT_COLORS) — without this, no y variable is ever created
+    for a Colorless slot (a standard-color augment's own `type` is one of
+    the 8 colors, never the literal string "Colorless"), so Colorless slots
+    would be silently unfillable everywhere in the model: normal optimize
+    runs would just never use them, and calculate-only runs would go
+    infeasible the moment a saved gearset has anything slotted there (see
+    create_model's total_pre_filled_augments guard). Every other slot family
+    (including Colorless itself, for a non-standard augment) still requires
+    an exact type match."""
     slot_color = (slot_color or '').lower()
     aug_type = (aug_type or '').lower()
-    if slot_color == 'colorless':
+    if slot_color == 'colorless' and aug_type in STANDARD_AUGMENT_COLORS:
         return True
     return aug_type == slot_color or slot_color in aug_type
 
