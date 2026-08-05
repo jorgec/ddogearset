@@ -39,11 +39,11 @@ var defaultStatSets []byte
 
 // App struct
 type App struct {
-	ctx        context.Context
-	logs       []string
-	solverPath    string
-	glpsolPath    string
-	solverDir     string
+	ctx            context.Context
+	logs           []string
+	solverPath     string
+	glpsolPath     string
+	solverDir      string
 	itemsCache     []models.XMLItem
 	augmentsCache  []models.XMLAugment
 	filigreesCache []models.XMLFiligree
@@ -84,12 +84,15 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.logs = make([]string, 0)
 
-	// Clone-or-pull DDOBuilderV2 before loading caches from it — on a fresh
-	// checkout this directory doesn't exist yet, so this is what makes "clone
-	// this repo and run" work with no manual setup step. Both run in the same
-	// background goroutine so startup() itself returns immediately.
+	// Fetch DDOBuilderV2 before loading caches from it — on a fresh checkout
+	// this directory doesn't exist yet, so this is what makes "clone this repo
+	// and run" work with no manual setup step. checkForUpdates=false: a normal
+	// launch never makes an extra network round trip once the data is already
+	// there — checking for updates is what the "Update External Sources"
+	// button is for. Both run in the same background goroutine so startup()
+	// itself returns immediately.
 	go func() {
-		if _, err := a.ensureDDOBuilderData(); err != nil {
+		if _, err := a.ensureDDOBuilderData(false); err != nil {
 			a.addLog("Warning: failed to fetch DDOBuilderV2 data: " + err.Error())
 		}
 		a.loadCaches("Cached")
@@ -102,34 +105,83 @@ func (a *App) startup(ctx context.Context) {
 	})
 }
 
-// ensureDDOBuilderData clones DDOBuilderV2 into ddoRepoDir if it isn't there
-// yet, or pulls it if it already is. Shared by startup() (so a fresh clone of
-// this project works immediately) and UpdateExternalSources() (the manual
-// "refresh data" button), so the two can't drift into different behavior.
-func (a *App) ensureDDOBuilderData() (string, error) {
-	if _, err := os.Stat(ddoRepoDir); os.IsNotExist(err) {
-		a.addLog(fmt.Sprintf("DDOBuilderV2 not found at ./%s — cloning %s...", ddoRepoDir, ddoRepoURL))
-		cmd := exec.Command("git", "clone", ddoRepoURL, ddoRepoDir)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			a.addLog(fmt.Sprintf("Failed to clone DDOBuilderV2: %s", string(out)))
-			return string(out), err
-		}
-		a.addLog("DDOBuilderV2 cloned successfully.")
-		return string(out), nil
-	} else if err != nil {
+// ensureDDOBuilderData makes sure DDOBuilderV2 is present, fetching it over
+// HTTPS if it's missing entirely (see ddobuilder_fetch.go —
+// docs/DDOBUILDER_FETCH_WITHOUT_GIT_PLAN.md has the full rationale for why
+// this isn't `git clone`/`git pull` anymore). Shared by startup() and
+// UpdateExternalSources() so the two can't drift into different behavior.
+//
+// checkForUpdates controls whether an ALREADY-PRESENT checkout is checked
+// against the latest upstream commit — that's one GitHub API call, cheap,
+// but still a network round trip, so startup() passes false (a normal
+// launch shouldn't pay that cost) and UpdateExternalSources() passes true
+// (checking is the entire point of that button). When the directory is
+// missing entirely there's nothing to compare against, so this parameter is
+// irrelevant to that path — it always fetches.
+func (a *App) ensureDDOBuilderData(checkForUpdates bool) (string, error) {
+	_, statErr := os.Stat(ddoRepoDir)
+	switch {
+	case statErr == nil && !checkForUpdates:
+		return "DDOBuilderV2 already present.", nil
+	case statErr == nil && checkForUpdates:
+		return a.updateDDOBuilderDataIfStale()
+	case os.IsNotExist(statErr):
+		return a.fetchDDOBuilderData(
+			fmt.Sprintf("DDOBuilderV2 not found at ./%s — downloading (~80MB, one-time)...", ddoRepoDir), "")
+	default:
+		return "", statErr
+	}
+}
+
+// updateDDOBuilderDataIfStale checks GitHub for the latest commit on main
+// and only downloads the (~79MB) archive if it differs from what's recorded
+// in ddoCommitMarkerPath from the last successful fetch.
+func (a *App) updateDDOBuilderDataIfStale() (string, error) {
+	latestSHA, err := latestDDOBuilderCommitSHA()
+	if err != nil {
+		msg := "Could not check DDOBuilderV2 for updates: " + err.Error()
+		a.addLog("Warning: " + msg + " (existing data is still usable)")
+		return msg, nil
+	}
+	storedSHA, _ := os.ReadFile(ddoCommitMarkerPath)
+	if strings.TrimSpace(string(storedSHA)) == latestSHA {
+		a.addLog("DDOBuilderV2 is already up to date.")
+		return "Already up to date.", nil
+	}
+	return a.fetchDDOBuilderData(
+		fmt.Sprintf("DDOBuilderV2 update available (commit %s) — downloading (~80MB)...", shortSHA(latestSHA)),
+		latestSHA)
+}
+
+// fetchDDOBuilderData does the actual download+extract and records the
+// fetched commit SHA for next time. knownSHA avoids a second GitHub API call
+// when the caller already looked it up (the "update" path); pass "" when it
+// hasn't been (the "missing entirely" path) and this will look it up once,
+// after the fetch, purely to populate the marker for future checks.
+func (a *App) fetchDDOBuilderData(logMsg string, knownSHA string) (string, error) {
+	a.addLog(logMsg)
+	if err := fetchAndExtractDDOBuilderZip(); err != nil {
+		a.addLog("Failed to fetch DDOBuilderV2: " + err.Error())
 		return "", err
 	}
 
-	cmd := exec.Command("git", "pull")
-	cmd.Dir = ddoRepoDir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		a.addLog(fmt.Sprintf("Failed to update DDOBuilderV2: %s", string(out)))
-		return string(out), err
+	sha := knownSHA
+	if sha == "" {
+		var err error
+		sha, err = latestDDOBuilderCommitSHA()
+		if err != nil {
+			a.addLog("DDOBuilderV2 fetched, but couldn't record its version: " + err.Error())
+			return "DDOBuilderV2 fetched successfully (version marker not saved).", nil
+		}
 	}
-	a.addLog(fmt.Sprintf("Git Pull Result: %s", string(out)))
-	return string(out), nil
+	if err := os.WriteFile(ddoCommitMarkerPath, []byte(sha), 0644); err != nil {
+		a.addLog("DDOBuilderV2 fetched, but couldn't save version marker: " + err.Error())
+		return "DDOBuilderV2 fetched successfully (version marker not saved).", nil
+	}
+
+	msg := "DDOBuilderV2 fetched successfully (commit " + shortSHA(sha) + ")."
+	a.addLog(msg)
+	return msg, nil
 }
 
 // DDOBuilder data-file locations. Previously repeated inline at both cache-load
@@ -138,23 +190,13 @@ func (a *App) ensureDDOBuilderData() (string, error) {
 // ddoRepoDir is project-relative (resolved against the process's working
 // directory, exactly like packMappingsPath below already was) rather than a
 // hardcoded absolute path — the old "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2"
-// only ever worked on one specific machine. ensureDDOBuilderData() clones it
-// here on first run if it's missing, so a fresh checkout is enough; nothing
-// needs to pre-exist outside the project. It's gitignored (see .gitignore) —
-// this is fetched data, not source.
-//
-// ddoRepoURL is HTTPS, not SSH (`git@github.com:...`) — confirmed via
-// `git ls-remote https://github.com/Maetrim/DDOBuilderV2.git` that the repo
-// is public and needs no credentials at all over HTTPS. An SSH URL would
-// require SSH keys configured for GitHub on every machine that ever runs
-// this app, which is a much heavier and more failure-prone requirement than
-// "public repo, plain HTTPS clone" — and on a machine without those keys set
-// up, `git clone` over SSH can hang entirely waiting on an interactive
-// host-key-verification prompt that a GUI app (no attached console) can
-// never answer.
+// only ever worked on one specific machine. ensureDDOBuilderData() fetches it
+// here on first run if it's missing (over HTTPS, no git binary required — see
+// ddobuilder_fetch.go), so a fresh checkout is enough; nothing needs to
+// pre-exist outside the project. It's gitignored (see .gitignore) — this is
+// fetched data, not source.
 const (
 	ddoRepoDir  = "DDOBuilderV2"
-	ddoRepoURL  = "https://github.com/Maetrim/DDOBuilderV2.git"
 	ddoDataRoot = ddoRepoDir + "/Output/DataFiles"
 
 	ddoItemsPath        = ddoDataRoot + "/Items"
@@ -346,9 +388,9 @@ type OptimizationPayload struct {
 	// interface{} rather than a fixed map type so older saved gearsets that stored this
 	// as a plain array of names per slot still deserialize without error; python/solver.py
 	// normalizes both shapes.
-	PreFilledAugments          map[string]interface{} `json:"pre_filled_augments"`
-	PreFilledFiligrees         map[string][]string `json:"pre_filled_filigrees"`
-	CalculateOnly              bool                `json:"calculate_only"`
+	PreFilledAugments  map[string]interface{} `json:"pre_filled_augments"`
+	PreFilledFiligrees map[string][]string    `json:"pre_filled_filigrees"`
+	CalculateOnly      bool                   `json:"calculate_only"`
 	// MaxSearchTime is the TOTAL wall-clock budget in seconds shared across all
 	// solve stages (not a per-solve limit). The frontend has produced this value
 	// since Phase 9 but it was absent from this struct and therefore silently
@@ -704,11 +746,11 @@ func (a *App) GetAvailableItems(slot string, maxLevel int, searchTerm string) []
 			}
 		}
 	}
-	
+
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].MinLevel > results[j].MinLevel
 	})
-	
+
 	return results
 }
 
@@ -758,11 +800,11 @@ func (a *App) GetFiligreeByName(name string) models.XMLFiligree {
 func (a *App) GetAvailableAugments(slotType string, maxLevel int, searchTerm string) []models.XMLAugment {
 	results := make([]models.XMLAugment, 0)
 	searchTermLower := strings.ToLower(searchTerm)
-	
+
 	// DDO Rules mapping - green takes yellow or blue, purple takes clear or blue, etc.
 	// But in DDOBuilder, augments specify which types they can fit into via multiple <Type> elements!
 	// E.g. <Type>Blue</Type>, <Type>Green</Type>
-	
+
 	for _, aug := range a.augmentsCache {
 		if aug.MinLevel <= maxLevel {
 			matchType := false
@@ -772,7 +814,7 @@ func (a *App) GetAvailableAugments(slotType string, maxLevel int, searchTerm str
 					break
 				}
 			}
-			
+
 			if matchType {
 				if searchTermLower == "" || strings.Contains(strings.ToLower(aug.Name), searchTermLower) || strings.Contains(strings.ToLower(aug.RawXML), searchTermLower) {
 					results = append(results, aug)
@@ -780,11 +822,11 @@ func (a *App) GetAvailableAugments(slotType string, maxLevel int, searchTerm str
 			}
 		}
 	}
-	
+
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].MinLevel > results[j].MinLevel
 	})
-	
+
 	return results
 }
 
@@ -792,30 +834,30 @@ func (a *App) GetAvailableAugments(slotType string, maxLevel int, searchTerm str
 func (a *App) GetAvailableFiligrees(searchTerm string) []models.XMLFiligree {
 	results := make([]models.XMLFiligree, 0)
 	searchTermLower := strings.ToLower(searchTerm)
-	
+
 	for _, fil := range a.filigreesCache {
-		if searchTermLower == "" || 
-			strings.Contains(strings.ToLower(fil.Name), searchTermLower) || 
+		if searchTermLower == "" ||
+			strings.Contains(strings.ToLower(fil.Name), searchTermLower) ||
 			strings.Contains(strings.ToLower(fil.SetName), searchTermLower) ||
 			strings.Contains(strings.ToLower(fil.Menu), searchTermLower) ||
 			strings.Contains(strings.ToLower(fil.RawXML), searchTermLower) {
 			results = append(results, fil)
 		}
 	}
-	
+
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Name < results[j].Name
 	})
-	
+
 	return results
 }
 
-// UpdateExternalSources clones or pulls DDOBuilderV2 (see ensureDDOBuilderData)
-// and reloads every cache from it.
+// UpdateExternalSources fetches DDOBuilderV2 if it's stale or missing (see
+// ensureDDOBuilderData) and reloads every cache from it.
 func (a *App) UpdateExternalSources() (string, error) {
 	a.addLog("Updating external sources from DDOBuilderV2...")
 
-	out, err := a.ensureDDOBuilderData()
+	out, err := a.ensureDDOBuilderData(true)
 	if err != nil {
 		return out, err
 	}
@@ -843,32 +885,32 @@ func (a *App) SaveGearset(payload OptimizationPayload, result ResultPayload) (st
 	bt := strings.ReplaceAll(payload.BuildType, " ", "")
 	ws := strings.ReplaceAll(payload.WeaponStyle, " ", "")
 	name := strings.ReplaceAll(payload.GearsetName, " ", "_")
-	
+
 	var filename string
 	if name != "" {
 		filename = fmt.Sprintf("%s_%s%s_%s.ddogearset", name, bt, ws, timestamp)
 	} else {
 		filename = fmt.Sprintf("%s%s_%s.ddogearset", bt, ws, timestamp)
 	}
-	
+
 	dir := "gearsets"
 	os.MkdirAll(dir, 0755)
-	
+
 	path := filepath.Join(dir, filename)
-	
+
 	saveData := map[string]interface{}{
-		"version": "1.2",
+		"version":      "1.2",
 		"gearset_name": payload.GearsetName,
-		"saved_at": time.Now().Format(time.RFC3339),
-		"config": payload,
-		"result": result,
+		"saved_at":     time.Now().Format(time.RFC3339),
+		"config":       payload,
+		"result":       result,
 	}
-	
+
 	bytes, err := json.MarshalIndent(saveData, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	
+
 	err = os.WriteFile(path, bytes, 0644)
 	return path, err
 }

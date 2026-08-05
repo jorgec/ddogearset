@@ -89,8 +89,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `install.sh` sets up everything needed to build after a fresh clone (Go,
   Node, a Python venv with `pulp`/`pyinstaller`, GLPK, and on macOS the
   Xcode Command Line Tools the mac build script needs for the
-  `install_name_tool` step), and checks for SSH access to the DDOBuilderV2
-  repo the app will clone on first run (see Fixed, below)
+  `install_name_tool` step), and checks network access to the DDOBuilderV2
+  archive the app will fetch on first run (see Fixed, below)
 
 ### Fixed
 
@@ -102,17 +102,43 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   the plain build and the `-nsis` installer build now pass
   `-o DDOGearsetOptimizer.exe` explicitly.
 
-- **`ensureDDOBuilderData()` used an SSH clone URL**
-  (`git@github.com:Maetrim/DDOBuilderV2.git`), requiring SSH keys configured
-  for GitHub on every machine that runs the app — and on a machine without
-  them (confirmed on a real Windows build machine), the clone can hang
-  entirely waiting on an interactive host-key prompt a GUI app can never
-  answer. `git ls-remote https://github.com/Maetrim/DDOBuilderV2.git HEAD`
-  confirmed the repo is public, so the URL is now plain HTTPS — zero
-  credentials needed anywhere. Verified end-to-end via Go with no SSH
-  configuration involved: cloned 20,308 files in ~19s. `install.sh` and
-  `build-windows.ps1`'s reachability checks updated to match (`git
-  ls-remote` over HTTPS instead of an SSH auth probe).
+- **`ensureDDOBuilderData()` required a `git` binary at all**, which isn't
+  guaranteed to be installed on every machine that runs the app — confirmed
+  on a real Windows build machine that has none, and we deliberately don't
+  want to assume any particular package manager is available to install one
+  either (see `docs/DDOBUILDER_FETCH_WITHOUT_GIT_PLAN.md`). An intermediate
+  fix (SSH → HTTPS clone URL, since the repo turned out to be public) was
+  only a partial improvement — it still needed `git` itself. Replaced the
+  whole mechanism with a plain HTTPS download of GitHub's generated zip
+  archive (`codeload.github.com/Maetrim/DDOBuilderV2/zip/refs/heads/main`),
+  extracted with the Go standard library (`net/http` + `archive/zip`) — no
+  `git`, no credentials, no new dependencies of any kind, on any platform.
+  New file `ddobuilder_fetch.go`:
+  - Downloads to a temp file, extracts into a staging directory, and only
+    replaces `./DDOBuilderV2` after every entry extracts successfully — a
+    failed download or a crash mid-extraction leaves whatever was already
+    there completely untouched (includes a zip-slip path-traversal guard on
+    every extracted entry).
+  - The archive is 79MB / 20,521 files — too large to re-download on every
+    "Update External Sources" click without a way to skip it when nothing
+    changed. Before fetching, checks GitHub's lightweight commits API for
+    the latest commit SHA on `main` and compares it against a marker file
+    (`.ddobuilderv2_commit`, project-root, gitignored) recorded after the
+    last successful fetch; skips the 79MB download entirely if they match.
+  - `ensureDDOBuilderData(checkForUpdates bool)` — app startup only fetches
+    when `./DDOBuilderV2` is missing outright (no extra network call once
+    it's already there); the "Update External Sources" button is the only
+    path that pays for the staleness check, since checking is the point of
+    that button.
+  - Verified end-to-end (not just unit-level): a from-scratch fetch (13.5s,
+    real data, `python/dist/solver` parsed it identically to a git
+    checkout), an up-to-date skip (0.98s — confirms it doesn't silently
+    redownload), and a forced-stale re-fetch that correctly re-downloads and
+    updates the marker.
+  - `install.sh` and `build-windows.ps1`'s reachability checks updated to
+    match — plain HTTPS requests (`curl`/`Invoke-WebRequest`) against the
+    same `codeload.github.com` endpoint the app itself uses, no `git`
+    involved in the check either.
 
 - **`python/solver.spec` was never actually committed** — `.gitignore` had a
   blanket `python/*.spec` rule that silently excluded it. Every build script

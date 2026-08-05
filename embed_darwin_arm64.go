@@ -10,7 +10,7 @@ import "embed"
 var bundleFS embed.FS
 
 const (
-	bundleRoot        = "bundled/darwin-arm64"
-	solverBinaryName  = "solver"
-	glpsolBinaryName  = "glpsol"
+	bundleRoot       = "bundled/darwin-arm64"
+	solverBinaryName = "solver"
+	glpsolBinaryName = "glpsol"
 )

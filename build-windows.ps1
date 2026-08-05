@@ -205,16 +205,22 @@ Get-ChildItem -Path $GlpkDir -Filter "*.dll" | ForEach-Object {
 }
 
 # == 7. DDOBuilderV2 reachability check (not fetched here - see file header) ==
-Write-Step "Checking that DDOBuilderV2's repo is reachable over HTTPS (the built app clones this itself, no credentials needed - it's public)..."
-& git ls-remote https://github.com/Maetrim/DDOBuilderV2.git HEAD *> $null
-if ($LASTEXITCODE -eq 0) {
-    Write-Ok "github.com reachable over HTTPS."
-} else {
-    Write-Warn ("Could not reach https://github.com/Maetrim/DDOBuilderV2.git. The app " + `
-        "clones this (public, no credentials needed) on first run (app.go's " + `
+# Deliberately NOT `git ls-remote` -- the whole point of ensureDDOBuilderData
+# fetching over plain HTTPS (app.go / ddobuilder_fetch.go, see
+# docs/DDOBUILDER_FETCH_WITHOUT_GIT_PLAN.md) is that git doesn't need to be
+# installed at all for this. Check the same way the app itself will: a plain
+# HTTPS request, via PowerShell's own Invoke-WebRequest, no git involved.
+Write-Step "Checking that DDOBuilderV2's archive is reachable over HTTPS (the built app fetches this itself, no credentials needed - it's public)..."
+try {
+    Invoke-WebRequest -Uri "https://codeload.github.com/Maetrim/DDOBuilderV2/zip/refs/heads/main" `
+        -Method Head -TimeoutSec 10 -UseBasicParsing | Out-Null
+    Write-Ok "codeload.github.com reachable over HTTPS."
+} catch {
+    Write-Warn ("Could not reach https://codeload.github.com/Maetrim/DDOBuilderV2/zip/refs/heads/main. " + `
+        "The app fetches this (public, no credentials needed) on first run (app.go's " + `
         "ensureDDOBuilderData) - if this machine has no network access to github.com, " + `
-        "the clone will fail and every solve will error until you fix that or manually " + `
-        "place the repo at .\DDOBuilderV2 yourself.")
+        "that fetch will fail and every solve will error until you fix that or manually " + `
+        "place the repo's contents at .\DDOBuilderV2 yourself.")
 }
 
 # == 8. Build ==================================================================
