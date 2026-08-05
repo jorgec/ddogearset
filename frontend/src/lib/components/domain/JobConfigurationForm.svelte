@@ -182,6 +182,7 @@
         <option value="Light" class="bg-background text-foreground">Light</option>
         <option value="Medium" class="bg-background text-foreground">Medium</option>
         <option value="Heavy" class="bg-background text-foreground">Heavy</option>
+        <option value="Docent" class="bg-background text-foreground">Docent</option>
       </select>
     </div>
   </div>
