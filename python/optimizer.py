@@ -20,6 +20,7 @@ Key invariants (see docs/PHASE10_PLAN.md §1.1 / §14.2):
 
 import os
 import glob
+import shutil
 import time
 import xml.etree.ElementTree as ET
 import pulp
@@ -1455,20 +1456,42 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
 # §4 — solve driver helpers
 # ---------------------------------------------------------------------------
 
+def resolve_glpsol_path():
+    """GLPSOL_PATH is set by app.go's runSolver() to the bundled glpsol binary
+    it just extracted (alongside its shared libraries — see extractSolver in
+    app.go and build_releases.sh's per-platform staging). Falling back to a
+    PATH lookup keeps `python solver.py` usable directly from a dev checkout,
+    without the Go app in the loop, as long as GLPK is installed locally.
+    Returns None if neither resolves to anything."""
+    env_path = os.environ.get("GLPSOL_PATH")
+    if env_path and os.path.isfile(env_path):
+        return env_path
+    return shutil.which("glpsol")
+
+
 def _glpk_cmd(tmlim=None, msg=1):
     """Centralizes the GLPK invocation formerly duplicated at two call sites.
 
-    TODO(phase-11): two pre-existing pieces of tech debt live here and are now
-    hit up to 7x per run instead of once — the hardcoded
-    path="/opt/homebrew/bin/glpsol" and the CWD-relative "--log
-    solver_progress.log". Both will bite the bundled PyInstaller binary.
-    Centralized in this pass, deliberately not fixed.
+    glpsol's path, and the directory solver_progress.log is written into,
+    both come from resolve_glpsol_path() rather than a hardcoded install path
+    / the process's CWD — a hardcoded "/opt/homebrew/bin/glpsol" only ever
+    worked on one specific Homebrew-on-Apple-Silicon machine, and CWD is not
+    guaranteed writable once this runs from an installed app bundle. Callers
+    that can fail fast should call resolve_glpsol_path() themselves first
+    (see solver.py's main()) — this function still raises if it's missing,
+    but _solve()'s broad except would otherwise swallow that into a generic
+    "no feasible solution" rather than surfacing the real cause.
     """
-    options = ["--log", "solver_progress.log"]
+    glpsol_path = resolve_glpsol_path()
+    if not glpsol_path:
+        raise RuntimeError(
+            "glpsol not found. Set GLPSOL_PATH, or install GLPK so 'glpsol' is on PATH.")
+    log_dir = os.path.dirname(glpsol_path) or "."
+    options = ["--log", os.path.join(log_dir, "solver_progress.log")]
     if tmlim:
         # GLPK's --tmlim takes integer seconds.
         options += ["--tmlim", str(int(max(1, round(tmlim))))]
-    return pulp.GLPK_CMD(msg=msg, path="/opt/homebrew/bin/glpsol", options=options)
+    return pulp.GLPK_CMD(msg=msg, path=glpsol_path, options=options)
 
 
 def _has_incumbent(prob):

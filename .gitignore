@@ -13,7 +13,8 @@ python/*.pyc
 python/*.spec
 python/build/
 python/dist/
-releases/
+# Fetched by ensureDDOBuilderData() (app.go) on first run — data, not source.
+/DDOBuilderV2/
 *.ddogearset
 gearset_output.txt
 

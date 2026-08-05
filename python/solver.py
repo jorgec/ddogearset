@@ -326,6 +326,15 @@ def main():
     if err:
         fail(err)
 
+    # Fail loud and early: _glpk_cmd() also raises if glpsol can't be
+    # resolved, but that's called from inside _solve()'s broad except, which
+    # would otherwise turn a missing/misconfigured GLPK into a generic "no
+    # feasible solution" instead of this specific, actionable message.
+    if optimizer.resolve_glpsol_path() is None:
+        fail("GLPK (glpsol) could not be found. This build's bundled glpsol may be "
+             "missing or failed to extract; set GLPSOL_PATH, or install GLPK so "
+             "'glpsol' is on PATH, to run the solver directly.")
+
     priority_warnings = []
     if mode == "stat_search":
         search_stat = parsed_data.get('stat', '')
@@ -359,10 +368,17 @@ def main():
     pre_filled_filigrees = parsed_data.get('pre_filled_filigrees', {})
     max_search_time = parsed_data.get('max_search_time', optimizer.DEFAULT_SEARCH_TIME)
 
-    base_dir = "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles"
+    # DDO_DATA_PATH is set by app.go's runSolver() to the absolute path of the
+    # DDOBuilderV2 checkout it maintains (see ensureDDOBuilderData in app.go —
+    # clones it into ./DDOBuilderV2 on first run, gitignored). Falling back to
+    # the project-relative default keeps `python solver.py` usable directly
+    # from a dev checkout, as long as it's run from the project root (the same
+    # assumption app.go's own packMappingsPath already makes).
+    base_dir = os.environ.get("DDO_DATA_PATH") or "DDOBuilderV2/Output/DataFiles"
     if not os.path.exists(base_dir):
-        print(f"Error: Base directory {base_dir} not found.")
-        sys.exit(1)
+        fail(f"DDOBuilderV2 data directory not found at '{base_dir}'. Set DDO_DATA_PATH, "
+             f"or run from the project root after DDOBuilderV2 has been cloned "
+             f"(see ensureDDOBuilderData in app.go / install.sh).")
 
     print(f"\nParsing Quests from {base_dir}...")
     quests_lookup = parser.parse_quests(base_dir)

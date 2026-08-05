@@ -1,40 +1,42 @@
 GLPSOL--GLPK LP/MIP Solver 5.0
 Parameter(s) specified in the command line:
- --cpxlp /var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/45fc774b57c4466ea74aa4133b7baa90-pulp.lp
- -o /var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/45fc774b57c4466ea74aa4133b7baa90-pulp.out
- -w /var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/45fc774b57c4466ea74aa4133b7baa90-pulp.sol
+ --cpxlp /var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/ee63bb9a06b64c5088027ac6c239df80-pulp.lp
+ -o /var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/ee63bb9a06b64c5088027ac6c239df80-pulp.out
+ -w /var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/ee63bb9a06b64c5088027ac6c239df80-pulp.sol
  --log solver_progress.log --tmlim 15
-Reading problem data from '/var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/45fc774b57c4466ea74aa4133b7baa90-pulp.lp'...
-26760 rows, 48383 columns, 151596 non-zeros
-48306 integer variables, 23564 of which are binary
-122207 lines were read
+Reading problem data from '/var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/ee63bb9a06b64c5088027ac6c239df80-pulp.lp'...
+28547 rows, 51446 columns, 159779 non-zeros
+51371 integer variables, 25070 of which are binary
+130114 lines were read
 GLPK Integer Optimizer 5.0
-26760 rows, 48383 columns, 151596 non-zeros
-48306 integer variables, 23564 of which are binary
+28547 rows, 51446 columns, 159779 non-zeros
+51371 integer variables, 25070 of which are binary
 Preprocessing...
-32 rows, 54 columns, 86 non-zeros
+1 hidden covering inequaliti(es) were detected
+52 rows, 76 columns, 125 non-zeros
 27 integer variables, all of which are binary
 Scaling...
- A: min|aij| =  1.000e+00  max|aij| =  2.660e+02  ratio =  2.660e+02
-GM: min|aij| =  8.831e-01  max|aij| =  1.132e+00  ratio =  1.282e+00
-EQ: min|aij| =  7.903e-01  max|aij| =  1.000e+00  ratio =  1.265e+00
-2N: min|aij| =  5.000e-01  max|aij| =  1.500e+00  ratio =  3.000e+00
+ A: min|aij| =  3.941e-02  max|aij| =  3.380e+02  ratio =  8.577e+03
+GM: min|aij| =  7.258e-01  max|aij| =  1.378e+00  ratio =  1.898e+00
+EQ: min|aij| =  5.645e-01  max|aij| =  1.000e+00  ratio =  1.771e+00
+2N: min|aij| =  3.941e-01  max|aij| =  1.500e+00  ratio =  3.806e+00
 Constructing initial basis...
-Size of triangular part is 32
+Size of triangular part is 52
 Solving LP relaxation...
 GLPK Simplex Optimizer 5.0
-32 rows, 54 columns, 86 non-zeros
-*     0: obj =   6.800000000e+01 inf =   0.000e+00 (27)
-*    29: obj =   2.102335397e+02 inf =   0.000e+00 (0)
+52 rows, 76 columns, 125 non-zeros
+      0: obj =   1.830486680e+02 inf =   3.898e+01 (6)
+     34: obj =   5.673383381e+02 inf =   0.000e+00 (0)
+*    44: obj =   5.693728161e+02 inf =   1.110e-15 (0)
 OPTIMAL LP SOLUTION FOUND
 Integer optimization begins...
 Long-step dual simplex will be used
-+    29: mip =     not found yet <=              +inf        (1; 0)
-+    29: >>>>>   2.102335397e+02 <=   2.102335397e+02   0.0% (1; 0)
-+    29: mip =   2.102335397e+02 <=     tree is empty   0.0% (0; 1)
++    44: mip =     not found yet <=              +inf        (1; 0)
++    44: >>>>>   5.693728161e+02 <=   5.693728161e+02   0.0% (1; 0)
++    44: mip =   5.693728161e+02 <=     tree is empty   0.0% (0; 1)
 INTEGER OPTIMAL SOLUTION FOUND
-Time used:   0.0 secs
-Memory used: 36.9 Mb (38675828 bytes)
-Writing MIP solution to '/var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/45fc774b57c4466ea74aa4133b7baa90-pulp.out'...
-Writing MIP solution to '/var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/45fc774b57c4466ea74aa4133b7baa90-pulp.sol'...
-75152 lines were written
+Time used:   0.1 secs
+Memory used: 39.4 Mb (41326596 bytes)
+Writing MIP solution to '/var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/ee63bb9a06b64c5088027ac6c239df80-pulp.out'...
+Writing MIP solution to '/var/folders/2w/32t_83_55h5dl8zc06pd0rsr0000gn/T/ee63bb9a06b64c5088027ac6c239df80-pulp.sol'...
+80002 lines were written

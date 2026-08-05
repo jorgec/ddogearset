@@ -18,8 +18,17 @@ import (
 	"goGearset/internal/services"
 )
 
-//go:embed python/dist/solver
-var solverBinary []byte
+// solverBinary and glpsolBinary are declared per-platform in
+// embed_<GOOS>_<GOARCH>.go (Go's filename-based build-constraint convention),
+// each go:embed-ing that platform's own bundled/solver-* and bundled/glpsol-*
+// files. Neither PyInstaller nor a prebuilt glpsol binary can be
+// cross-compiled, so every supported platform needs its own pair, built
+// natively on that platform and committed under bundled/ — see
+// build_releases.sh, which stages them before `wails build` runs, and
+// docs/PHASE10_HANDOFF.md for the portability rationale. A GOOS/GOARCH with
+// no embed file (and no bundled/ pair) simply fails to compile for that
+// target, which is the correct, loud failure mode — there is nothing
+// meaningful to embed until someone builds natively on that platform.
 
 // defaultStatSets is the bundled stat-set preset library. It is the fallback
 // used by GetStatSets whenever no readable/valid ./stat_sets.json override
@@ -33,6 +42,8 @@ type App struct {
 	ctx        context.Context
 	logs       []string
 	solverPath    string
+	glpsolPath    string
+	solverDir     string
 	itemsCache     []models.XMLItem
 	augmentsCache  []models.XMLAugment
 	filigreesCache []models.XMLFiligree
@@ -72,9 +83,17 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.logs = make([]string, 0)
-	
-	// Load item cache for UI dropdowns
-	go a.loadCaches("Cached")
+
+	// Clone-or-pull DDOBuilderV2 before loading caches from it — on a fresh
+	// checkout this directory doesn't exist yet, so this is what makes "clone
+	// this repo and run" work with no manual setup step. Both run in the same
+	// background goroutine so startup() itself returns immediately.
+	go func() {
+		if _, err := a.ensureDDOBuilderData(); err != nil {
+			a.addLog("Warning: failed to fetch DDOBuilderV2 data: " + err.Error())
+		}
+		a.loadCaches("Cached")
+	}()
 
 	a.initOnce.Do(func() {
 		if err := a.extractSolver(); err != nil {
@@ -83,10 +102,51 @@ func (a *App) startup(ctx context.Context) {
 	})
 }
 
+// ensureDDOBuilderData clones DDOBuilderV2 into ddoRepoDir if it isn't there
+// yet, or pulls it if it already is. Shared by startup() (so a fresh clone of
+// this project works immediately) and UpdateExternalSources() (the manual
+// "refresh data" button), so the two can't drift into different behavior.
+func (a *App) ensureDDOBuilderData() (string, error) {
+	if _, err := os.Stat(ddoRepoDir); os.IsNotExist(err) {
+		a.addLog(fmt.Sprintf("DDOBuilderV2 not found at ./%s — cloning %s...", ddoRepoDir, ddoRepoURL))
+		cmd := exec.Command("git", "clone", ddoRepoURL, ddoRepoDir)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			a.addLog(fmt.Sprintf("Failed to clone DDOBuilderV2: %s", string(out)))
+			return string(out), err
+		}
+		a.addLog("DDOBuilderV2 cloned successfully.")
+		return string(out), nil
+	} else if err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("git", "pull")
+	cmd.Dir = ddoRepoDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		a.addLog(fmt.Sprintf("Failed to update DDOBuilderV2: %s", string(out)))
+		return string(out), err
+	}
+	a.addLog(fmt.Sprintf("Git Pull Result: %s", string(out)))
+	return string(out), nil
+}
+
 // DDOBuilder data-file locations. Previously repeated inline at both cache-load
 // sites; centralized here so startup() and UpdateExternalSources() cannot drift.
+//
+// ddoRepoDir is project-relative (resolved against the process's working
+// directory, exactly like packMappingsPath below already was) rather than a
+// hardcoded absolute path — the old "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2"
+// only ever worked on one specific machine. ensureDDOBuilderData() clones it
+// here on first run if it's missing, so a fresh checkout is enough; nothing
+// needs to pre-exist outside the project. It's gitignored (see .gitignore) —
+// this is fetched data, not source.
 const (
-	ddoDataRoot         = "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2/Output/DataFiles"
+	ddoRepoDir  = "DDOBuilderV2"
+	ddoRepoURL  = "git@github.com:Maetrim/DDOBuilderV2.git"
+	ddoDataRoot = ddoRepoDir + "/Output/DataFiles"
+
 	ddoItemsPath        = ddoDataRoot + "/Items"
 	ddoAugmentsPath     = ddoDataRoot + "/Augments"
 	ddoFiligreeSetsPath = ddoDataRoot + "/FiligreeSets"
@@ -180,18 +240,50 @@ func (a *App) loadCaches(verb string) {
 	}
 }
 
-// extractSolver writes the embedded solver binary to a temp path and makes it executable.
+// extractSolver writes every file embedded in bundleFS (the Python solver,
+// glpsol, and glpsol's own shared-library dependencies — see
+// embed_<GOOS>_<GOARCH>.go) into one flat temp directory, so glpsol and its
+// libraries end up siblings on disk exactly as they were staged by
+// build_releases.sh. That co-location is what makes the platform's dynamic
+// linker able to find them: on macOS the bundled glpsol has its library
+// references rewritten to @executable_path (see build_releases.sh's
+// install_name_tool step) and needs no extra help; on Linux/Windows,
+// runSolver additionally points LD_LIBRARY_PATH/the process's own directory
+// at this same tmpDir as a fallback (harmless no-op on platforms that don't
+// use it).
 func (a *App) extractSolver() error {
 	tmpDir, err := os.MkdirTemp("", "ddo-solver-*")
 	if err != nil {
 		return err
 	}
-	solverPath := filepath.Join(tmpDir, "solver")
-	if err := os.WriteFile(solverPath, solverBinary, 0755); err != nil {
-		return err
+
+	entries, err := bundleFS.ReadDir(bundleRoot)
+	if err != nil {
+		return fmt.Errorf("reading embedded solver bundle: %w", err)
 	}
-	a.solverPath = solverPath
-	a.addLog(fmt.Sprintf("Solver extracted to %s", solverPath))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := bundleFS.ReadFile(bundleRoot + "/" + entry.Name())
+		if err != nil {
+			return fmt.Errorf("reading embedded %s: %w", entry.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(tmpDir, entry.Name()), data, 0755); err != nil {
+			return fmt.Errorf("extracting %s: %w", entry.Name(), err)
+		}
+	}
+
+	a.solverDir = tmpDir
+	a.solverPath = filepath.Join(tmpDir, solverBinaryName)
+	a.glpsolPath = filepath.Join(tmpDir, glpsolBinaryName)
+	if _, err := os.Stat(a.solverPath); err != nil {
+		return fmt.Errorf("bundle did not contain %s: %w", solverBinaryName, err)
+	}
+	if _, err := os.Stat(a.glpsolPath); err != nil {
+		return fmt.Errorf("bundle did not contain %s: %w", glpsolBinaryName, err)
+	}
+	a.addLog(fmt.Sprintf("Solver and GLPK extracted to %s", tmpDir))
 	return nil
 }
 
@@ -445,6 +537,28 @@ func (a *App) runSolver(payload any) (json.RawMessage, error) {
 
 	a.addLog("Invoking solver...")
 	cmd := exec.Command(a.solverPath, tmpFile)
+	// GLPSOL_PATH tells optimizer.py's _glpk_cmd() exactly which bundled
+	// glpsol to run instead of a hardcoded install path (see
+	// docs/PHASE10_HANDOFF.md). LD_LIBRARY_PATH/DYLD_LIBRARY_PATH are set
+	// unconditionally as a cross-platform fallback so glpsol's shared
+	// libraries (co-extracted into a.solverDir) resolve even if a build's
+	// dynamic-linker patching step (macOS's install_name_tool, see
+	// build_releases.sh) was skipped or is incomplete for a given platform;
+	// they're harmless no-ops on platforms/binaries that don't need them.
+	// DDO_DATA_PATH gives solver.py the absolute path to the same
+	// DDOBuilderV2 checkout ensureDDOBuilderData() maintains, so Python
+	// doesn't independently depend on inheriting the Go process's working
+	// directory to find it (see python/solver.py's base_dir resolution).
+	ddoDataAbsPath, absErr := filepath.Abs(ddoDataRoot)
+	if absErr != nil {
+		ddoDataAbsPath = ddoDataRoot
+	}
+	cmd.Env = append(os.Environ(),
+		"GLPSOL_PATH="+a.glpsolPath,
+		"LD_LIBRARY_PATH="+a.solverDir,
+		"DYLD_LIBRARY_PATH="+a.solverDir,
+		"DDO_DATA_PATH="+ddoDataAbsPath,
+	)
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = cmd.Stdout
 
@@ -686,26 +800,22 @@ func (a *App) GetAvailableFiligrees(searchTerm string) []models.XMLFiligree {
 	return results
 }
 
-// UpdateExternalSources runs a git pull on the DDOBuilderV2 repo and reloads the cache
+// UpdateExternalSources clones or pulls DDOBuilderV2 (see ensureDDOBuilderData)
+// and reloads every cache from it.
 func (a *App) UpdateExternalSources() (string, error) {
 	a.addLog("Updating external sources from DDOBuilderV2...")
-	
-	cmd := exec.Command("git", "pull")
-	cmd.Dir = "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2"
-	out, err := cmd.CombinedOutput()
+
+	out, err := a.ensureDDOBuilderData()
 	if err != nil {
-		a.addLog(fmt.Sprintf("Failed to update DDOBuilderV2: %s", string(out)))
-		return string(out), err
+		return out, err
 	}
-	
-	a.addLog(fmt.Sprintf("Git Pull Result: %s", string(out)))
-	
+
 	// Reload every cache, name index and the enrichment pass together, so no
 	// index can survive pointing into a cache that has since been replaced.
 	a.addLog("Reloading item, augment, filigree and set-bonus caches...")
 	a.loadCaches("Reloaded")
 
-	return string(out), nil
+	return out, nil
 }
 
 // OpenFile opens a file using the default OS application.

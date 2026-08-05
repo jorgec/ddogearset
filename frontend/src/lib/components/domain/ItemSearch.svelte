@@ -58,7 +58,7 @@
   }
 </script>
 
-<div class="h-full flex flex-col space-y-6 overflow-y-auto p-4 md:p-6 bg-background rounded-lg border border-border shadow-sm">
+<div class="flex flex-col space-y-6 p-4 md:p-6 bg-background rounded-lg border border-border shadow-sm">
   <div class="flex items-center justify-between border-b border-border/50 pb-4">
     <div>
       <h2 class="text-2xl font-bold tracking-tight">Item Search by Stat</h2>
