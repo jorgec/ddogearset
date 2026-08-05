@@ -77,6 +77,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- **The built macOS app failed to open at all**: "You can't open the
+  application 'DDO Gearset Optimizer' because it may be damaged or
+  incomplete." Root cause was `wails.json`'s `info.comments` field —
+  `"...Dungeons & Dragons Online"` — containing a literal, unescaped `&`.
+  Wails writes that string directly into `Info.plist`'s XML with no
+  escaping, producing genuinely malformed XML
+  (`plutil -lint Info.plist` reported "unknown ampersand-escape sequence").
+  macOS can't parse a malformed `Info.plist` at all, which is exactly what
+  produces "damaged or incomplete" rather than a normal launch or even the
+  usual unsigned-app prompt. Changed the string to "...Dungeons and Dragons
+  Online"; `plutil -lint` now reports OK, and the app opens via both
+  `open` and Finder double-click.
+
+  Two real, separate problems were found and fixed alongside this while
+  debugging it, neither of which was the actual cause of this specific
+  error but both worth having fixed:
+  - `build_releases.sh`'s macOS staging step called bare `otool`/
+    `install_name_tool`, which on a machine with Anaconda (or any conda
+    install) ahead of `/usr/bin` on `PATH` resolves to Anaconda's bundled
+    `cctools-port` reimplementation instead of Apple's real tools — its
+    `install_name_tool` logs that it's "generating fake signature," i.e.
+    not a real Apple code signature. Now hardcoded to `/usr/bin/otool` /
+    `/usr/bin/install_name_tool` so this can't silently happen again on any
+    machine with a conda install on `PATH`.
+  - The built `.app` was **entirely unsigned** (`codesign -dv` reported
+    "code object is not signed at all") — Wails does not sign macOS builds
+    by default. `build_releases.sh` now ad-hoc signs the finished bundle
+    (`codesign --force --deep --sign -`) and verifies the signature.
+    This is ad-hoc only (no paid Apple Developer ID here) — `spctl -a`
+    still reports "rejected" for a fresh/quarantined copy, which is the
+    normal, expected, bypassable Gatekeeper prompt (right-click → Open, or
+    System Settings → Privacy & Security → Open Anyway) for any
+    unnotarized indie app. That prompt is not the bug; "damaged or
+    incomplete" was.
+
 - **Item Search ("search items by stat") returned a validation error on
   every call**: `Stat priority validation failed: no stat priorities were
   provided.` `python/solver.py`'s `mode == "stat_search"` branch (which

@@ -73,41 +73,62 @@ case "$GOOS" in
         cp "$GLPSOL_SRC" "${BUNDLE_DIR}/${GLPSOL_DST_NAME}"
         chmod u+w "${BUNDLE_DIR}/${GLPSOL_DST_NAME}"
 
-        if ! command -v otool >/dev/null 2>&1 || ! command -v install_name_tool >/dev/null 2>&1; then
-            echo "error: otool/install_name_tool not found — these ship with Xcode Command Line Tools." >&2
-            exit 1
-        fi
+        # Apple's real tools, by absolute path — NOT `command -v otool` /
+        # `install_name_tool`. On a machine with Anaconda (or any other conda
+        # install) on PATH ahead of /usr/bin, those names resolve to
+        # Anaconda's bundled cctools-port reimplementation instead of
+        # Apple's. cctools-port's install_name_tool writes what it itself
+        # logs as a "fake signature" — Mach-O output that isn't a real Apple
+        # code signature. That's what actually produces "You can't open ...
+        # it may be damaged or incomplete": always use the real tools.
+        OTOOL="/usr/bin/otool"
+        INSTALL_NAME_TOOL="/usr/bin/install_name_tool"
+        CODESIGN="/usr/bin/codesign"
+        for tool in "$OTOOL" "$INSTALL_NAME_TOOL" "$CODESIGN"; do
+            if [ ! -x "$tool" ]; then
+                echo "error: ${tool} not found — install Xcode Command Line Tools:" >&2
+                echo "  xcode-select --install" >&2
+                exit 1
+            fi
+        done
 
         # Every non-system dylib glpsol links against (system libs under
         # /usr/lib and /System are always present on macOS — no need to
         # bundle those).
-        deps="$(otool -L "$GLPSOL_SRC" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/usr/lib|/System)')"
+        deps="$("$OTOOL" -L "$GLPSOL_SRC" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/usr/lib|/System)')"
         for dep in $deps; do
             depname="$(basename "$dep")"
             if [ ! -f "${BUNDLE_DIR}/${depname}" ]; then
                 cp "$dep" "${BUNDLE_DIR}/${depname}"
                 chmod u+w "${BUNDLE_DIR}/${depname}"
-                install_name_tool -id "@rpath/${depname}" "${BUNDLE_DIR}/${depname}"
+                "$INSTALL_NAME_TOOL" -id "@rpath/${depname}" "${BUNDLE_DIR}/${depname}"
                 echo "   staged ${BUNDLE_DIR}/${depname}"
             fi
-            install_name_tool -change "$dep" "@executable_path/${depname}" "${BUNDLE_DIR}/${GLPSOL_DST_NAME}"
+            "$INSTALL_NAME_TOOL" -change "$dep" "@executable_path/${depname}" "${BUNDLE_DIR}/${GLPSOL_DST_NAME}"
 
             # One level of transitive deps (e.g. libglpk itself linking
             # libgmp) — repoint those at the bundled copies too.
-            subdeps="$(otool -L "$dep" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/usr/lib|/System)')"
+            subdeps="$("$OTOOL" -L "$dep" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/usr/lib|/System)')"
             for subdep in $subdeps; do
                 subdepname="$(basename "$subdep")"
                 if [ ! -f "${BUNDLE_DIR}/${subdepname}" ]; then
                     cp "$subdep" "${BUNDLE_DIR}/${subdepname}"
                     chmod u+w "${BUNDLE_DIR}/${subdepname}"
-                    install_name_tool -id "@rpath/${subdepname}" "${BUNDLE_DIR}/${subdepname}"
+                    "$INSTALL_NAME_TOOL" -id "@rpath/${subdepname}" "${BUNDLE_DIR}/${subdepname}"
                     echo "   staged ${BUNDLE_DIR}/${subdepname}"
                 fi
-                install_name_tool -change "$subdep" "@rpath/${subdepname}" "${BUNDLE_DIR}/${depname}"
+                "$INSTALL_NAME_TOOL" -change "$subdep" "@rpath/${subdepname}" "${BUNDLE_DIR}/${depname}"
             done
         done
-        install_name_tool -add_rpath "@executable_path" "${BUNDLE_DIR}/${GLPSOL_DST_NAME}" 2>/dev/null || true
+        "$INSTALL_NAME_TOOL" -add_rpath "@executable_path" "${BUNDLE_DIR}/${GLPSOL_DST_NAME}" 2>/dev/null || true
         echo "   patched ${BUNDLE_DIR}/${GLPSOL_DST_NAME} to load its libraries from @executable_path"
+
+        # install_name_tool invalidates any existing signature on the files
+        # it touches — re-sign them ad-hoc (no paid Apple Developer ID
+        # available) so they're at least well-formed, valid Mach-O binaries.
+        for f in "${BUNDLE_DIR}"/*; do
+            "$CODESIGN" --force --sign - "$f" >/dev/null 2>&1 || true
+        done
         ;;
     linux)
         GLPSOL_DST_NAME="glpsol"
@@ -160,6 +181,27 @@ case "$GOOS" in
     windows) BUILT_PATH="build/bin/DDOGearsetOptimizer.exe" ;;
     *) BUILT_PATH="build/bin/" ;;
 esac
+
+# ── 4. Sign the app (macOS) ──────────────────────────────────────────────────
+# Wails does not sign the .app itself. An entirely unsigned app, especially
+# once quarantined (downloaded, extracted from a zip, etc.), is exactly what
+# produces "You can't open ... it may be damaged or incomplete" — not just
+# the milder, bypassable "unidentified developer" prompt. There is no paid
+# Apple Developer ID here, so this is an AD-HOC signature (`--sign -`): it
+# satisfies Gatekeeper's "is this signed and internally consistent" check,
+# but does NOT satisfy notarization — a fresh download/AirDrop from another
+# machine will still show the unidentified-developer prompt, which the user
+# can bypass (right-click -> Open, or System Settings -> Privacy & Security).
+# That prompt is expected and fine; "damaged or incomplete" is not.
+if [ "$GOOS" = "darwin" ] && [ -e "$BUILT_PATH" ]; then
+    echo "-> Ad-hoc code-signing ${BUILT_PATH}..."
+    /usr/bin/codesign --force --deep --sign - "$BUILT_PATH"
+    if /usr/bin/codesign --verify --deep --strict "$BUILT_PATH" 2>&1; then
+        echo "   signature verified."
+    else
+        echo "warning: codesign --verify reported an issue — see output above." >&2
+    fi
+fi
 
 if [ -e "$BUILT_PATH" ]; then
     echo "Build complete (self-contained, ${PLATFORM}): $(cd "$(dirname "$BUILT_PATH")" && pwd)/$(basename "$BUILT_PATH")"
