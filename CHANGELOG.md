@@ -7,6 +7,50 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.2.1] — 2026-08-05
+
+### Added
+
+- **"Docent" added as an Armor Restriction option** (alongside Cloth, Light,
+  Medium, Heavy). No backend change needed — `armor_restriction` matching
+  was already a generic substring match against each item's XML `<Armor>`
+  tag, and "Docent" (Artificer-class armor) was already a real value in the
+  DDOBuilderV2 data; the dropdown just never exposed it. Verified against
+  real data: 45 Docent-restricted armor items correctly filtered (Legendary
+  Templar's Docent, Legendary Docent of the Black Earth, etc.).
+
+### Fixed
+
+- **A dinosaur/Isle-of-Dread augment (e.g. Meltfang) could be slotted into
+  an ordinary Colorless augment slot on a non-dino item** — not legal in
+  DDO; dino augments (Fang/Claw/Scale/Horn) only fit their own matching
+  dino-specific slot. Root cause: an earlier fix in this same release cycle
+  (see 0.2.0's `augment_fits_slot()` entry, below) made Colorless slots
+  accept *any* augment type whatsoever, not just the standard colors it was
+  meant to fix. Enumerating every distinct top-level `<Augment><Type>`
+  across the real corpus surfaced dozens of other special, item/system-
+  specific slot families this same over-broad rule was also incorrectly
+  letting through — Cannith crafting prefix/suffix/extra slots, Dolorous/
+  Melancholic/Miserable/Woeful named slots, "Nearly Complete: ..." slots,
+  Reaper/Random/Thunderforged/Slavelords slots, and the IoD dino slots that
+  triggered this report. `augment_fits_slot()` now only treats Colorless as
+  accepting the 8 real standard colors (Red, Orange, Yellow, Green, Blue,
+  Purple, Sun, Moon) — every other family still requires an exact slot-type
+  match, same as before the original Colorless fix existed. Verified against
+  the exact reported scenario (a dino Fang augment forced into a Colorless
+  slot via `pre_filled_augments` on an ordinary item): now correctly
+  rejected and flagged as "not credited" instead of silently accepted. Two
+  new regression tests added; rebuilt and re-signed the bundled solver
+  binaries so this is reflected in what the app actually runs, not just in
+  source.
+
+### Changed
+
+- **Two stray root-level spec docs moved into `docs/`** for consistency with
+  every other planning/spec document in the project: `phase_7_spec.md` →
+  `docs/PHASE7_SPEC.md`, `phase_8_spec.md` → `docs/PHASE8_SPEC.md` (moved
+  with `git mv` to preserve history; nothing referenced the old paths).
+
 ## [0.2.0] — 2026-08-05
 
 ### Added
