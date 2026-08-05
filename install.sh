@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # install.sh — Set up everything needed to build goGearset after a fresh
-# `git clone`, so build_releases.sh can be run immediately afterward.
+# `git clone`, so build-mac.sh / build-linux.sh can be run immediately afterward.
 #
 # Installs/checks for: Homebrew (macOS) or apt packages (Linux), Go, Node,
 # Python 3.11 + a project-local venv with pulp/pyinstaller, the Wails CLI,
 # and GLPK. GLPK only needs to be present on THIS build machine —
-# build_releases.sh bundles glpsol (and its shared-library dependencies)
+# build-mac.sh / build-linux.sh bundle glpsol (and its shared-library dependencies)
 # into the shipped app itself, so end users never need GLPK installed. Also
 # warns about one remaining hardcoded absolute-path dependency this script
 # cannot fix for you (see the end of this file).
@@ -36,7 +36,7 @@ case "$OS" in
         PYTHON_BIN="$(brew --prefix python@3.11)/bin/python3.11"
 
         if ! command -v otool >/dev/null 2>&1 || ! command -v install_name_tool >/dev/null 2>&1; then
-            warn "otool/install_name_tool not found — build_releases.sh needs these to bundle" \
+            warn "otool/install_name_tool not found — build-mac.sh needs these to bundle" \
                  "glpsol's shared libraries. Install Xcode Command Line Tools:"
             warn "  xcode-select --install"
             exit 1
@@ -91,12 +91,12 @@ info "Installing Python dependencies (pulp, pyinstaller) into ${VENV_DIR}..."
 ok "Python venv ready at ${VENV_DIR} (pyinstaller needed to (re)build python/dist/solver)."
 
 # ── GLPK presence check ──────────────────────────────────────────────────────
-# Only needs to be ANYWHERE on PATH — build_releases.sh discovers it itself
+# Only needs to be ANYWHERE on PATH — build-mac.sh/build-linux.sh discover it
 # (via `command -v glpsol`) and bundles it (plus its dylib/so dependencies)
 # into the app. There is no hardcoded install path to match anymore.
 echo ""
 if command -v glpsol >/dev/null 2>&1; then
-    ok "glpsol found at $(command -v glpsol) — build_releases.sh will bundle this."
+    ok "glpsol found at $(command -v glpsol) — build-mac.sh/build-linux.sh will bundle this."
 else
     warn "glpsol not found on PATH. The 'glpk' package should have installed it above" \
          "— check brew/apt output for errors."
@@ -122,4 +122,7 @@ fi
 
 echo ""
 echo "=== install.sh complete ==="
-echo "Next: ./build_releases.sh"
+case "$OS" in
+    Darwin) echo "Next: ./build-mac.sh" ;;
+    Linux)  echo "Next: ./build-linux.sh" ;;
+esac

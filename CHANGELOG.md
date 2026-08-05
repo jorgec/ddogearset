@@ -56,26 +56,50 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   constraints — only the file matching the actual build target compiles, so
   one repo checkout can hold multiple platforms' bundles simultaneously
   without conflict)
-- `build_releases.sh` rebuilds the Python solver, locates the host's
-  `glpsol`, and (on macOS) rewrites its dylib references to
-  `@executable_path` via `install_name_tool` so it needs nothing installed
-  on the machine that runs it, then runs a native `wails build` and prints
-  the output path. PyInstaller and `glpsol` both being platform-native
-  binaries, neither can be cross-compiled — building for a new platform
-  means running this script natively on a machine of that platform once and
-  committing the resulting `bundled/<goos>-<goarch>/` directory. Linux
-  staging is implemented (via `ldd`) but unverified from this session, which
-  only had macOS/arm64 available to test against; Windows staging isn't
-  automated and is documented as a manual step
+- One build script per platform — `build-mac.sh`, `build-linux.sh`,
+  `build-windows.ps1` (replacing a single cross-platform `build_releases.sh`,
+  which got hard to keep straight once the platform-specific staging logic
+  diverged this much) — each rebuilds the Python solver, locates the host's
+  `glpsol`, stages it (+ dylibs/DLLs, patched via `install_name_tool` on
+  macOS) into `bundled/<platform>/`, and runs a native `wails build`.
+  PyInstaller and `glpsol` both being platform-native binaries, neither can
+  be cross-compiled — building for a new platform means running that
+  platform's script natively once and committing the resulting
+  `bundled/<platform>/` directory. Linux staging is implemented (via `ldd`)
+  but unverified this session (no Linux machine available to test against);
+  Windows staging is implemented and verified by careful manual review only
+  (no Windows machine available either — see the PowerShell-specific notes
+  below)
+- Every build script now finishes by copying its own finished, self-contained
+  build into `dist/<platform>/` automatically (e.g. `dist/darwin-arm64/`,
+  `dist/windows-amd64/`) — on Windows this includes an NSIS installer too, if
+  `makensis` is available. That directory is the literal hand-off point:
+  copy it, run what's inside, nothing else required. `package_release.sh`
+  now archives each `dist/<platform>/` folder as a whole into
+  `releases/v<version>/<platform>.{zip,tar.gz}`, for e.g. attaching to a
+  GitHub release — it no longer expects a flat `dist/` you populate by hand
+- `build-windows.ps1` never requests or requires elevation. Chocolatey
+  installs (and the Chocolatey bootstrap itself, if missing) usually do need
+  an elevated shell on Windows, but the script doesn't assume that up front —
+  it tries unelevated first, and only if that fails does it print the exact
+  command to run once in a separate elevated window, then tells you to close
+  that window and re-run the script normally. This also sidesteps
+  PyInstaller's own warning against being run elevated at all, since nothing
+  in the script (PyInstaller included) ever runs elevated now
 - `install.sh` sets up everything needed to build after a fresh clone (Go,
   Node, a Python venv with `pulp`/`pyinstaller`, GLPK, and on macOS the
-  Xcode Command Line Tools `build_releases.sh` needs for the
+  Xcode Command Line Tools the mac build script needs for the
   `install_name_tool` step), and checks for SSH access to the DDOBuilderV2
   repo the app will clone on first run (see Fixed, below)
-- `package_release.sh` archives whatever's staged in `dist/` into
-  `releases/v<version>/`
 
 ### Fixed
+
+- **`python/solver.spec` was never actually committed** — `.gitignore` had a
+  blanket `python/*.spec` rule that silently excluded it. Every build script
+  runs `pyinstaller --noconfirm solver.spec`, so a fresh clone couldn't
+  rebuild the embedded solver at all. Narrowed the ignore rule and committed
+  the file, matching the existing reasoning for keeping `python/dist/solver`
+  checked in.
 
 - **The built macOS app failed to open at all**: "You can't open the
   application 'DDO Gearset Optimizer' because it may be damaged or

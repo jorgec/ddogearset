@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# package_release.sh — Archive everything staged in dist/ into releases/vX.Y.Z/.
+# package_release.sh — Archive dist/<platform>/ into releases/vX.Y.Z/.
 #
-# Workflow: run build_releases.sh natively on each platform you're releasing
-# for, then manually copy each platform's build output (a .app bundle, an
-# .exe, or a plain Linux binary) into dist/ on this machine. This script does
-# not build anything — it only archives whatever it finds directly inside
-# dist/, one archive per top-level entry:
-#   *.app/            -> zip
-#   *.exe              -> zip
-#   anything else       -> tar.gz  (assumed to be a Linux/macOS binary)
+# Workflow: run build-mac.sh / build-linux.sh / build-windows.ps1 natively on
+# each platform you're releasing for. Each one copies its own finished,
+# self-contained build into dist/<platform>/ automatically (e.g.
+# dist/darwin-arm64/, dist/windows-amd64/, dist/linux-amd64/) — nothing to
+# copy by hand. dist/<platform>/ is already immediately usable as-is (copy
+# the folder, run what's inside); this script's only job is to also produce
+# one shareable archive per platform in releases/, for e.g. attaching to a
+# GitHub release.
+#
+# One archive per dist/<platform>/ subdirectory, containing everything in it:
+#   darwin-*  -> zip
+#   windows-* -> zip
+#   anything else (linux-*, ...) -> tar.gz
 #
 # Version is read from wails.json. Output goes to releases/v<version>/ and is
 # NOT committed automatically — review the archives, then `git add` them
@@ -29,24 +34,30 @@ if [ -z "${VERSION:-}" ] || [ "$VERSION" = "null" ]; then
 fi
 
 if [ ! -d dist ]; then
-    echo "error: dist/ does not exist — nothing to package" >&2
+    echo "error: dist/ does not exist — nothing to package. Run build-mac.sh /" \
+         "build-linux.sh / build-windows.ps1 first." >&2
     exit 1
 fi
 
-# Only real entries, ignore .gitkeep and dotfiles.
+# Only real platform subdirectories, ignore .gitkeep and dotfiles.
 shopt -s nullglob dotglob
-ENTRIES=()
-for entry in dist/*; do
+PLATFORM_DIRS=()
+for entry in dist/*/; do
+    entry="${entry%/}"
     base="$(basename "$entry")"
     case "$base" in
         .*) continue ;;
     esac
-    ENTRIES+=("$entry")
+    if [ -d "$entry" ]; then
+        PLATFORM_DIRS+=("$entry")
+    fi
 done
 shopt -u dotglob
 
-if [ ${#ENTRIES[@]} -eq 0 ]; then
-    echo "error: dist/ is empty — add the platform build(s) you want to package first" >&2
+if [ ${#PLATFORM_DIRS[@]} -eq 0 ]; then
+    echo "error: dist/ has no platform subdirectories — run build-mac.sh /" \
+         "build-linux.sh / build-windows.ps1 first, each of which populates its" \
+         "own dist/<platform>/ automatically." >&2
     exit 1
 fi
 
@@ -54,26 +65,30 @@ OUTDIR="releases/v${VERSION}"
 mkdir -p "$OUTDIR"
 
 echo "=== Packaging release v${VERSION} from dist/ ==="
+echo "Found ${#PLATFORM_DIRS[@]} platform folder(s): ${PLATFORM_DIRS[*]}"
 
-for entry in "${ENTRIES[@]}"; do
-    base="$(basename "$entry")"
-    case "$base" in
-        *.app)
-            name="${base%.app}"
-            archive="${OUTDIR}/${name}.zip"
-            echo "-> ${base} -> $(basename "$archive") (zip)"
-            (cd dist && zip -qr "../${archive}" "$base")
-            ;;
-        *.exe)
-            name="${base%.exe}"
-            archive="${OUTDIR}/${name}.zip"
-            echo "-> ${base} -> $(basename "$archive") (zip)"
-            (cd dist && zip -qj "../${archive}" "$base")
+for platform_dir in "${PLATFORM_DIRS[@]}"; do
+    platform="$(basename "$platform_dir")"
+
+    contents=()
+    for f in "$platform_dir"/*; do
+        [ -e "$f" ] && contents+=("$(basename "$f")")
+    done
+    if [ ${#contents[@]} -eq 0 ]; then
+        echo "-> ${platform}: empty, skipping"
+        continue
+    fi
+
+    case "$platform" in
+        darwin-*|windows-*)
+            archive="${OUTDIR}/${platform}.zip"
+            echo "-> ${platform}/ (${contents[*]}) -> $(basename "$archive") (zip)"
+            (cd "$platform_dir" && zip -qr "../../${archive}" .)
             ;;
         *)
-            archive="${OUTDIR}/${base}.tar.gz"
-            echo "-> ${base} -> $(basename "$archive") (tar.gz)"
-            (cd dist && tar -czf "../${archive}" "$base")
+            archive="${OUTDIR}/${platform}.tar.gz"
+            echo "-> ${platform}/ (${contents[*]}) -> $(basename "$archive") (tar.gz)"
+            (cd "$platform_dir" && tar -czf "../../${archive}" .)
             ;;
     esac
 done
