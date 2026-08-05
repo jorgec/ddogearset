@@ -108,6 +108,8 @@
             <th class="px-3 py-2 font-medium">Name</th>
             <th class="px-3 py-2 font-medium">ML</th>
             <th class="px-3 py-2 font-medium">Pack</th>
+            <th class="px-3 py-2 font-medium">Character</th>
+            <th class="px-3 py-2 font-medium">Location</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
@@ -124,6 +126,8 @@
               </td>
               <td class="px-3 py-2 text-muted-foreground">{item.minLevel}</td>
               <td class="px-3 py-2 text-xs italic text-muted-foreground">{item.packId || '—'}</td>
+              <td class="px-3 py-2 text-xs text-muted-foreground">{item.character || '—'}</td>
+              <td class="px-3 py-2 text-xs text-muted-foreground">{item.location || '—'}</td>
             </tr>
           {/each}
         </tbody>

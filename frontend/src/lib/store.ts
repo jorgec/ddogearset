@@ -123,6 +123,10 @@ export interface TroveOwnedItem {
     name: string;
     minLevel: number;
     packId?: string;
+    // Comma-joined when a name shows up under more than one character or
+    // location in the CSV (see trove_inventory.go's troveNameInfo).
+    character?: string;
+    location?: string;
 }
 
 export interface TroveImportState {

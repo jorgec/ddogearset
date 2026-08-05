@@ -613,6 +613,8 @@ export namespace main {
 	    name: string;
 	    minLevel: number;
 	    packId?: string;
+	    character?: string;
+	    location?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TroveOwnedItem(source);
@@ -623,6 +625,8 @@ export namespace main {
 	        this.name = source["name"];
 	        this.minLevel = source["minLevel"];
 	        this.packId = source["packId"];
+	        this.character = source["character"];
+	        this.location = source["location"];
 	    }
 	}
 	export class TroveOwnedItemsResult {

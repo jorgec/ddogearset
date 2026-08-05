@@ -26,9 +26,16 @@ select items/augments they actually own, instead of the full DDOBuilderV2 catalo
 
 ```
 Location != "SharedCrafting"
-AND Binding ∈ {"BtA", "BtC"}
+AND (Binding column absent OR Binding ∈ {"BtA", "BtC"})
 AND Name matches a DDOBuilderV2 item or augment name exactly (else dropped)
 ```
+
+**Column guarantees, per Trove:** only `SubscriptionHash`, `Character`, `Location`,
+`Tab`, and `Name` are guaranteed present in an export. `Binding` (and everything else,
+e.g. `Quantity`) is not. `Location` and `Name` are therefore required — a CSV missing
+either is rejected outright — but `Binding` is read defensively: applied when the
+column exists, skipped entirely (no rows excluded on its account) when it doesn't,
+rather than erroring on the whole file or silently producing an empty result.
 
 A `":"`-in-name heuristic to pre-filter obvious filigree rows was considered and
 rejected — DDOBuilderV2 has ~25 legitimate items with `:` in their names (e.g.
@@ -137,7 +144,9 @@ match or silently drop" from the scope decision above. Applied identically to bo
 - AC-1: A CSV row with `Location == "SharedCrafting"` never contributes a name to the
   owned-names set.
 - AC-2: A CSV row with `Binding` other than `BtA`/`BtC` (including `"None"` and empty)
-  never contributes a name.
+  never contributes a name, PROVIDED the `Binding` column exists at all — it isn't
+  guaranteed by Trove, so when the column is absent this filter is skipped rather than
+  excluding every row (or erroring the whole file).
 - AC-3: With `owned_item_names` empty or absent, solver behavior is byte-identical to
   today (full catalog, no restriction) — this is a regression guard, not just a default.
 - AC-4: With `owned_item_names` populated, `parse_items`/`parse_augments` return only

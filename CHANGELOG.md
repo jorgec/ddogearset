@@ -7,6 +7,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.2.3] — 2026-08-06
+
+### Fixed
+
+- **Trove CSV parsing required a `Binding` column that isn't actually
+  guaranteed to exist.** Only `SubscriptionHash`, `Character`, `Location`,
+  `Tab`, and `Name` are guaranteed present in a Trove export — `Binding` is
+  not. `parseTroveInventoryCSV` (`trove_inventory.go`) now treats `Binding`
+  as optional: when the column is present, rows are still filtered to
+  `BtA`/`BtC` as before; when it's absent, that filter is skipped entirely
+  rather than erroring out the whole file or silently keeping zero rows.
+  `Location` and `Name` remain required, since those are guaranteed.
+  `docs/TROVE_INVENTORY_IMPORT_SPEC.md` updated (row-filtering rule, AC-2)
+  to match. Verified with synthetic CSVs covering both the with- and
+  without-`Binding` cases.
+
+### Added
+
+- **Character and Location columns on the Owned Items table.** A name can
+  legitimately appear more than once in an export (two characters owning
+  the same named item, or one character banking and re-inventorying it), so
+  `parseTroveInventoryCSV` now accumulates the distinct `Character`/
+  `Location` values seen per owned name (new `troveNameInfo` type) instead
+  of discarding everything but the name itself. `GetTroveOwnedItems` exposes
+  these as comma-joined strings on `TroveOwnedItem`; the Owned Items screen
+  renders them as two new table columns. Verified against the real sample
+  export, including the shared-bank case (`Character: "-"`,
+  `Location: "SharedBank"`).
+
 ## [0.2.2] — 2026-08-06
 
 ### Fixed
