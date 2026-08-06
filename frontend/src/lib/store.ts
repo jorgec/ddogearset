@@ -8,6 +8,9 @@ export const configStore = writable<main.OptimizationPayload>(({
     weapon_style: "Two Weapon Fighting",
     swashbuckling: false,
     offhand_style: "None",
+    // docs/HARD_REQUIRED_SLOTS_SPEC.md — Melee-only; empty/absent for every
+    // other build_type (Ranged/Tank don't have a heuristic defined yet).
+    weapon_damage_type: "",
     caster_spellpowers: [],
     caster_schools: [],
     stat_priorities: [],

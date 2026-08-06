@@ -7,6 +7,78 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.3.0] — 2026-08-07
+
+### Added
+
+- **Hard-required Weapon1/Weapon2 slots** (`docs/HARD_REQUIRED_SLOTS_SPEC.md`), designed
+  interactively over a full solver-rules review session. Weapon1 is now a hard ILP
+  constraint (`sum(x[i,'Weapon1']) == 1`) — it can never come back empty, unlike other
+  slots which may legitimately stay unfilled if nothing scores well there. Weapon2 gets
+  the same guarantee whenever it's meaningful (runearm builds, dual-wielding casters,
+  thrower off-hand, Tank's shield).
+  - **Melee**: new "Weapon Damage Type" selector (Slashing/Piercing/Bludgeoning, sourced
+    verbatim from `WeaponGroupings.xml` — not guessed, not derived from `DRBypass` or
+    item descriptions, which were checked and found unreliable). Weapon1 is restricted to
+    that damage type plus five "craftable" weapon families (Dinosaur Bone, Undying Age,
+    Legendary Green Steel, Viktranium Experiment crafting, Den of Vipers — identified by
+    name or `DropLocation` substring, verified against the real corpus), falling back to
+    damage-type-only if no family match exists, with the fallback surfaced as a note in
+    the Summary UI and the saved file.
+  - **Ranged**: Bow → Longbow only (Weapon2 always blocked); Repeating Crossbow →
+    Repeating Heavy Crossbow only; Great Crossbow → Great Crossbow; Dual Crossbow → Heavy
+    Crossbow only; all three crossbow styles allow Weapon2 as a runearm only when
+    `runearm_use` is checked; Thrown/Shuriken → the style's own ranged type at Weapon1,
+    always a Kama at Weapon2.
+  - **Tank**: Weapon1 always Longsword, Weapon2 always Large Shield — a blanket override
+    independent of whatever `weapon_style` is selected (Tank shares Melee's dropdown, but
+    it no longer affects weapon selection).
+  - **Caster**: four new real `weapon_style` options (Dual Caster, Stick and Orb, Stick
+    and Runearm, Quarterstaff) replacing a forced `'None'` that made Weapon2 entirely
+    unreachable for casters. New "Caster Configuration" panel — multi-select elemental
+    damage type(s), main stat, and spell school(s) — applies to Tier 1 via a one-time
+    "Apply" button (explicitly *not* a live reactive sync: this exact feature existed
+    once before as one and had a real bug from it, documented in
+    `statPriorities.ts`'s `migrateLegacyCasterFields`). Also replaced the old
+    hardcoded, incomplete "caster stick" weapon list (missing common one-handers,
+    and included "scepter", which isn't a real DDO weapon type) with the authoritative
+    `WeaponGroupings.xml` "One Handed" group.
+  - `runearm_use` no longer silently blends a runearm into TWF/Sword and Board/etc as an
+    optional extra — narrowed to exactly the cases where a runearm is meant to be the
+    exclusive offhand choice.
+  - 30 new regression tests; verified end-to-end against real DDOBuilderV2 data for
+    every build type (e.g. Tank → `Dinosaur Bone Longsword` + `Dinosaur Bone Large
+    Shield`; Thrown → `Legendary Cataclysmic Dart` + `Dinosaur Bone Kama`).
+
+### Fixed
+
+- **`augment_fits_slot`'s substring fallback let unrelated augments into standard slots**
+  — a full corpus audit (194 item slot types × 168 augment types) found 34 real false
+  positives the substring rule let through, e.g. a plain "Red" slot accepting the
+  unrelated augment "Incredible Potential" (because `"red"` is a substring of
+  `"incREDible"`), a plain "Green" slot accepting any Greensteel Weapon Tier augment,
+  and heroic-tier slots accepting their Legendary-tier counterparts across a tier
+  boundary that should never cross. Now exact-match only (the intentional
+  Colorless-accepts-standard-colors rule is unaffected).
+- **`parse_augments` could silently drop a pre-filled augment** whose only effects fall
+  outside the user's *current* stat priorities, breaking `create_model`'s aggregate
+  pre-filled-augment count and turning a calculate-only solve infeasible. Now bypassed
+  for pre-filled augments, matching the same pattern already used for the ML floor and
+  owned-names filters in the same function.
+- **GitHub issue [#1](https://github.com/jorgec/ddogearset/issues/1) — "Solver not
+  restricting by packs"**: root-caused to an exact-string pack-name mismatch
+  (`"The Chill of Ravenloft"` vs. the real `AdventurePack` value `"Chill of
+  Ravenloft"`, no "The"), compounded by `expansions.json` — the *live*, runtime-fetched
+  copy, not the dead unused duplicate in `src/lib/data/` — only listing 9 of the 66 real
+  pack names. Replaced with the full real list; added a warning (surfaced in the Status
+  Console, not just the debug log) whenever an excluded-pack entry matches nothing real.
+- **Solver pack-exclusion CSV/config rules review** surfaced two further findings not
+  yet acted on: quest-name substring collisions in pack/raid attribution (e.g. `"The
+  Chronoscope"` vs. `"The Chronoscope (Legendary)"`) — explicitly deprioritized per
+  product decision, all quest-level variants are treated the same for this app — and
+  `calculate_only` deliberately skipping the raid-item-limit constraint (confirmed
+  intentional, documented in-code).
+
 ## [0.2.3] — 2026-08-06
 
 ### Fixed

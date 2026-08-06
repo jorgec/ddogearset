@@ -4,13 +4,14 @@
   // picker and the collapsible chrome all live in their own components; this
   // file only arranges them and owns the submit action.
   //
-  // The caster spellpower/school checkbox grid that used to live here is gone
-  // entirely (§5), not hidden: caster_spellpowers/caster_schools are read
-  // nowhere in the solver — they were purely a client-side mechanism that
-  // auto-injected picks into stat_priorities, with a standing reactive sync
-  // that could add but never remove. The fields stay on the payload struct for
-  // old-file deserialization (INV-3), and old files are migrated into Tier 1
-  // once at load time in Summary.svelte, but nothing writes them again.
+  // The OLD caster_spellpowers/caster_schools checkbox grid that used to live
+  // here is still gone (§5) and those fields are still read nowhere in the
+  // solver — they were a live reactive sync that could add a stat but never
+  // remove it. CasterConfig.svelte (docs/HARD_REQUIRED_SLOTS_SPEC.md §4) is a
+  // NEW, unrelated mechanism for the same rough idea (element/main-stat/
+  // spell-school prefill) built the other way: a one-time "Apply" action that
+  // writes into the same stat_priorities array the rest of this form already
+  // uses, with no standing binding to go stale.
 
   import { configStore, isOptimizing, resultStore, currentTab, showToast, troveImportStore } from '$lib/store';
   import { RunOptimization, UpdateExternalSources } from '../../../../wailsjs/go/main/App';
@@ -21,6 +22,7 @@
   import Accordion from '$lib/components/ui/Accordion.svelte';
   import StatPriorityEditor from './StatPriorityEditor.svelte';
   import StatSetPicker from './StatSetPicker.svelte';
+  import CasterConfig from './CasterConfig.svelte';
 
   let isUpdatingData = false;
   let expansions: string[] = [];
@@ -148,6 +150,15 @@
     $configStore.max_level = parseInt(target.value) || 34;
   }
 
+  // docs/HARD_REQUIRED_SLOTS_SPEC.md §4 — the four caster weapon styles:
+  // Dual Caster (both Weapon1/Weapon2 required, both one-handed), Stick and
+  // Orb (Weapon1 one-handed + Weapon2 orb, both required), Stick and Runearm
+  // (Weapon1 one-handed + Weapon2 runearm, both required), Quarterstaff
+  // (two-handed, Weapon2 blocked). These are real weapon_style values the
+  // backend already understands (python/solver.py's resolve_weapon_lists) —
+  // unlike the old forced 'None', which gave casters no Weapon2 slot at all.
+  const CASTER_WEAPON_STYLES = ['Dual Caster', 'Stick and Orb', 'Stick and Runearm', 'Quarterstaff'];
+
   $: {
     if ($configStore.build_type === 'Melee' || $configStore.build_type === 'Tank') {
       if (!['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'].includes($configStore.weapon_style)) {
@@ -158,14 +169,21 @@
         $configStore.weapon_style = 'Bow';
       }
     } else if ($configStore.build_type === 'Caster') {
-      if ($configStore.weapon_style !== 'None') {
-        $configStore.weapon_style = 'None';
+      if (!CASTER_WEAPON_STYLES.includes($configStore.weapon_style)) {
+        $configStore.weapon_style = 'Dual Caster';
       }
     }
   }
 
+  // weapon_damage_type only applies to Melee (docs/HARD_REQUIRED_SLOTS_SPEC.md
+  // §1) — clear it when leaving Melee so a stale value from a prior build
+  // doesn't silently keep restricting Weapon1 after the build type changes.
+  $: if ($configStore.build_type !== 'Melee' && $configStore.weapon_damage_type) {
+    $configStore.weapon_damage_type = '';
+  }
+
   $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 'Thrown', 'Shuriken'] :
-                    $configStore.build_type === 'Caster' ? ['None'] :
+                    $configStore.build_type === 'Caster' ? CASTER_WEAPON_STYLES :
                     ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'];
 
   // Collapsed-state digests
@@ -220,6 +238,24 @@
       </div>
     {/if}
 
+    {#if $configStore.build_type === 'Melee'}
+      <div class="space-y-2">
+        <label class="text-sm font-medium leading-none" for="weapon-damage-type">Weapon Damage Type</label>
+        <select id="weapon-damage-type" bind:value={$configStore.weapon_damage_type} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <option value="" class="bg-background text-foreground">Any (no restriction)</option>
+          <option value="Slashing" class="bg-background text-foreground">Slashing</option>
+          <option value="Piercing" class="bg-background text-foreground">Piercing</option>
+          <option value="Bludgeoning" class="bg-background text-foreground">Bludgeoning</option>
+        </select>
+        <p class="text-[10px] text-muted-foreground">
+          When set, Weapon1 is restricted to this damage type from the five "craftable" weapon
+          families (Dinosaur Bone, Undying Age, Legendary Green Steel, Viktranium Experiment
+          crafting, Den of Vipers), falling back to any weapon of this damage type if none of
+          those match (see docs/HARD_REQUIRED_SLOTS_SPEC.md).
+        </p>
+      </div>
+    {/if}
+
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="char-level">Character Level</label>
       <input id="char-level" type="number" value={characterLevel} on:input={updateCharacterLevel} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
@@ -242,6 +278,13 @@
   <Accordion title="Stat Sets" persistKey="stat-sets" summary="Presets">
     <StatSetPicker />
   </Accordion>
+
+  <!-- 2b. Caster Configuration — docs/HARD_REQUIRED_SLOTS_SPEC.md §4 -->
+  {#if $configStore.build_type === 'Caster'}
+    <Accordion title="Caster Configuration" persistKey="caster-config" summary="Elements, main stat, schools">
+      <CasterConfig />
+    </Accordion>
+  {/if}
 
   <!-- 3. Stat Priorities — always open, deliberately no persistKey (§8.3):
        it is the primary input and must never silently start collapsed. -->

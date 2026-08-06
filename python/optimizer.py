@@ -134,6 +134,73 @@ WEAPON_TIER4_BASELINES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# §16 — hard-required Weapon1/Weapon2 slots (docs/HARD_REQUIRED_SLOTS_SPEC.md)
+# ---------------------------------------------------------------------------
+
+# Authoritative source: DDOBuilderV2/Output/DataFiles/WeaponGroupings.xml's
+# Slashing/Bludgeoning/Piercing <WeaponGroup> entries, taken verbatim — NOT
+# derived from <DRBypass> (that reflects what DR a weapon bypasses, which is
+# not the same thing as its own damage type; many items grant bonus bypass
+# types unrelated to their base) and NOT from <Description> text (only 5
+# items in the whole corpus mention a damage type there — far too sparse).
+# Throwing Axe/Dagger/Hammer are real melee-usable weapon types in the corpus
+# but appear in none of the three WeaponGroupings.xml groups (DDOBuilderV2
+# treats them as thrown/ranged only) — deliberately excluded here rather than
+# guessed at, per explicit instruction during the spec review.
+_SLASHING_WEAPONS = ('Bastard Sword', 'Battle Axe', 'Dwarven Axe', 'Falchion',
+                     'Great Axe', 'Great Sword', 'Hand Axe', 'Kama', 'Khopesh',
+                     'Kukri', 'Longsword', 'Scimitar', 'Shortsword', 'Shuriken', 'Sickle')
+_BLUDGEONING_WEAPONS = ('Club', 'Great Club', 'Handwraps', 'Heavy Mace', 'Light Hammer',
+                        'Light Mace', 'Maul', 'Morningstar', 'Quarterstaff', 'Unarmed',
+                        'Warhammer')
+_PIERCING_WEAPONS = ('Dagger', 'Dart', 'Heavy Pick', 'Light Pick', 'Rapier')
+
+WEAPON_DAMAGE_TYPES = {
+    **{w.lower(): 'Slashing' for w in _SLASHING_WEAPONS},
+    **{w.lower(): 'Bludgeoning' for w in _BLUDGEONING_WEAPONS},
+    **{w.lower(): 'Piercing' for w in _PIERCING_WEAPONS},
+}
+
+# Same authoritative source, "One Handed" <WeaponGroup> — used to identify a
+# "caster stick" (any one-handed weapon; the term does NOT mean literally a
+# Quarterstaff, which is two-handed and its own separate caster weapon_style
+# option — see docs/HARD_REQUIRED_SLOTS_SPEC.md §4).
+ONE_HANDED_WEAPON_TYPES = frozenset(w.lower() for w in (
+    'Bastard Sword', 'Battle Axe', 'Club', 'Dagger', 'Dwarven Axe', 'Hand Axe',
+    'Heavy Mace', 'Heavy Pick', 'Kama', 'Khopesh', 'Kukri', 'Light Hammer',
+    'Light Mace', 'Light Pick', 'Longsword', 'Morningstar', 'Rapier',
+    'Scimitar', 'Shortsword', 'Sickle', 'Warhammer',
+))
+
+# The five weapon "families" known for carrying multiple worthwhile craftable
+# augment slots (redefined during spec review — this is NOT about augment-
+# slot-TYPE families like Cannith Prefix/Suffix/Extra, it's specific weapon
+# sources). Dinosaur Bone / Undying Age / Legendary Green Steel are reliably
+# name-substring-identifiable (verified against the real corpus — note it's
+# "Green Steel", two words, not "Greensteel"); Viktranium Experiment crafting
+# and Den of Vipers have no such name pattern and are identified via
+# DropLocation text instead.
+CRAFTABLE_FAMILY_NAME_SUBSTRINGS = ('dinosaur bone', 'undying age', 'green steel')
+CRAFTABLE_FAMILY_DROPLOCATION_SUBSTRINGS = ('viktranium', 'den of vipers')
+
+
+def _is_craftable_family_weapon(name, drop_location):
+    name_l = (name or '').lower()
+    if any(s in name_l for s in CRAFTABLE_FAMILY_NAME_SUBSTRINGS):
+        return True
+    drop_l = (drop_location or '').lower()
+    return any(s in drop_l for s in CRAFTABLE_FAMILY_DROPLOCATION_SUBSTRINGS)
+
+
+def weapon_types_for_damage_type(damage_type):
+    """The set of lowercase weapon_type strings classified under a given
+    damage type (Slashing/Piercing/Bludgeoning) — solver.py's bridge from a
+    user-facing damage-type choice to create_model's weapon1_eligible_types."""
+    dt = (damage_type or '').strip().lower()
+    return {w for w, d in WEAPON_DAMAGE_TYPES.items() if d.lower() == dt}
+
+
 def safe_name(s):
     return re.sub(r'[^a-zA-Z0-9_]', '_', str(s))
 
@@ -168,13 +235,29 @@ def augment_fits_slot(aug_type, slot_color):
     runs would just never use them, and calculate-only runs would go
     infeasible the moment a saved gearset has anything slotted there (see
     create_model's total_pre_filled_augments guard). Every other slot family
-    (including Colorless itself, for a non-standard augment) still requires
-    an exact type match."""
+    (including Colorless itself, for a non-standard augment) requires an
+    EXACT type match — no substring fallback.
+
+    A substring fallback (`slot_color in aug_type`) used to sit here and was
+    removed after a real-data audit of the full DDOBuilderV2 corpus (194 item
+    slot types x 168 augment types) found 34 false-positive pairs it let
+    through, e.g. a plain "Red" slot accepting the unrelated augment
+    "Incredible Potential" (because "red" is a substring of "incREDible"), a
+    plain "Green" slot accepting any Greensteel Weapon Tier augment, and
+    heroic-tier slots (e.g. "Alchemical Tier 1") accepting their Legendary-
+    tier counterparts ("Legendary Alchemical Tier 1") across a tier boundary
+    that should never cross. Every one of those 34 pairs was a bug, not a
+    legitimate match the substring rule was relied on for — of the 193 real
+    non-Colorless slot types, the 70 with no exact-match augment counterpart
+    at all (Cannith crafting prefix/suffix/extra, Set Bonus, Upgrade, Variant,
+    etc.) got zero matches under the substring rule too, confirming those
+    slot families are resolved through a different mechanism entirely, not
+    this general augment-fitting path."""
     slot_color = (slot_color or '').lower()
     aug_type = (aug_type or '').lower()
     if slot_color == 'colorless' and aug_type in STANDARD_AUGMENT_COLORS:
         return True
-    return aug_type == slot_color or slot_color in aug_type
+    return aug_type == slot_color
 
 
 def _clamp(v, lo, hi):
@@ -455,6 +538,14 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                     if a_type:
                         augments.append(a_type.strip())
 
+                # docs/HARD_REQUIRED_SLOTS_SPEC.md §1 — only meaningful for
+                # weapons; None/False for everything else, which is exactly
+                # what an unclassified weapon_type (e.g. Throwing Axe) also
+                # gets, so callers don't need to special-case "not a weapon"
+                # vs "a weapon type we deliberately don't classify".
+                damage_type = WEAPON_DAMAGE_TYPES.get((weapon_type or '').lower())
+                craftable_family = bool(weapon_type) and _is_craftable_family_weapon(name, drop_location)
+
                 items.append({
                     'name': name,
                     'file': os.path.basename(item_file),
@@ -465,7 +556,10 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                     'minor': is_minor,
                     'is_raid': item_is_raid,
                     'pack': item_pack,
-                    'ml': ml
+                    'ml': ml,
+                    'weapon_type': weapon_type,
+                    'damage_type': damage_type,
+                    'craftable_family': craftable_family,
                 })
         except Exception:
             pass
@@ -583,7 +677,19 @@ def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, 
                         except ValueError:
                             pass
 
-                if buffs:
+                # A pre-filled augment must never be dropped for having zero
+                # buffs that match the user's *current* stat_priorities — same
+                # rationale as the ML-floor and owned-names bypasses above:
+                # create_model's aggregate sum(y) == total_pre_filled_augments
+                # constraint expects every pre-filled augment to be findable by
+                # name in this list regardless of its buffs (pinning it only
+                # needs `name`/`type`, not `buffs` — see create_model's
+                # pre_filled_augments matching loop). Without this bypass, an
+                # augment whose only effects fall outside the current priority
+                # list (e.g. the user removed that stat from priorities after
+                # slotting it) would silently vanish here and turn a
+                # calculate-only solve infeasible.
+                if buffs or is_pre_filled:
                     augments.append({
                         'name': name,
                         'type': a_type.strip(),
@@ -996,9 +1102,30 @@ def build_ub_sources(items, sets, augments, filigrees, required_slots):
 
 def create_model(items, sets, augments, filigrees, entries, art_slots, required_slots,
                  raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
-                 pre_filled_filigrees=None, calculate_only=False):
+                 pre_filled_filigrees=None, calculate_only=False,
+                 weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False):
     """Build the PuLP model once (INV-5). Sets NO objective — every stage does
-    that itself via prob.setObjective()."""
+    that itself via prob.setObjective().
+
+    docs/HARD_REQUIRED_SLOTS_SPEC.md: `weapon1_eligible_types`/
+    `weapon2_eligible_types` (each a set/iterable of lowercase weapon_type
+    strings, e.g. {"longsword"} or the set of every Slashing weapon type for
+    a melee damage-type restriction) additionally restrict that slot's
+    candidate pool to those types + the five "craftable" weapon families,
+    falling back to types-only if that combination has zero candidates
+    (recorded as a note — see _restrict_weapon_slot_to_craftable_family).
+    Solver.py computes the actual type set per build_type/weapon_style (melee
+    damage-type selection, fixed per-style types for Ranged, a fixed
+    Longsword/Large-Shield pair for Tank, etc.) — create_model itself doesn't
+    know or care where the set came from. `require_weapon2` forces Weapon2 to
+    also always be filled (e.g. runearm_use, a caster weapon_style that needs
+    a second weapon, thrower off-hand Kama, or Tank's shield) — the pool
+    itself is expected to already be pre-filtered to the right item types via
+    allowed_w1_list/allowed_w2_list in parse_items, same as every other
+    weapon-style restriction; this parameter only adds the "must be exactly
+    one" guarantee on top. Weapon1 itself is unconditionally required
+    whenever it's a valid slot — this isn't gated by a parameter, it's a
+    standing invariant."""
     if pre_equipped is None:
         pre_equipped = {}
     if pre_filled_augments is None:
@@ -1020,6 +1147,51 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
                 x[(i, 'Ring_2')] = pulp.LpVariable(f"x_{i}_Ring_2", cat="Binary")
             else:
                 x[(i, slot)] = pulp.LpVariable(f"x_{i}_{slot}", cat="Binary")
+
+    hard_slot_notes = []
+
+    def _restrict_weapon_slot_to_craftable_family(slot, eligible_types):
+        """Zeroes out every slot candidate that isn't both (a) one of
+        eligible_types (lowercase weapon_type strings) and (b) from one of
+        the five craftable families — falling back to (a) alone if that
+        combination has zero candidates, and recording a note when it does.
+        The already-pre_equipped item for this slot (if any) is always
+        exempt — an existing saved gearset, possibly created before this
+        feature existed, must never be turned infeasible by a filter
+        introduced after the fact (same principle as every other
+        pre_equipped bypass in this codebase). No-op if eligible_types is
+        falsy or the slot isn't required."""
+        nonlocal prob
+        if not eligible_types or slot not in required_slots:
+            return
+        pre_equipped_name = (pre_equipped or {}).get(slot)
+        types = {t.strip().lower() for t in eligible_types}
+        slot_indices = [i for i, item in enumerate(items) if (i, slot) in x]
+
+        def _matches_type(i):
+            return (items[i].get('weapon_type') or '').lower() in types
+
+        candidates = [i for i in slot_indices if _matches_type(i) and items[i].get('craftable_family')]
+        if not candidates:
+            candidates = [i for i in slot_indices if _matches_type(i)]
+            types_desc = '/'.join(sorted(t.title() for t in types))
+            hard_slot_notes.append(
+                f"No {types_desc} weapon from the required craftable families "
+                f"(Dinosaur Bone, Undying Age, Legendary Green Steel, Viktranium "
+                f"Experiment crafting, Den of Vipers) was available for {slot} under "
+                f"the current filters — fell back to any {types_desc} weapon."
+            )
+
+        candidate_set = set(candidates)
+        for i in slot_indices:
+            if i in candidate_set:
+                continue
+            if pre_equipped_name and items[i]['name'] == pre_equipped_name:
+                continue
+            prob += x[(i, slot)] == 0
+
+    _restrict_weapon_slot_to_craftable_family('Weapon1', weapon1_eligible_types)
+    _restrict_weapon_slot_to_craftable_family('Weapon2', weapon2_eligible_types)
 
     if pre_equipped:
         for slot, eq_name in pre_equipped.items():
@@ -1145,6 +1317,26 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
     if minor_vars:
         prob += pulp.lpSum(minor_vars) == 1
 
+    # docs/HARD_REQUIRED_SLOTS_SPEC.md — Weapon1 must always be filled
+    # (unconditional whenever it's a valid slot at all — build-type-agnostic,
+    # unlike the eligible-types narrowing above, which is opt-in per
+    # build_type/weapon_style and computed by solver.py).
+    # Weapon2 is only forced when require_weapon2 is set (runearm_use, or a
+    # caster weapon_style that needs a second weapon); the item pool for
+    # Weapon2 is expected to already be narrowed to the right type upstream
+    # (allowed_w2_list in parse_items), same as the existing Weapon1/Weapon2
+    # weapon-style filtering — this constraint only adds "must be exactly
+    # one", it doesn't itself pick which weapon type qualifies.
+    if 'Weapon1' in required_slots:
+        weapon1_vars = [x[(i, 'Weapon1')] for i in range(len(items)) if (i, 'Weapon1') in x]
+        if weapon1_vars:
+            prob += pulp.lpSum(weapon1_vars) == 1, "Weapon1_Always_Required"
+
+    if require_weapon2 and 'Weapon2' in required_slots:
+        weapon2_vars = [x[(i, 'Weapon2')] for i in range(len(items)) if (i, 'Weapon2') in x]
+        if weapon2_vars:
+            prob += pulp.lpSum(weapon2_vars) == 1, "Weapon2_Required"
+
     # calculate_only is a strict reproduction of a saved/pre_equipped gearset,
     # not a search — the raid-item cap is a search-time preference, not a fact
     # about whether that gearset can exist. Enforcing it here means a gearset
@@ -1257,7 +1449,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
     for tier_map in weights.values():
         flat_weights.update(tier_map)
 
-    notes = []
+    notes = list(hard_slot_notes)
 
     if unmatched_pre_filled_augments:
         notes.append(
@@ -2405,7 +2597,8 @@ def _local_search_augments(item, augments, used_names, initial, evaluate, shortl
 
 def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, art_slots,
                      raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
-                     pre_filled_filigrees=None, mode="optimize", max_search_time=DEFAULT_SEARCH_TIME):
+                     pre_filled_filigrees=None, mode="optimize", max_search_time=DEFAULT_SEARCH_TIME,
+                     weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False):
     calculate_only = (mode == "calculate")
 
     # Required slots based on available items
@@ -2426,7 +2619,10 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
 
     model = create_model(items, sets, augments, filigrees, entries, art_slots, required_slots,
                          raid_item_limit, pre_equipped, pre_filled_augments,
-                         pre_filled_filigrees, calculate_only)
+                         pre_filled_filigrees, calculate_only,
+                         weapon1_eligible_types=weapon1_eligible_types,
+                         weapon2_eligible_types=weapon2_eligible_types,
+                         require_weapon2=require_weapon2)
 
     out_file.write(f"\n======================================\n")
     out_file.write(f"       RUNNING FOR MAX LEVEL {cap}\n")

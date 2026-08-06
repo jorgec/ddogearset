@@ -87,6 +87,7 @@ export namespace main {
 	    weapon_style: string;
 	    swashbuckling: boolean;
 	    offhand_style: string;
+	    weapon_damage_type?: string;
 	    caster_spellpowers: string[];
 	    caster_schools: string[];
 	    stat_priorities: StatPriorityEntry[];
@@ -123,6 +124,7 @@ export namespace main {
 	        this.weapon_style = source["weapon_style"];
 	        this.swashbuckling = source["swashbuckling"];
 	        this.offhand_style = source["offhand_style"];
+	        this.weapon_damage_type = source["weapon_damage_type"];
 	        this.caster_spellpowers = source["caster_spellpowers"];
 	        this.caster_schools = source["caster_schools"];
 	        this.stat_priorities = this.convertValues(source["stat_priorities"], StatPriorityEntry);
@@ -232,6 +234,7 @@ export namespace main {
 	    weapon_style: string;
 	    swashbuckling: boolean;
 	    offhand_style: string;
+	    weapon_damage_type?: string;
 	    caster_spellpowers: string[];
 	    caster_schools: string[];
 	    stat_priorities: StatPriorityEntry[];
@@ -264,6 +267,7 @@ export namespace main {
 	        this.weapon_style = source["weapon_style"];
 	        this.swashbuckling = source["swashbuckling"];
 	        this.offhand_style = source["offhand_style"];
+	        this.weapon_damage_type = source["weapon_damage_type"];
 	        this.caster_spellpowers = source["caster_spellpowers"];
 	        this.caster_schools = source["caster_schools"];
 	        this.stat_priorities = this.convertValues(source["stat_priorities"], StatPriorityEntry);

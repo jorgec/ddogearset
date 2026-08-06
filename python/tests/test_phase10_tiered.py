@@ -805,6 +805,266 @@ def test_ec29_composite_and_component_together_produce_a_note_not_a_rejection():
 
 
 # ---------------------------------------------------------------------------
+# docs/HARD_REQUIRED_SLOTS_SPEC.md — hard-required Weapon1/Weapon2
+# ---------------------------------------------------------------------------
+
+def make_weapon_item(name, slots, buffs, weapon_type, damage_type=None,
+                      craftable_family=False, **kw):
+    item = make_item(name, slots, buffs, **kw)
+    item['weapon_type'] = weapon_type
+    item['damage_type'] = damage_type
+    item['craftable_family'] = craftable_family
+    return item
+
+
+def test_weapon_damage_types_matches_authoritative_source():
+    # Spot-check against WeaponGroupings.xml's Slashing/Bludgeoning/Piercing
+    # groups (taken verbatim, not derived from DRBypass or Description text).
+    assert optimizer.WEAPON_DAMAGE_TYPES['longsword'] == 'Slashing'
+    assert optimizer.WEAPON_DAMAGE_TYPES['warhammer'] == 'Bludgeoning'
+    assert optimizer.WEAPON_DAMAGE_TYPES['rapier'] == 'Piercing'
+    # Throwing Axe/Dagger/Hammer are real melee-usable weapon types but are in
+    # none of the three WeaponGroupings.xml groups — deliberately unclassified.
+    assert 'throwing axe' not in optimizer.WEAPON_DAMAGE_TYPES
+    assert 'throwing dagger' not in optimizer.WEAPON_DAMAGE_TYPES
+    assert 'throwing hammer' not in optimizer.WEAPON_DAMAGE_TYPES
+
+
+def test_craftable_family_weapon_identification():
+    # Name-substring families.
+    assert optimizer._is_craftable_family_weapon("Dinosaur Bone Battle Axe", "") is True
+    assert optimizer._is_craftable_family_weapon("Quarterstaff of the Undying Age", "") is True
+    assert optimizer._is_craftable_family_weapon("Legendary Green Steel Quarterstaff", "") is True
+    # DropLocation-substring families (no reliable name pattern).
+    assert optimizer._is_craftable_family_weapon(
+        "Legendary Calamitous Warhammer",
+        "Viktranium Experiment crafting, Turn in 25 Legendary Bleak Alternators...") is True
+    assert optimizer._is_craftable_family_weapon(
+        "Some Weapon", "Den of Vipers, end reward") is True
+    # An ordinary weapon from neither name nor drop location.
+    assert optimizer._is_craftable_family_weapon("Ordinary Longsword", "Some Random Quest") is False
+
+
+def test_weapon1_always_required_even_with_no_priority_benefit():
+    # Two Weapon1 candidates, tied on the only priority — with nothing extra
+    # to gain by picking one over the other, a solver with no hard
+    # requirement could just as easily leave Weapon1 empty. It must not.
+    items = [
+        make_item("Plain Dagger", ["Weapon1"], [("melee power", "Enhancement", 1.0)]),
+        make_item("Other Dagger", ["Weapon1"], [("melee power", "Enhancement", 1.0)]),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries)
+    assert result["gearSet"].get("Weapon1"), "Weapon1 must never come back empty"
+
+
+def test_weapon1_restricted_to_eligible_types_and_craftable_family():
+    # The non-craftable Longsword scores far better on the priority — if the
+    # hard filter weren't zeroing out its x-variable, the solver would equip
+    # it every time. It must be excluded outright, forcing the far weaker
+    # craftable-family weapon into Weapon1 instead.
+    items = [
+        make_weapon_item("Ordinary Longsword", ["Weapon1"], [("melee power", "Enhancement", 50.0)],
+                         weapon_type="Longsword", damage_type="Slashing", craftable_family=False),
+        make_weapon_item("Dinosaur Bone Battle Axe", ["Weapon1"], [("melee power", "Enhancement", 1.0)],
+                         weapon_type="Battle Axe", damage_type="Slashing", craftable_family=True),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries, weapon1_eligible_types={"longsword", "battle axe"})
+    assert result["gearSet"]["Weapon1"] == "Dinosaur Bone Battle Axe"
+
+
+def test_weapon1_eligible_types_excludes_types_not_listed_even_in_family():
+    # A craftable-family weapon of a type NOT in weapon1_eligible_types must
+    # still be excluded — the type filter and the family filter both apply.
+    items = [
+        make_weapon_item("Dinosaur Bone Warhammer", ["Weapon1"], [("melee power", "Enhancement", 50.0)],
+                         weapon_type="Warhammer", damage_type="Bludgeoning", craftable_family=True),
+        make_weapon_item("Dinosaur Bone Battle Axe", ["Weapon1"], [("melee power", "Enhancement", 1.0)],
+                         weapon_type="Battle Axe", damage_type="Slashing", craftable_family=True),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries, weapon1_eligible_types={"battle axe"})
+    assert result["gearSet"]["Weapon1"] == "Dinosaur Bone Battle Axe"
+
+
+def test_weapon1_fallback_when_no_craftable_family_candidate_exists():
+    # Only a non-craftable Longsword is available — the family filter must
+    # fall back to "any weapon of an eligible type" rather than making the
+    # model infeasible, and must leave a note explaining it.
+    items = [
+        make_weapon_item("Ordinary Longsword", ["Weapon1"], [("melee power", "Enhancement", 50.0)],
+                         weapon_type="Longsword", damage_type="Slashing", craftable_family=False),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries, weapon1_eligible_types={"longsword"})
+    assert result["gearSet"]["Weapon1"] == "Ordinary Longsword"
+    notes = result["tierReport"]["notes"]
+    assert any("fell back to any Longsword weapon" in n for n in notes), notes
+
+
+def test_weapon1_fallback_not_triggered_when_family_candidate_exists():
+    items = [
+        make_weapon_item("Dinosaur Bone Battle Axe", ["Weapon1"], [("melee power", "Enhancement", 1.0)],
+                         weapon_type="Battle Axe", damage_type="Slashing", craftable_family=True),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries, weapon1_eligible_types={"battle axe"})
+    notes = result["tierReport"]["notes"]
+    assert not any("fell back" in n for n in notes), notes
+
+
+def test_weapon1_pre_equipped_exempt_from_eligible_types_filter():
+    # A saved gearset's pre-equipped Weapon1 must never be invalidated by a
+    # filter introduced after it was saved — same principle as every other
+    # pre_equipped bypass in this codebase.
+    items = [
+        make_weapon_item("Bludgeoning Club", ["Weapon1"], [("melee power", "Enhancement", 1.0)],
+                         weapon_type="Club", damage_type="Bludgeoning", craftable_family=False),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries, weapon1_eligible_types={"longsword"},
+                         pre_equipped={"Weapon1": "Bludgeoning Club"})
+    assert result["gearSet"]["Weapon1"] == "Bludgeoning Club"
+
+
+def test_weapon2_eligible_types_restricts_to_craftable_family_kama():
+    # Thrower off-hand: Weapon2 must specifically be a Kama, and still
+    # respects the craftable-family + highest-ML heuristic.
+    items = [
+        make_weapon_item("Ordinary Kama", ["Weapon2"], [("melee power", "Enhancement", 50.0)],
+                         weapon_type="Kama", damage_type="Slashing", craftable_family=False),
+        make_weapon_item("Dinosaur Bone Kama", ["Weapon2"], [("melee power", "Enhancement", 1.0)],
+                         weapon_type="Kama", damage_type="Slashing", craftable_family=True),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries, weapon2_eligible_types={"kama"}, require_weapon2=True)
+    assert result["gearSet"]["Weapon2"] == "Dinosaur Bone Kama"
+
+
+def test_weapon_types_for_damage_type_matches_weapon_damage_types():
+    slashing = optimizer.weapon_types_for_damage_type("Slashing")
+    assert "battle axe" in slashing
+    assert "longsword" in slashing
+    assert "warhammer" not in slashing
+    assert optimizer.weapon_types_for_damage_type("Bludgeoning") == {
+        w for w, d in optimizer.WEAPON_DAMAGE_TYPES.items() if d == "Bludgeoning"
+    }
+
+
+# ---------------------------------------------------------------------------
+# docs/HARD_REQUIRED_SLOTS_SPEC.md — Ranged/Tank addendum
+# ---------------------------------------------------------------------------
+
+def test_resolve_weapon_lists_bow_always_longbow_and_blocks_weapon2():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Ranged", "weapon_style": "Bow"})
+    assert w1_types == {"longbow"}
+    assert w2 == ["none"]
+    assert req2 is False
+
+
+def test_resolve_weapon_lists_repeating_crossbow_always_heavy():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Ranged", "weapon_style": "Repeating Crossbow"})
+    assert w1_types == {"repeating heavy crossbow"}
+
+
+def test_resolve_weapon_lists_great_crossbow():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Ranged", "weapon_style": "Great Crossbow"})
+    assert w1_types == {"great crossbow"}
+
+
+def test_resolve_weapon_lists_dual_crossbow_always_heavy():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Ranged", "weapon_style": "Dual Crossbow"})
+    assert w1_types == {"heavy crossbow"}
+
+
+def test_resolve_weapon_lists_crossbows_allow_runearm_only_when_checked():
+    for style in ("Repeating Crossbow", "Great Crossbow", "Dual Crossbow"):
+        w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+            {"build_type": "Ranged", "weapon_style": style, "runearm_use": True})
+        assert w2 == ["rune arm", "runearm"], style
+        assert req2 is True, style
+
+        w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+            {"build_type": "Ranged", "weapon_style": style, "runearm_use": False})
+        assert w2 == ["none"], style
+        assert req2 is False, style
+
+
+def test_resolve_weapon_lists_thrown_weapon2_is_always_kama():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Ranged", "weapon_style": "Thrown"})
+    assert w2 == ["kama"]
+    assert req2 is True
+    assert w2_types == {"kama"}
+    assert w1_types == {"throwing dagger", "throwing axe", "dart"}
+
+
+def test_resolve_weapon_lists_shuriken_weapon2_is_always_kama():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Ranged", "weapon_style": "Shuriken"})
+    assert w1_types == {"shuriken"}
+    assert w2 == ["kama"]
+    assert req2 is True
+    assert w2_types == {"kama"}
+
+
+def test_resolve_weapon_lists_tank_always_longsword_and_large_shield():
+    # Blanket override — regardless of whatever weapon_style is selected.
+    for style in ("Two Weapon Fighting", "Two Handed Fighting", "Sword and Board", "junk-value"):
+        w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+            {"build_type": "Tank", "weapon_style": style})
+        assert w1 == ["longsword"], style
+        assert w2 == ["large shield"], style
+        assert req2 is True, style
+        assert w1_types == {"longsword"}, style
+        assert w2_types == {"large shield"}, style
+
+
+def test_resolve_weapon_lists_melee_damage_type_narrows_within_weapon_style():
+    # Two Handed Fighting's own list spans both Slashing and Bludgeoning
+    # types — picking Bludgeoning must narrow to just the Bludgeoning subset.
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Melee", "weapon_style": "Two Handed Fighting", "weapon_damage_type": "Bludgeoning"})
+    assert w1_types == optimizer.weapon_types_for_damage_type("Bludgeoning")
+    assert "maul" in w1_types
+    assert "great axe" not in w1_types
+
+
+def test_resolve_weapon_lists_melee_no_damage_type_is_unrestricted():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Melee", "weapon_style": "Two Weapon Fighting"})
+    assert w1_types is None
+
+
+def test_weapon2_required_when_flag_set_even_with_no_priority_benefit():
+    # Two distinct items — a single item can't legitimately occupy both
+    # Weapon1 and Weapon2 at once (the model caps each item to one slot
+    # total), same as real main-hand + offhand gear.
+    items = [
+        make_item("Main Hand Weapon", ["Weapon1"], [("melee power", "Enhancement", 1.0)]),
+        make_item("Plain Runearm", ["Weapon2"], [("melee power", "Enhancement", 1.0)]),
+    ]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    result, _log = solve(items, entries, require_weapon2=True)
+    assert result["gearSet"].get("Weapon2"), "Weapon2 must be filled when require_weapon2 is set"
+
+
+def test_weapon2_not_forced_when_flag_unset():
+    # Without require_weapon2, create_model must not add the extra
+    # "sum(Weapon2) == 1" constraint.
+    items = [make_item("Plain Runearm", ["Weapon1", "Weapon2"], [])]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    model = optimizer.create_model(items, {}, [], [], entries, 4, ["Weapon1", "Weapon2"])
+    assert "Weapon2_Required" not in model.prob.constraints
+    assert "Weapon1_Always_Required" in model.prob.constraints
+
+
+# ---------------------------------------------------------------------------
 # §7 — alternatives
 # ---------------------------------------------------------------------------
 
@@ -1029,6 +1289,29 @@ def test_augment_fits_slot_rejects_special_family_augments_in_colorless():
     assert optimizer.augment_fits_slot('IoD: Weapon: Fang Slot', 'IoD: Weapon: Fang Slot') is True
 
 
+def test_augment_fits_slot_rejects_substring_false_positives():
+    # Regression: a substring fallback (`slot_color in aug_type`) used to sit
+    # under the exact-match check and let through real, confirmed-via-corpus
+    # false positives — none of these pairings are legitimate DDO rules, they
+    # were purely accidental string containment.
+    # "red" is a substring of "incREDible" — completely unrelated augment.
+    assert optimizer.augment_fits_slot('Incredible Potential', 'Red') is False
+    # A plain color slot must not accept an unrelated crafting system's augment
+    # just because its name contains the color word.
+    assert optimizer.augment_fits_slot('Greensteel Weapon Tier 1', 'Green') is False
+    # Heroic-tier slot must not accept its Legendary-tier counterpart augment —
+    # these are different, much stronger raid-locked items.
+    assert optimizer.augment_fits_slot('Legendary Alchemical Tier 1', 'Alchemical Tier 1') is False
+    assert optimizer.augment_fits_slot('Legendary Slavelords Extra', 'Slavelords Extra') is False
+    # A generic "Set Bonus" slot must not accept augments from unrelated named
+    # systems just because their type string contains "Set Bonus".
+    assert optimizer.augment_fits_slot('Legendary Slavelords Set Bonus', 'Set Bonus') is False
+    assert optimizer.augment_fits_slot('IoD: Set Bonus Slot', 'Set Bonus') is False
+    # A generic "Variant" slot must not accept an armor-type-specific Shadow
+    # variant meant only for a different armor weight.
+    assert optimizer.augment_fits_slot('Shadow Heavy Variant', 'Variant') is False
+
+
 def test_calculate_only_credits_pre_filled_augment_in_a_colorless_slot():
     item = make_item("Festive Hat", ["Helmet"], [], augments=["Colorless"])
     augments = [make_augment("+2 Festive Charisma", "Blue", [("Charisma", "Festive", 2.0)])]
@@ -1155,3 +1438,23 @@ def test_parse_augments_owned_names_filters_to_exact_matches():
         _DDOBUILDER_DATA_DIR, 34, ["Healing Amplification"], owned_names=owned)
     names = {a["name"] for a in augments}
     assert names == owned, f"expected exactly {owned}, got {names}"
+
+
+@_skip_without_real_data
+def test_parse_augments_never_drops_pre_filled_with_no_priority_matching_buffs():
+    # Regression: a pre-filled augment whose only effects fall outside the
+    # user's CURRENT stat_priorities (empty here, so nothing can match) used
+    # to be silently dropped from the pool entirely — breaking create_model's
+    # aggregate sum(y) == total_pre_filled_augments constraint and turning a
+    # calculate-only solve infeasible. It must still appear (with empty
+    # buffs) when pre-filled, and must NOT appear at all when it isn't.
+    name = "Solar Gem of Healing Amplification (Legendary)"
+
+    not_pre_filled = optimizer.parse_augments(_DDOBUILDER_DATA_DIR, 34, [])
+    assert name not in {a["name"] for a in not_pre_filled}
+
+    pre_filled = optimizer.parse_augments(
+        _DDOBUILDER_DATA_DIR, 34, [], pre_filled_augment_names=[name])
+    matches = [a for a in pre_filled if a["name"] == name]
+    assert len(matches) == 1, f"expected pre-filled augment to survive with empty buffs, got {matches}"
+    assert matches[0]["buffs"] == []

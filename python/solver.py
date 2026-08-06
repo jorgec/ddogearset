@@ -164,16 +164,52 @@ def normalize_mode(parsed_data):
 
 def resolve_weapon_lists(parsed_data):
     """Weapon-style filtering. Extracted so the alternatives path uses exactly
-    the same pool the main solve would."""
+    the same pool the main solve would.
+
+    Returns (w1_list, w2_list, require_weapon2, weapon1_eligible_types,
+    weapon2_eligible_types). `require_weapon2` is True for the cases scoped in
+    docs/HARD_REQUIRED_SLOTS_SPEC.md: Single Weapon Fighting with
+    offhand_style == 'Runearm', the caster 'Stick and Runearm'/'Dual
+    Caster'/'Stick and Orb' styles, any crossbow style with runearm_use
+    checked, Thrown/Shuriken (off-hand Kama), and Tank (shield). Everywhere
+    else, runearm_use is ignored outright — it no longer blends a runearm
+    into TWF/Sword and Board's Weapon2 pool as an optional extra, per
+    explicit instruction: those styles keep their normal offhand/second-
+    weapon and never touch a runearm.
+
+    `weapon1_eligible_types`/`weapon2_eligible_types` (each a set of
+    lowercase weapon_type strings, or None) feed create_model's craftable-
+    family + highest-ML restriction — see docs/HARD_REQUIRED_SLOTS_SPEC.md's
+    Ranged/Tank addendum. They narrow WITHIN whatever w1_list/w2_list already
+    allows; they don't by themselves grant a slot that w1_list/w2_list denies."""
+    build_type = parsed_data.get('build_type', 'Melee')
     weapon_style = parsed_data.get('weapon_style', 'Two Weapon Fighting')
     runearm_use = parsed_data.get('runearm_use', False)
+
+    weapon1_eligible_types = None
+    weapon2_eligible_types = None
+
+    # Tank: fixed Longsword + Large Shield, both from the craftable families,
+    # REGARDLESS of whatever weapon_style is selected — this is a blanket
+    # override, not one more weapon_style branch, per explicit instruction.
+    if build_type == 'Tank':
+        return (['longsword'], ['large shield'], True, {'longsword'}, {'large shield'})
 
     twf_weapons = ['dagger', 'kukri', 'rapier', 'scimitar', 'longsword', 'khopesh', 'handwraps', 'shortsword', 'kama', 'sickle', 'battle axe', 'hand axe', 'dwarven waraxe', 'bastard sword', 'heavy mace', 'light mace', 'morningstar', 'club', 'light pick', 'heavy pick', 'warhammer']
     thf_weapons = ['great sword', 'falchion', 'great axe', 'maul', 'quarterstaff', 'great club']
     swash_weapons = ['dagger', 'kukri', 'rapier', 'shortsword', 'hand axe', 'kama', 'sickle', 'light mace', 'light pick', 'heavy pick', 'throwing dagger', 'throwing axe', 'dart']
     shields = ['buckler', 'small shield', 'large shield', 'tower shield']
-    caster_1h = ['club', 'dagger', 'sickle', 'heavy mace', 'light mace', 'morningstar', 'scepter', 'shortsword']
+    # "Caster stick" = any one-handed weapon (docs/HARD_REQUIRED_SLOTS_SPEC.md
+    # §4) — the authoritative "One Handed" WeaponGroupings.xml group, same
+    # source as optimizer.WEAPON_DAMAGE_TYPES. The old hardcoded caster_1h
+    # list (club/dagger/sickle/heavy mace/light mace/morningstar/scepter/
+    # shortsword) was both too narrow (missing e.g. longsword, rapier, kukri,
+    # scimitar) and included "scepter", which isn't a real DDO weapon type at
+    # all and never matched anything.
+    caster_1h = sorted(optimizer.ONE_HANDED_WEAPON_TYPES)
     runearm_offhand = ['rune arm', 'runearm']
+
+    require_weapon2 = False
 
     if weapon_style == 'Two Handed Fighting':
         w1_list = thf_weapons
@@ -196,35 +232,64 @@ def resolve_weapon_lists(parsed_data):
                 w2_list = ['orb']
             elif offhand_style == 'Runearm':
                 w2_list = runearm_offhand
+                require_weapon2 = True
             else:
                 w2_list = ['none']
     elif weapon_style == 'Sword and Board':
         w1_list = twf_weapons
         w2_list = shields
     elif weapon_style == 'Bow':
+        # Bows always lock out Weapon2 entirely (explicit instruction) — and
+        # always specifically a Longbow, never a Shortbow.
         w1_list = ['longbow', 'shortbow']
         w2_list = ['none']
+        weapon1_eligible_types = {'longbow'}
     elif weapon_style == 'Repeating Crossbow':
         w1_list = ['repeating light crossbow', 'repeating heavy crossbow']
-        w2_list = ['none']
+        w2_list = runearm_offhand if runearm_use else ['none']
+        require_weapon2 = runearm_use
+        weapon1_eligible_types = {'repeating heavy crossbow'}
     elif weapon_style == 'Great Crossbow':
         w1_list = ['great crossbow']
-        w2_list = ['none']
+        w2_list = runearm_offhand if runearm_use else ['none']
+        require_weapon2 = runearm_use
+        weapon1_eligible_types = {'great crossbow'}
     elif weapon_style == 'Dual Crossbow':
+        # "Other crossbows" — always Heavy Crossbow, never Light Crossbow.
         w1_list = ['light crossbow', 'heavy crossbow']
-        w2_list = ['none']
+        w2_list = runearm_offhand if runearm_use else ['none']
+        require_weapon2 = runearm_use
+        weapon1_eligible_types = {'heavy crossbow'}
     elif weapon_style == 'Thrown':
+        # Throwers: Weapon1 stays whichever of the style's own ranged types
+        # scores best (no further narrowing beyond craftable-family/ML, since
+        # none of throwing dagger/axe/dart carry a DDOBuilderV2 damage-type
+        # classification anyway); Weapon2 is always specifically a Kama.
         w1_list = ['throwing dagger', 'throwing axe', 'dart']
-        w2_list = ['none']
+        w2_list = ['kama']
+        require_weapon2 = True
+        weapon1_eligible_types = set(w1_list)
+        weapon2_eligible_types = {'kama'}
     elif weapon_style == 'Shuriken':
         w1_list = ['shuriken']
-        w2_list = ['none']
+        w2_list = ['kama']
+        require_weapon2 = True
+        weapon1_eligible_types = {'shuriken'}
+        weapon2_eligible_types = {'kama'}
     elif weapon_style == 'Dual Caster':
+        # "Dual caster sticks" — both Weapon1 and Weapon2 required, both any
+        # one-handed weapon (docs/HARD_REQUIRED_SLOTS_SPEC.md §4).
         w1_list = caster_1h
         w2_list = caster_1h
+        require_weapon2 = True
     elif weapon_style == 'Stick and Orb':
         w1_list = caster_1h
         w2_list = ['orb']
+        require_weapon2 = True
+    elif weapon_style == 'Stick and Runearm':
+        w1_list = caster_1h
+        w2_list = runearm_offhand
+        require_weapon2 = True
     elif weapon_style == 'Quarterstaff':
         w1_list = ['quarterstaff']
         w2_list = ['none']
@@ -232,20 +297,16 @@ def resolve_weapon_lists(parsed_data):
         w1_list = twf_weapons
         w2_list = twf_weapons
 
-    # "if runearm use is checked, it should always allow runearms for
-    # single-handed weapons and crossbows."
-    single_handed_and_xbow_styles = [
-        'Two Weapon Fighting', 'Single Weapon Fighting', 'Sword and Board',
-        'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow',
-        'Thrown', 'Shuriken', 'Dual Caster', 'Stick and Orb'
-    ]
-    if runearm_use and weapon_style in single_handed_and_xbow_styles:
-        w2_list = list(w2_list)
-        for r_arm in runearm_offhand:
-            if r_arm not in w2_list:
-                w2_list.append(r_arm)
+    # Melee damage-type restriction (docs/HARD_REQUIRED_SLOTS_SPEC.md §1) —
+    # applies on top of whatever weapon_style already narrowed w1_list to
+    # (e.g. Two Handed Fighting's list spans both Slashing and Bludgeoning
+    # types; picking a damage type here correctly narrows within it).
+    if build_type == 'Melee':
+        weapon_damage_type = parsed_data.get('weapon_damage_type')
+        if weapon_damage_type:
+            weapon1_eligible_types = optimizer.weapon_types_for_damage_type(weapon_damage_type)
 
-    return w1_list, w2_list
+    return w1_list, w2_list, require_weapon2, weapon1_eligible_types, weapon2_eligible_types
 
 
 def derive_required_slots(items):
@@ -354,7 +415,12 @@ def main():
         priority_names = [e.stat for e in entries]
 
     armor_input = parsed_data.get('armor_restriction', '')
-    w1_list, w2_list = resolve_weapon_lists(parsed_data)
+    # docs/HARD_REQUIRED_SLOTS_SPEC.md — weapon1_eligible_types/
+    # weapon2_eligible_types are computed inside resolve_weapon_lists per
+    # build_type/weapon_style (melee damage-type selection, fixed per-style
+    # types for Ranged, a fixed Longsword/Large-Shield override for Tank).
+    w1_list, w2_list, require_weapon2, weapon1_eligible_types, weapon2_eligible_types = \
+        resolve_weapon_lists(parsed_data)
 
     allow_gomf = not parsed_data.get('exclude_gem_of_many_facets', False)
     art_slot_input = parsed_data.get('reserved_minor_artifact_slot', '')
@@ -420,6 +486,25 @@ def main():
         out_file.write(f"Raid Item Limit: {raid_item_limit}\n")
         for w in priority_warnings:
             out_file.write(f"WARNING: {w}\n")
+        # excluded_packs matching is exact-string against AdventurePack values
+        # derived from Quests.xml (see optimizer.parse_items) — a name that
+        # doesn't exactly match a real pack silently excludes nothing at all,
+        # which is exactly how GitHub issue jorgec/ddogearset#1 happened
+        # ("The Chill of Ravenloft" vs the real "Chill of Ravenloft", no
+        # "The" prefix). Surfaced via BOTH out_file (the saved-file/debug log)
+        # and print() — out_file alone is not enough: Go's RunOptimization
+        # only streams the subprocess's stdout (print()) into the Status
+        # Console in real time, it never reads gearset_output.txt, so a
+        # print()-less warning here would be invisible in the running app.
+        if excluded_packs:
+            real_packs = {info.get('AdventurePack') for info in quests_lookup.values() if info.get('AdventurePack')}
+            for p in excluded_packs:
+                if p not in real_packs:
+                    msg = (f"WARNING: excluded pack '{p}' does not exactly match any known "
+                           f"AdventurePack name — it will exclude nothing. Check for typos "
+                           f"or a missing/extra 'The' prefix.")
+                    out_file.write(msg + "\n")
+                    print(msg)
         out_file.write("\n")
 
         min_ml = cap - 6 if mode == "stat_search" else 29
@@ -493,7 +578,10 @@ def main():
         result = optimizer.run_optimization(
             items, sets, augments, filigrees, entries, out_file, cap, art_slots,
             raid_item_limit, pre_equipped, pre_filled_augments, pre_filled_filigrees,
-            mode, max_search_time)
+            mode, max_search_time,
+            weapon1_eligible_types=weapon1_eligible_types,
+            weapon2_eligible_types=weapon2_eligible_types,
+            require_weapon2=require_weapon2)
 
         if result and result.get('success') is not False:
             final_gearset = result

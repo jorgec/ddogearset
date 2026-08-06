@@ -371,6 +371,11 @@ type OptimizationPayload struct {
 	WeaponStyle                string              `json:"weapon_style"`
 	Swashbuckling              bool                `json:"swashbuckling"`
 	OffhandStyle               string              `json:"offhand_style"`
+	// WeaponDamageType (Slashing/Piercing/Bludgeoning) restricts the
+	// hard-required Weapon1 slot for Melee builds — see
+	// docs/HARD_REQUIRED_SLOTS_SPEC.md. Ignored for every other build_type;
+	// Ranged/Tank don't have a heuristic defined yet (deliberately deferred).
+	WeaponDamageType           string              `json:"weapon_damage_type,omitempty"`
 	CasterSpellpowers          []string            `json:"caster_spellpowers"`
 	CasterSchools              []string            `json:"caster_schools"`
 	StatPriorities             []StatPriorityEntry `json:"stat_priorities"`
