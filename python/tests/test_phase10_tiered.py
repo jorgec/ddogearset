@@ -750,6 +750,71 @@ def test_weapon_base_stats_bypass_the_substring_matcher():
         "CriticalMultiplier", "critical multiplier", "", ["critical multiplier"]) is None
 
 
+def test_normalize_stat_name_bonus_type_prefix_requires_matching_bonus_type():
+    # docs/CASTER_BONUS_TYPE_STATS_SPEC.md — "Sacred Spell Focus Mastery"
+    # must only match SpellFocusMastery buffs whose actual BonusType is
+    # Sacred, not Quality/Exceptional/etc.
+    priorities = ["Sacred Spell Focus Mastery"]
+    assert optimizer.normalize_stat_name(
+        "SpellFocusMastery", "", "", priorities, bonus_type="Sacred"
+    ) == "Sacred Spell Focus Mastery"
+    assert optimizer.normalize_stat_name(
+        "SpellFocusMastery", "", "", priorities, bonus_type="Quality"
+    ) is None
+
+
+def test_normalize_stat_name_bonus_type_prefix_two_priorities_route_correctly():
+    # Sacred and Quality variants coexist as separate priorities and each
+    # only credits its own bonus type — neither steals the other's buffs.
+    priorities = ["Sacred Spell Focus Mastery", "Quality Spell Focus Mastery"]
+    assert optimizer.normalize_stat_name(
+        "SpellFocusMastery", "", "", priorities, bonus_type="Sacred"
+    ) == "Sacred Spell Focus Mastery"
+    assert optimizer.normalize_stat_name(
+        "SpellFocusMastery", "", "", priorities, bonus_type="Quality"
+    ) == "Quality Spell Focus Mastery"
+    assert optimizer.normalize_stat_name(
+        "SpellFocusMastery", "", "", priorities, bonus_type="Exceptional"
+    ) is None
+
+
+def test_normalize_stat_name_unscoped_priority_still_matches_any_bonus_type():
+    # Backward compatibility: a priority with no recognized bonus-type prefix
+    # keeps matching regardless of the buff's actual bonus type, exactly as
+    # before this mechanism existed.
+    priorities = ["Spell Focus Mastery"]
+    for bt in ("Sacred", "Quality", "Exceptional", "Equipment", "Legendary", "Profane"):
+        assert optimizer.normalize_stat_name(
+            "SpellFocusMastery", "", "", priorities, bonus_type=bt
+        ) == "Spell Focus Mastery"
+
+
+def test_normalize_stat_name_profane_and_artifact_all_schools_spelldc():
+    priorities = ["Profane All Spelldc", "Artifact All Spelldc"]
+    assert optimizer.normalize_stat_name(
+        "SpellDC", "All", "", priorities, bonus_type="Profane"
+    ) == "Profane All Spelldc"
+    assert optimizer.normalize_stat_name(
+        "SpellDC", "All", "", priorities, bonus_type="Artifact"
+    ) == "Artifact All Spelldc"
+    # A Sacred-bonus All-Schools SpellDC source matches neither.
+    assert optimizer.normalize_stat_name(
+        "SpellDC", "All", "", priorities, bonus_type="Sacred"
+    ) is None
+
+
+def test_normalize_stat_name_reaper_bonus_type_not_a_recognized_prefix():
+    # Reaper is deliberately excluded from BONUS_TYPE_PREFIXES (a stacking
+    # bonus type, not a gear-farming target) — "Reaper Spell Focus Mastery"
+    # is therefore treated as an ordinary unscoped priority name (its whole
+    # text is searched for literally, matching nothing here) rather than a
+    # bonus-type-scoped one.
+    assert "reaper" not in optimizer.BONUS_TYPE_PREFIXES
+    required, rest = optimizer._split_bonus_type_prefix("reaper spell focus mastery")
+    assert required is None
+    assert rest == "reaper spell focus mastery"
+
+
 def test_ac49_weapon_base_sources_are_weapon1_only():
     wb = optimizer.WEAPON_BASE_BONUS_TYPE
     items = [

@@ -291,10 +291,35 @@ def normalize_stat_key(name):
     return strip_cap_suffix(name).casefold()
 
 
-def normalize_stat_name(typ, item, desc, priorities):
+# docs/CASTER_BONUS_TYPE_STATS_SPEC.md — recognized bonus-type qualifier
+# prefixes for Spell DC / Spell Focus Mastery priorities (e.g. "Sacred Spell
+# Focus Mastery", "Profane Spell DC"). Deliberately excludes Reaper (a
+# stacking bonus type, not a real gear-farming target) and the caster-
+# irrelevant bonus types (Armor, Competence, Deflection, Luck, Resistance,
+# etc.) — this is every bonus type actually observed on real SpellDC/
+# SpellFocusMastery sources in DDOBuilderV2, minus Reaper.
+BONUS_TYPE_PREFIXES = frozenset({
+    'sacred', 'quality', 'profane', 'artifact', 'insightful', 'exceptional',
+    'equipment', 'legendary', 'enhancement', 'fortune',
+})
+
+
+def _split_bonus_type_prefix(p_clean):
+    """'sacred spell focus mastery' -> ('sacred', 'spell focus mastery').
+    No recognized prefix -> (None, p_clean) unchanged, so every priority that
+    isn't bonus-type-qualified keeps matching any bonus type, exactly as
+    before this existed."""
+    first, _, rest = p_clean.partition(' ')
+    if first in BONUS_TYPE_PREFIXES and rest:
+        return first, rest
+    return None, p_clean
+
+
+def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
     typ = (typ or '').lower()
     item = (item or '').lower()
     desc = (desc or '').lower()
+    bonus_type = (bonus_type or '').strip().lower()
 
     if 'skill' in typ or 'skill' in item or 'skill' in desc:
         return None
@@ -303,7 +328,9 @@ def normalize_stat_name(typ, item, desc, priorities):
 
     for p in priorities:
         p_base = re.sub(r'\[\d+\]', '', p).strip()
-        p_clean = p_base.lower()
+        required_bonus, p_clean = _split_bonus_type_prefix(p_base.lower())
+        if required_bonus and required_bonus != bonus_type:
+            continue
         # Weapon combat properties are matched by exact element name in
         # parse_items (§15.2) and must never go through the substring heuristic.
         if p_clean in WEAPON_BASE_STATS:
@@ -521,7 +548,7 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                     b_val = buff_node.findtext('Value1')
                     b_bonus = buff_node.findtext('BonusType')
 
-                    stat = normalize_stat_name(b_type, b_item, b_desc, priorities)
+                    stat = normalize_stat_name(b_type, b_item, b_desc, priorities, bonus_type=b_bonus)
                     if stat and b_val and b_bonus:
                         try:
                             val = float(b_val)
@@ -606,7 +633,7 @@ def parse_sets(base_dir, priorities):
                         try:
                             val = float(b_val)
                             for t in b_types:
-                                stat = normalize_stat_name(t, b_item, "", priorities)
+                                stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
                                 if stat:
                                     set_bonuses[name][count].append((stat, b_bonus.strip(), val))
                         except ValueError:
@@ -681,7 +708,7 @@ def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, 
                         try:
                             val = float(b_val)
                             for t in b_types:
-                                stat = normalize_stat_name(t, b_item, "", priorities)
+                                stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
                                 if stat:
                                     buffs.append((stat, b_bonus.strip(), val))
                         except ValueError:
@@ -748,7 +775,7 @@ def parse_filigrees(base_dir, priorities):
                             try:
                                 val = float(b_val)
                                 for t in b_types:
-                                    stat = normalize_stat_name(t, b_item, "", priorities)
+                                    stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
                                     if stat:
                                         sets[name][count].append((stat, b_bonus.strip(), val))
                             except ValueError:
@@ -775,7 +802,7 @@ def parse_filigrees(base_dir, priorities):
                         try:
                             val = float(b_val)
                             for t in b_types:
-                                stat = normalize_stat_name(t, b_item, "", priorities)
+                                stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
                                 if stat:
                                     buffs.append((stat, b_bonus.strip(), val))
                         except ValueError:

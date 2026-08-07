@@ -7,6 +7,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.3.5] — 2026-08-08
+
+### Added
+
+- **Bonus-type-scoped caster DC / Spell Focus Mastery stats**
+  (`docs/CASTER_BONUS_TYPE_STATS_SPEC.md`). New general mechanism: a stat
+  priority name can now carry a recognized bonus-type prefix (e.g. `"Sacred
+  Spell Focus Mastery"`, `"Profane All Spelldc"`) that requires the matched
+  buff's actual DDO bonus type to agree, instead of crediting any bonus type
+  to a single merged stat — `normalize_stat_name` gained a `bonus_type`
+  parameter, threaded through from all five parse functions
+  (items/augments/sets/filigrees). Fully backward-compatible: a priority with
+  no recognized prefix keeps matching any bonus type exactly as before.
+  Recognizes every real bonus type confirmed on real Spell DC / Spell Focus
+  Mastery sources except Reaper (a stacking type, not a gear target):
+  Sacred, Quality, Profane, Artifact, Insightful, Exceptional, Equipment,
+  Legendary, Enhancement, Fortune. Also adds the previously-missing baseline
+  "Spell Focus Mastery" (any bonus type) taxonomy leaf.
+
 ## [0.3.4] — 2026-08-08
 
 ### Added

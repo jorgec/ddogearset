@@ -73,6 +73,23 @@ function elementLeaves(suffix: string): StatTaxonomyLeaf[] {
     }));
 }
 
+// docs/CASTER_BONUS_TYPE_STATS_SPEC.md — bonus types confirmed present on
+// real "All Schools" SpellDC sources (Solar/Lunar Gems, Lamordia Woeful
+// augments, Dinosaur Bone horns, etc.) and on real SpellFocusMastery item
+// buffs, respectively. Reaper is deliberately excluded everywhere (a
+// stacking bonus type tied to Reaper difficulty, not a gear-farming target,
+// same exclusion python/optimizer.py's BONUS_TYPE_PREFIXES makes). Each list
+// is scoped to only the bonus types actually observed for that stat, so no
+// leaf here can ever match zero real sources.
+const SPELL_DC_ALL_SCHOOLS_BONUS_TYPES = [
+    'Sacred', 'Quality', 'Profane', 'Artifact', 'Insightful', 'Exceptional',
+    'Equipment', 'Enhancement', 'Fortune',
+];
+const SPELL_FOCUS_MASTERY_BONUS_TYPES = [
+    'Sacred', 'Quality', 'Profane', 'Insightful', 'Exceptional', 'Equipment',
+    'Legendary',
+];
+
 export const STAT_TAXONOMY: StatTaxonomyCategory[] = [
     {
         label: 'Spell Schools (Spell DC)',
@@ -82,6 +99,26 @@ export const STAT_TAXONOMY: StatTaxonomyCategory[] = [
                 stat: `${school.toLowerCase()} spelldc`,
             })),
             { label: 'All Schools (Universal)', stat: 'all spelldc' },
+            {
+                label: 'All Schools, by Bonus Type',
+                children: SPELL_DC_ALL_SCHOOLS_BONUS_TYPES.map((bt) => ({
+                    label: bt,
+                    stat: `${bt.toLowerCase()} all spelldc`,
+                })),
+            },
+        ],
+    },
+    {
+        label: 'Spell Focus Mastery',
+        children: [
+            { label: 'Any Bonus Type (Universal)', stat: 'spell focus mastery' },
+            {
+                label: 'By Bonus Type',
+                children: SPELL_FOCUS_MASTERY_BONUS_TYPES.map((bt) => ({
+                    label: bt,
+                    stat: `${bt.toLowerCase()} spell focus mastery`,
+                })),
+            },
         ],
     },
     {
