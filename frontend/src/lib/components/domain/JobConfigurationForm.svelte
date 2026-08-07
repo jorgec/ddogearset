@@ -150,18 +150,30 @@
     $configStore.max_level = parseInt(target.value) || 34;
   }
 
-  // docs/HARD_REQUIRED_SLOTS_SPEC.md §4 — the four caster weapon styles:
-  // Dual Caster (both Weapon1/Weapon2 required, both one-handed), Stick and
-  // Orb (Weapon1 one-handed + Weapon2 orb, both required), Stick and Runearm
-  // (Weapon1 one-handed + Weapon2 runearm, both required), Quarterstaff
-  // (two-handed, Weapon2 blocked). These are real weapon_style values the
-  // backend already understands (python/solver.py's resolve_weapon_lists) —
-  // unlike the old forced 'None', which gave casters no Weapon2 slot at all.
-  const CASTER_WEAPON_STYLES = ['Dual Caster', 'Stick and Orb', 'Stick and Runearm', 'Quarterstaff'];
+  // docs/HARD_REQUIRED_SLOTS_SPEC.md §4 — the caster weapon styles: Dual
+  // Caster (both Weapon1/Weapon2 required, both one-handed), Stick and Orb
+  // (Weapon1 one-handed + Weapon2 orb, both required), Stick and Runearm
+  // (Weapon1 one-handed + Weapon2 runearm, both required), Crossbow and
+  // Runearm (same as Stick and Runearm but Weapon1 is any crossbow type
+  // instead of one-handed), Quarterstaff (two-handed, Weapon2 blocked).
+  // These are real weapon_style values the backend already understands
+  // (python/solver.py's resolve_weapon_lists) — unlike the old forced
+  // 'None', which gave casters no Weapon2 slot at all.
+  const CASTER_WEAPON_STYLES = ['Dual Caster', 'Stick and Orb', 'Stick and Runearm', 'Crossbow and Runearm', 'Quarterstaff'];
+  const MELEE_WEAPON_STYLES = ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board', 'Single Handed Weapon and Runearm'];
+
+  // Styles whose Weapon2 is unconditionally a runearm — runearm_use is
+  // auto-checked when one of these is selected so the UI reflects reality
+  // (the backend doesn't read runearm_use for these styles at all; it's a
+  // pure display/consistency nicety, not something that changes behavior).
+  const RUNEARM_LOCKED_STYLES = ['Stick and Runearm', 'Crossbow and Runearm', 'Single Handed Weapon and Runearm'];
+  $: if (RUNEARM_LOCKED_STYLES.includes($configStore.weapon_style) && !$configStore.runearm_use) {
+    $configStore.runearm_use = true;
+  }
 
   $: {
     if ($configStore.build_type === 'Melee' || $configStore.build_type === 'Tank') {
-      if (!['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'].includes($configStore.weapon_style)) {
+      if (!MELEE_WEAPON_STYLES.includes($configStore.weapon_style)) {
         $configStore.weapon_style = 'Two Weapon Fighting';
       }
     } else if ($configStore.build_type === 'Ranged') {
@@ -184,7 +196,7 @@
 
   $: weaponStyles = $configStore.build_type === 'Ranged' ? ['Bow', 'Repeating Crossbow', 'Great Crossbow', 'Dual Crossbow', 'Thrown', 'Shuriken'] :
                     $configStore.build_type === 'Caster' ? CASTER_WEAPON_STYLES :
-                    ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board'];
+                    MELEE_WEAPON_STYLES;
 
   // Collapsed-state digests
   $: artifactSummary = `Reserved: ${$configStore.reserved_minor_artifact_slot || 'Any'} · ${$configStore.minor_artifact_filigree_slots ?? 0} filigree slots`;

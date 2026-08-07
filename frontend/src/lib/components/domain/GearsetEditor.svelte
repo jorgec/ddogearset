@@ -3,8 +3,13 @@
   import { GetAvailableItems, GetItemDetails, RunOptimization, GetAvailableFiligrees } from '../../../../wailsjs/go/main/App';
   import type { models, main } from '../../../../wailsjs/go/models';
   import ItemDetail from './ItemDetail.svelte';
+  import SlotAlternatives from './SlotAlternatives.svelte';
 
   const baseSlots = ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring_1', 'Ring_2', 'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2'];
+
+  // docs/SLOT_ALTERNATIVES_UI_SPEC.md — the slot currently showing the
+  // alternatives drawer, or null when closed.
+  let alternativesSlot: string | null = null;
 
   let selectedSlot: string | null = null;
   let availableItems: models.XMLItem[] = [];
@@ -301,12 +306,18 @@
                       <button class="flex-1 text-left px-4 font-mono text-primary truncate hover:underline" on:click={() => handleItemClick(slot, $resultStore.gearSet[slot])}>
                           {$resultStore.gearSet[slot]}
                       </button>
+                      <button on:click={() => alternativesSlot = slot} class="text-muted-foreground hover:text-primary p-1" title="Find alternatives for this slot">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
                       <button on:click={() => clearSlot(slot)} class="text-muted-foreground hover:text-destructive p-1">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                       </button>
                   {:else}
                       <button class="flex-1 text-left px-4 text-muted-foreground italic hover:text-primary" on:click={() => handleSlotClick(slot)}>
                           Empty Slot (Click to add)
+                      </button>
+                      <button on:click={() => alternativesSlot = slot} class="text-muted-foreground hover:text-primary p-1" title="Find alternatives for this slot">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                       </button>
                   {/if}
               </div>
@@ -360,3 +371,8 @@
       {/if}
   </div>
 </div>
+
+{#if alternativesSlot}
+  {@const currentAlternativesSlot = alternativesSlot}
+  <SlotAlternatives targetSlot={currentAlternativesSlot} onClose={() => alternativesSlot = null} />
+{/if}

@@ -7,7 +7,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [0.3.2] — 2026-08-08
+## [0.3.3] — 2026-08-08
+
+### Added
+
+- **Per-slot "Find Alternatives" drawer in the Gearset Editor** (`SlotAlternatives.svelte`,
+  `docs/SLOT_ALTERNATIVES_UI_SPEC.md`). A new gear icon on every equipment slot row
+  (filled or empty) opens a ranked list of 3–10 substitute items for that slot only,
+  computed by an existing backend RPC (`GetSlotAlternatives`) that had never actually
+  been called from the frontend until now. Respects the Trove owned-items restriction
+  automatically. Equipping a suggestion requires an explicit confirm step, applies its
+  precomputed augments/filigrees, and leaves a one-click "Restore" action to bring back
+  what was replaced. (Note: this RPC is enumeration-based, not an ILP solve, so the
+  global search-time setting doesn't apply to it — nothing to configure.)
+- **Two new weapon styles carrying a required runearm.** Caster gained "Crossbow and
+  Runearm" (any crossbow type at Weapon1, exclusively a runearm at Weapon2 — same
+  mechanism as the existing "Stick and Runearm"); Melee gained "Single Handed Weapon
+  and Runearm" (Weapon1 uses the exact same selection criteria — damage type +
+  craftable-family + fallback — as every other melee style, restricted to one-handed
+  weapon types; Weapon2 exclusively a runearm). Selecting either auto-checks the
+  `runearm_use` checkbox for display consistency (cosmetic only — the backend never
+  reads that flag for these styles). No weapon-type bias was implemented for either
+  addition — considered, explicitly declined.
 
 ### Fixed
 

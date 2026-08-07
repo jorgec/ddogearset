@@ -69,6 +69,18 @@ carrying multiple worthwhile augment slots:
    Summary UI and persisted in the saved `.ddogearset` file — the user must be able to
    see after the fact that the craftable-family requirement was relaxed and why.
 
+### Single Handed Weapon and Runearm (added in a follow-up pass)
+
+A fifth melee `weapon_style`, alongside TWF/THF/SWF/Sword and Board: Weapon1 uses the
+exact same selection criteria as every other melee style above (the `weapon_damage_type`
++ craftable-family + fallback mechanism is gated on `build_type == 'Melee'`, not on
+`weapon_style`, so it applies automatically), restricted to one-handed weapon types
+(`optimizer.ONE_HANDED_WEAPON_TYPES`, same authoritative source as the caster "stick"
+styles). Weapon2 is required and exclusively a runearm — auto-checks `runearm_use` in
+the UI for the same cosmetic-only reason as the caster runearm styles above. No bias
+toward any particular one-handed weapon type was implemented (considered and explicitly
+declined).
+
 ## 2. Weapon2 / Runearm (hard-required, conditional)
 
 When `runearm_use` is checked, Weapon2 must be filled with the best-scoring available
@@ -116,6 +128,15 @@ casters at all. Replace this with four real caster-specific `weapon_style` optio
   rather than conditional on a separate `runearm_use` checkbox).
 - **Quarterstaff** — Weapon1 = Quarterstaff (two-handed, required); Weapon2 slot is
   blocked and must not be slotted (same as how THF works for melee today).
+- **Crossbow and runearm** (added in a follow-up pass) — same mechanism as "Caster
+  stick + runearm" above, just with Weapon1 being any crossbow type (light/heavy/
+  repeating light/repeating heavy/great — no further narrowing to one specific type,
+  unlike the Ranged crossbow styles in §5) instead of a one-handed weapon.
+
+Selecting "Caster stick + runearm" or "Crossbow and runearm" auto-checks the
+`runearm_use` UI checkbox (`JobConfigurationForm.svelte`) so the display matches
+reality — purely cosmetic, since the backend never reads `runearm_use` for these
+styles at all; Weapon2 is unconditionally a runearm regardless of that checkbox.
 
 Rationale (from the original ask): two one-handed caster weapons (e.g. Dinosaur Bone,
 Lamordian, or other multi-slot crafted one-handers) can carry Meltfang (Alchemical

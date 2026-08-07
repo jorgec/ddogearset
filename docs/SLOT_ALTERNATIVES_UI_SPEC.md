@@ -1,6 +1,12 @@
 # Spec — Per-Slot "Find Alternatives" Icon in Gearset Editor
 
-**Status:** Spec only, not yet implemented.
+**Status:** Implemented (`SlotAlternatives.svelte`, wired into `GearsetEditor.svelte`).
+Verified end-to-end against a real saved gearset (10 ranked alternatives returned with
+stat deltas) — see the "Decisions" section below for what shipped exactly as specified.
+One implementation-time gotcha worth recording: the drawer component's slot-name prop
+could NOT be called `slot` — that's a reserved Svelte attribute for named-slot content
+projection, and `slot={...}` on a component is silently swallowed by the compiler
+instead of reaching a prop of that name. Named `targetSlot` instead.
 
 ## Goal
 

@@ -1041,6 +1041,42 @@ def test_resolve_weapon_lists_melee_no_damage_type_is_unrestricted():
     assert w1_types is None
 
 
+def test_resolve_weapon_lists_caster_crossbow_and_runearm():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Caster", "weapon_style": "Crossbow and Runearm"})
+    assert set(w1) == {'light crossbow', 'heavy crossbow', 'repeating light crossbow',
+                       'repeating heavy crossbow', 'great crossbow'}
+    assert w2 == ['rune arm', 'runearm']
+    assert req2 is True
+    # No further narrowing to one specific crossbow type — any crossbow type
+    # is eligible, unlike the Ranged crossbow styles.
+    assert w1_types is None
+
+
+def test_resolve_weapon_lists_melee_single_handed_weapon_and_runearm():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Melee", "weapon_style": "Single Handed Weapon and Runearm"})
+    assert set(w1) == optimizer.ONE_HANDED_WEAPON_TYPES
+    assert w2 == ['rune arm', 'runearm']
+    assert req2 is True
+    # No weapon_damage_type set — unrestricted, same as any other melee style.
+    assert w1_types is None
+
+
+def test_resolve_weapon_lists_melee_single_handed_weapon_and_runearm_respects_damage_type():
+    # The weapon_damage_type override is gated on build_type == 'Melee', not
+    # on weapon_style, so it applies to this new style automatically — no
+    # special-casing needed in the style branch itself.
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists({
+        "build_type": "Melee",
+        "weapon_style": "Single Handed Weapon and Runearm",
+        "weapon_damage_type": "Piercing",
+    })
+    assert w1_types == optimizer.weapon_types_for_damage_type("Piercing")
+    assert w2 == ['rune arm', 'runearm']
+    assert req2 is True
+
+
 def test_weapon2_required_when_flag_set_even_with_no_priority_benefit():
     # Two distinct items — a single item can't legitimately occupy both
     # Weapon1 and Weapon2 at once (the model caps each item to one slot

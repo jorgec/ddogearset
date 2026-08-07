@@ -290,6 +290,28 @@ def resolve_weapon_lists(parsed_data):
         w1_list = caster_1h
         w2_list = runearm_offhand
         require_weapon2 = True
+    elif weapon_style == 'Crossbow and Runearm':
+        # Same mechanism as Stick and Runearm — Weapon1 required, Weapon2
+        # required and exclusively a runearm — just with Weapon1 being any
+        # crossbow type instead of a one-handed "caster stick". No further
+        # narrowing to one specific crossbow type (unlike the Ranged crossbow
+        # styles below): explicit instruction, matches how Dual Caster/Stick
+        # and Orb already allow their full respective type sets rather than
+        # one specific weapon.
+        w1_list = ['light crossbow', 'heavy crossbow', 'repeating light crossbow',
+                   'repeating heavy crossbow', 'great crossbow']
+        w2_list = runearm_offhand
+        require_weapon2 = True
+    elif weapon_style == 'Single Handed Weapon and Runearm':
+        # Melee equivalent of Stick and Runearm — Weapon1 uses the same
+        # selection criteria as every other melee style (the
+        # weapon_damage_type + craftable-family + fallback override below
+        # still applies, since it's gated on build_type == 'Melee', not on
+        # weapon_style), restricted to one-handed weapon types; Weapon2 is
+        # required and exclusively a runearm.
+        w1_list = caster_1h  # == sorted(optimizer.ONE_HANDED_WEAPON_TYPES)
+        w2_list = runearm_offhand
+        require_weapon2 = True
     elif weapon_style == 'Quarterstaff':
         w1_list = ['quarterstaff']
         w2_list = ['none']
