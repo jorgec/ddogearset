@@ -48,7 +48,7 @@ var defaultStatSets []byte
 // anywhere in this codebase) — this MUST be kept in sync by hand with
 // wails.json's "version"/"productVersion" on every version bump. There is no
 // automated check for drift between the two.
-const AppVersion = "0.3.3"
+const AppVersion = "0.3.4"
 
 // GetAppVersion returns the running app's release version (see AppVersion).
 func (a *App) GetAppVersion() string {
@@ -383,36 +383,45 @@ type StatPriorityEntry struct {
 }
 
 type OptimizationPayload struct {
-	GearsetName                string              `json:"gearset_name"`
-	MaxLevel                   int                 `json:"max_level"`
-	BuildType                  string              `json:"build_type"`
-	WeaponStyle                string              `json:"weapon_style"`
-	Swashbuckling              bool                `json:"swashbuckling"`
-	OffhandStyle               string              `json:"offhand_style"`
+	GearsetName   string `json:"gearset_name"`
+	MaxLevel      int    `json:"max_level"`
+	BuildType     string `json:"build_type"`
+	WeaponStyle   string `json:"weapon_style"`
+	Swashbuckling bool   `json:"swashbuckling"`
+	OffhandStyle  string `json:"offhand_style"`
 	// WeaponDamageType (Slashing/Piercing/Bludgeoning) restricts the
 	// hard-required Weapon1 slot for Melee builds — see
 	// docs/HARD_REQUIRED_SLOTS_SPEC.md. Ignored for every other build_type;
 	// Ranged/Tank don't have a heuristic defined yet (deliberately deferred).
-	WeaponDamageType           string              `json:"weapon_damage_type,omitempty"`
-	CasterSpellpowers          []string            `json:"caster_spellpowers"`
-	CasterSchools              []string            `json:"caster_schools"`
-	StatPriorities             []StatPriorityEntry `json:"stat_priorities"`
-	ArmorRestriction           string              `json:"armor_restriction"`
-	ReservedMinorArtifactSlot  string              `json:"reserved_minor_artifact_slot"`
-	MinorArtifactFiligreeSlots int                 `json:"minor_artifact_filigree_slots"`
-	ExcludeGemOfManyFacets     bool                `json:"exclude_gem_of_many_facets"`
-	RunearmUse                 bool                `json:"runearm_use"`
-	ExcludedPacks              []string            `json:"excluded_packs"`
+	WeaponDamageType string `json:"weapon_damage_type,omitempty"`
+	// CasterRestrictWeaponFamilies gates the craftable-family restriction on
+	// caster Weapon1 (all styles) and Weapon2 (Dual Caster only) — see
+	// docs/CASTER_WEAPON_SELECTION_SPEC.md. Deliberately NOT `omitempty`: the
+	// Go zero-value (false) means "opted out," which must be distinguishable
+	// on the wire from "field absent" (an old saved file, which solver.py
+	// defaults to true — the new intended behavior — via parsed_data.get's
+	// own default, not this struct's zero-value). Ignored for non-Caster
+	// build_type.
+	CasterRestrictWeaponFamilies bool                `json:"caster_restrict_weapon_families"`
+	CasterSpellpowers            []string            `json:"caster_spellpowers"`
+	CasterSchools                []string            `json:"caster_schools"`
+	StatPriorities               []StatPriorityEntry `json:"stat_priorities"`
+	ArmorRestriction             string              `json:"armor_restriction"`
+	ReservedMinorArtifactSlot    string              `json:"reserved_minor_artifact_slot"`
+	MinorArtifactFiligreeSlots   int                 `json:"minor_artifact_filigree_slots"`
+	ExcludeGemOfManyFacets       bool                `json:"exclude_gem_of_many_facets"`
+	RunearmUse                   bool                `json:"runearm_use"`
+	ExcludedPacks                []string            `json:"excluded_packs"`
 	// OwnedItemNames restricts item/augment selection to exact-name matches
 	// against this set (see docs/TROVE_INVENTORY_IMPORT_SPEC.md and
 	// LoadTroveInventory). Empty/absent means unrestricted — this is an
 	// opt-in filter, not a standing mode, so nobody who hasn't loaded a
 	// Trove export gets an accidentally-empty item pool.
-	OwnedItemNames             []string            `json:"owned_item_names,omitempty"`
-	RaidItemLimit              int                 `json:"raid_item_limit"`
-	IsDinoArtifact             bool                `json:"is_dino_artifact"`
-	OutputFilename             string              `json:"output_filename"`
-	PreEquipped                map[string]string   `json:"pre_equipped"`
+	OwnedItemNames []string          `json:"owned_item_names,omitempty"`
+	RaidItemLimit  int               `json:"raid_item_limit"`
+	IsDinoArtifact bool              `json:"is_dino_artifact"`
+	OutputFilename string            `json:"output_filename"`
+	PreEquipped    map[string]string `json:"pre_equipped"`
 	// Keyed by slot -> augment color/type -> augment name (e.g. {"Weapon1": {"Green": "..."}}).
 	// interface{} rather than a fixed map type so older saved gearsets that stored this
 	// as a plain array of names per slot still deserialize without error; python/solver.py

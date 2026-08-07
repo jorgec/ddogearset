@@ -147,6 +147,17 @@
     </div>
   </div>
 
+  <div class="space-y-2">
+    <label class="flex items-center space-x-2 text-sm cursor-pointer">
+      <input
+        type="checkbox"
+        bind:checked={$configStore.caster_restrict_weapon_families}
+        class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+      />
+      <span class="text-foreground">Restrict to craftable-family weapons (Dinosaur Bone, Undying Age, Green Steel, Calamitous, Den of Vipers, Defiled Reliquary)</span>
+    </label>
+  </div>
+
   <button
     type="button"
     on:click={apply}

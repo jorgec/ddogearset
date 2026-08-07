@@ -7,6 +7,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.3.4] — 2026-08-08
+
+### Added
+
+- **Caster craftable-family weapon restriction** (`docs/CASTER_WEAPON_SELECTION_SPEC.md`).
+  Weapon1 for every caster style (and Weapon2 for Dual Caster) is now restricted to
+  the six known craftable weapon families — Dinosaur Bone, Undying Age, Legendary
+  Green Steel, Calamitous (Viktranium Experiment crafting), Den of Vipers, and the
+  newly-tracked Defiled Reliquary — with automatic fallback to any type-matching
+  weapon if no family candidate exists. No hardcoded element-to-weapon table: the
+  existing tiered stat-priority solver naturally surfaces the best real weapon
+  (e.g. Calamitous/Defiled Reliquary items) from the narrowed pool. Gated behind a
+  new opt-out checkbox in Caster Configuration, checked by default.
+- **Colorless-slot augment detection fix**: Colorless slots no longer accept
+  standard elemental/celestial-colored augments (a prior bug); they now correctly
+  require either a literal Colorless augment type or a name match against the
+  Diamond/Set Augment/Globe/etc. pattern DDOBuilderV2 mistypes as a standard color.
+- **New caster weapon style: "Two-Handed Weapon"**, separate from the existing
+  literal `Quarterstaff` style. Covers the broader two-handed pool (great sword,
+  falchion, great axe, maul, great club, quarterstaff, and all crossbow types used
+  without a runearm) so items like Arctica, the Mystic Cold (great axe) and
+  Caustica, the Volley of Pain (crossbow) are reachable by the solver. Caster-only —
+  does not affect Melee's Two Handed Fighting or Ranged's crossbow styles.
+
 ## [0.3.3] — 2026-08-08
 
 ### Added

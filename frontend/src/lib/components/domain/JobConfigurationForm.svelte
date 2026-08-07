@@ -155,11 +155,15 @@
   // (Weapon1 one-handed + Weapon2 orb, both required), Stick and Runearm
   // (Weapon1 one-handed + Weapon2 runearm, both required), Crossbow and
   // Runearm (same as Stick and Runearm but Weapon1 is any crossbow type
-  // instead of one-handed), Quarterstaff (two-handed, Weapon2 blocked).
-  // These are real weapon_style values the backend already understands
-  // (python/solver.py's resolve_weapon_lists) — unlike the old forced
-  // 'None', which gave casters no Weapon2 slot at all.
-  const CASTER_WEAPON_STYLES = ['Dual Caster', 'Stick and Orb', 'Stick and Runearm', 'Crossbow and Runearm', 'Quarterstaff'];
+  // instead of one-handed), Quarterstaff (locked to literal quarterstaff,
+  // Weapon2 blocked), Two-Handed Weapon (docs/CASTER_WEAPON_SELECTION_SPEC.md
+  // — broader two-handed pool: great sword/falchion/great axe/maul/great
+  // club/quarterstaff plus all crossbow types with no runearm, Weapon2
+  // blocked; covers items like Arctica/Caustica that Quarterstaff alone
+  // couldn't reach). These are real weapon_style values the backend already
+  // understands (python/solver.py's resolve_weapon_lists) — unlike the old
+  // forced 'None', which gave casters no Weapon2 slot at all.
+  const CASTER_WEAPON_STYLES = ['Dual Caster', 'Stick and Orb', 'Stick and Runearm', 'Crossbow and Runearm', 'Quarterstaff', 'Two-Handed Weapon'];
   const MELEE_WEAPON_STYLES = ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board', 'Single Handed Weapon and Runearm'];
 
   // Styles whose Weapon2 is unconditionally a runearm — runearm_use is

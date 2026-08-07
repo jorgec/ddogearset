@@ -315,6 +315,21 @@ def resolve_weapon_lists(parsed_data):
     elif weapon_style == 'Quarterstaff':
         w1_list = ['quarterstaff']
         w2_list = ['none']
+    elif weapon_style == 'Two-Handed Weapon':
+        # Caster-only broader two-handed pool, separate from 'Quarterstaff'
+        # (which stays locked to literal quarterstaff for players who want
+        # that specifically). Covers weapons like Arctica, the Mystic Cold
+        # (great axe) and Caustica, the Volley of Pain (crossbow, usable
+        # two-handed without a runearm) that carry real caster stats but were
+        # previously unreachable by any caster style. Includes crossbow types
+        # by explicit instruction — caster-only, does not touch the Ranged
+        # crossbow styles (Repeating Crossbow/Great Crossbow/Dual Crossbow)
+        # or Melee's Two Handed Fighting, which keep their own separate
+        # w1_list definitions above untouched.
+        w1_list = thf_weapons + ['light crossbow', 'heavy crossbow',
+                                  'repeating light crossbow',
+                                  'repeating heavy crossbow', 'great crossbow']
+        w2_list = ['none']
     else:
         w1_list = twf_weapons
         w2_list = twf_weapons
@@ -327,6 +342,21 @@ def resolve_weapon_lists(parsed_data):
         weapon_damage_type = parsed_data.get('weapon_damage_type')
         if weapon_damage_type:
             weapon1_eligible_types = optimizer.weapon_types_for_damage_type(weapon_damage_type)
+
+    # Caster craftable-family restriction (docs/CASTER_WEAPON_SELECTION_SPEC.md)
+    # — opt-out toggle, default True (even for old saved files predating this
+    # field, per .get's own default: that's the new intended default, not a
+    # preserved-old-behavior fallback). Reuses create_model's existing
+    # type-match-AND-craftable-family (with fallback to type-match-only)
+    # mechanism by simply passing the full w1_list/w2_list as the eligible-
+    # types set — no new restriction code needed, same function Melee/Ranged/
+    # Tank already use. Applies to Weapon1 for every caster style; Weapon2
+    # only for Dual Caster (also a "caster stick") — Orb/Runearm slots are
+    # deliberately left unrestricted (see spec §3).
+    if build_type == 'Caster' and parsed_data.get('caster_restrict_weapon_families', True):
+        weapon1_eligible_types = set(w1_list)
+        if weapon_style == 'Dual Caster':
+            weapon2_eligible_types = set(w2_list)
 
     return w1_list, w2_list, require_weapon2, weapon1_eligible_types, weapon2_eligible_types
 

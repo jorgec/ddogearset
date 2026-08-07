@@ -10,11 +10,11 @@
         <key>CFBundleIdentifier</key>
         <string>com.wails.DDO Gearset Optimizer</string>
         <key>CFBundleVersion</key>
-        <string>0.3.3</string>
+        <string>0.3.4</string>
         <key>CFBundleGetInfoString</key>
         <string>Mathematically optimal gear solver for Dungeons and Dragons Online</string>
         <key>CFBundleShortVersionString</key>
-        <string>0.3.3</string>
+        <string>0.3.4</string>
         <key>CFBundleIconFile</key>
         <string>iconfile</string>
         <key>LSMinimumSystemVersion</key>

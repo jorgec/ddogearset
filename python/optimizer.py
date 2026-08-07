@@ -173,15 +173,21 @@ ONE_HANDED_WEAPON_TYPES = frozenset(w.lower() for w in (
     'Scimitar', 'Shortsword', 'Sickle', 'Warhammer',
 ))
 
-# The five weapon "families" known for carrying multiple worthwhile craftable
+# The six weapon "families" known for carrying multiple worthwhile craftable
 # augment slots (redefined during spec review — this is NOT about augment-
 # slot-TYPE families like Cannith Prefix/Suffix/Extra, it's specific weapon
-# sources). Dinosaur Bone / Undying Age / Legendary Green Steel are reliably
-# name-substring-identifiable (verified against the real corpus — note it's
-# "Green Steel", two words, not "Greensteel"); Viktranium Experiment crafting
-# and Den of Vipers have no such name pattern and are identified via
-# DropLocation text instead.
-CRAFTABLE_FAMILY_NAME_SUBSTRINGS = ('dinosaur bone', 'undying age', 'green steel')
+# sources). Dinosaur Bone / Undying Age / Legendary Green Steel / Defiled
+# Reliquary are reliably name-substring-identifiable (verified against the
+# real corpus — note it's "Green Steel", two words, not "Greensteel"; Defiled
+# Reliquary's own DropLocation text says "Unholy Defiler of the Hidden Hand,
+# defiled version of ...", NOT "Defiled Reliquary", so name is the only
+# reliable signal for it too — added per docs/CASTER_WEAPON_SELECTION_SPEC.md
+# after confirming "Calamitous" weapons, also proposed as a family, already
+# ARE the Viktranium family below: Legendary Calamitous Warhammer's own
+# DropLocation literally starts with "Viktranium Experiment crafting").
+# Viktranium Experiment crafting and Den of Vipers have no reliable name
+# pattern and are identified via DropLocation text instead.
+CRAFTABLE_FAMILY_NAME_SUBSTRINGS = ('dinosaur bone', 'undying age', 'green steel', 'defiled reliquary')
 CRAFTABLE_FAMILY_DROPLOCATION_SUBSTRINGS = ('viktranium', 'den of vipers')
 
 
@@ -1115,7 +1121,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
     `weapon2_eligible_types` (each a set/iterable of lowercase weapon_type
     strings, e.g. {"longsword"} or the set of every Slashing weapon type for
     a melee damage-type restriction) additionally restrict that slot's
-    candidate pool to those types + the five "craftable" weapon families,
+    candidate pool to those types + the six "craftable" weapon families,
     falling back to types-only if that combination has zero candidates
     (recorded as a note — see _restrict_weapon_slot_to_craftable_family).
     Solver.py computes the actual type set per build_type/weapon_style (melee
@@ -1157,7 +1163,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
     def _restrict_weapon_slot_to_craftable_family(slot, eligible_types):
         """Zeroes out every slot candidate that isn't both (a) one of
         eligible_types (lowercase weapon_type strings) and (b) from one of
-        the five craftable families — falling back to (a) alone if that
+        the six craftable families — falling back to (a) alone if that
         combination has zero candidates, and recording a note when it does.
         The already-pre_equipped item for this slot (if any) is always
         exempt — an existing saved gearset, possibly created before this
@@ -1181,9 +1187,9 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
             types_desc = '/'.join(sorted(t.title() for t in types))
             hard_slot_notes.append(
                 f"No {types_desc} weapon from the required craftable families "
-                f"(Dinosaur Bone, Undying Age, Legendary Green Steel, Viktranium "
-                f"Experiment crafting, Den of Vipers) was available for {slot} under "
-                f"the current filters — fell back to any {types_desc} weapon."
+                f"(Dinosaur Bone, Undying Age, Legendary Green Steel, Defiled Reliquary, "
+                f"Viktranium Experiment crafting, Den of Vipers) was available for {slot} "
+                f"under the current filters — fell back to any {types_desc} weapon."
             )
 
         candidate_set = set(candidates)

@@ -841,6 +841,13 @@ def test_craftable_family_weapon_identification():
         "Viktranium Experiment crafting, Turn in 25 Legendary Bleak Alternators...") is True
     assert optimizer._is_craftable_family_weapon(
         "Some Weapon", "Den of Vipers, end reward") is True
+    # Defiled Reliquary — name-substring, added per
+    # docs/CASTER_WEAPON_SELECTION_SPEC.md. Its own DropLocation does NOT
+    # contain "Defiled Reliquary" (real corpus: "Unholy Defiler of the Hidden
+    # Hand, defiled version of ...") — name is the only reliable signal.
+    assert optimizer._is_craftable_family_weapon(
+        "Legendary Defiled Reliquary Sickle",
+        "Unholy Defiler of the Hidden Hand, defiled version of Legendary Shining Reliquary Sickle") is True
     # An ordinary weapon from neither name nor drop location.
     assert optimizer._is_craftable_family_weapon("Ordinary Longsword", "Some Random Quest") is False
 
@@ -1042,15 +1049,68 @@ def test_resolve_weapon_lists_melee_no_damage_type_is_unrestricted():
 
 
 def test_resolve_weapon_lists_caster_crossbow_and_runearm():
+    # caster_restrict_weapon_families defaults to True (docs/CASTER_WEAPON_SELECTION_SPEC.md)
+    # — Weapon1 is craftable-family-restricted (with fallback) to the full
+    # crossbow set, not narrowed to one specific crossbow type the way the
+    # Ranged crossbow styles are.
     w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
         {"build_type": "Caster", "weapon_style": "Crossbow and Runearm"})
     assert set(w1) == {'light crossbow', 'heavy crossbow', 'repeating light crossbow',
                        'repeating heavy crossbow', 'great crossbow'}
     assert w2 == ['rune arm', 'runearm']
     assert req2 is True
-    # No further narrowing to one specific crossbow type — any crossbow type
-    # is eligible, unlike the Ranged crossbow styles.
+    assert w1_types == set(w1)
+    assert w2_types is None  # runearm itself is never family-restricted
+
+
+def test_resolve_weapon_lists_caster_family_restriction_opt_out():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists({
+        "build_type": "Caster",
+        "weapon_style": "Crossbow and Runearm",
+        "caster_restrict_weapon_families": False,
+    })
     assert w1_types is None
+
+
+def test_resolve_weapon_lists_caster_dual_caster_restricts_both_weapons():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Caster", "weapon_style": "Dual Caster"})
+    assert w1_types == optimizer.ONE_HANDED_WEAPON_TYPES
+    assert w2_types == optimizer.ONE_HANDED_WEAPON_TYPES
+    assert req2 is True
+
+
+def test_resolve_weapon_lists_caster_stick_and_orb_does_not_restrict_orb():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Caster", "weapon_style": "Stick and Orb"})
+    assert w1_types == optimizer.ONE_HANDED_WEAPON_TYPES
+    # Orb (Weapon2) is deliberately never family-restricted.
+    assert w2_types is None
+
+
+def test_resolve_weapon_lists_caster_two_handed_weapon():
+    # docs/CASTER_WEAPON_SELECTION_SPEC.md — separate from 'Quarterstaff'
+    # (which stays locked to literal quarterstaff), covers the broader
+    # two-handed pool (melee two-handers + all crossbow types, no runearm)
+    # so items like Arctica (great axe) and Caustica (crossbow) are reachable.
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Caster", "weapon_style": "Two-Handed Weapon"})
+    assert set(w1) == {'great sword', 'falchion', 'great axe', 'maul', 'quarterstaff',
+                        'great club', 'light crossbow', 'heavy crossbow',
+                        'repeating light crossbow', 'repeating heavy crossbow',
+                        'great crossbow'}
+    assert w2 == ['none']
+    assert req2 is False
+    assert w1_types == set(w1)  # family-restricted by default, same as other caster styles
+
+
+def test_resolve_weapon_lists_melee_two_handed_fighting_unaffected_by_caster_change():
+    # The new caster 'Two-Handed Weapon' style must not leak into Melee's
+    # existing 'Two Handed Fighting' weapon list (no crossbows there).
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Melee", "weapon_style": "Two Handed Fighting"})
+    assert 'light crossbow' not in w1
+    assert set(w1) == {'great sword', 'falchion', 'great axe', 'maul', 'quarterstaff', 'great club'}
 
 
 def test_resolve_weapon_lists_melee_single_handed_weapon_and_runearm():

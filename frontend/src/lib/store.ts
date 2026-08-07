@@ -11,6 +11,12 @@ export const configStore = writable<main.OptimizationPayload>(({
     // docs/HARD_REQUIRED_SLOTS_SPEC.md — Melee-only; empty/absent for every
     // other build_type (Ranged/Tank don't have a heuristic defined yet).
     weapon_damage_type: "",
+    // docs/CASTER_WEAPON_SELECTION_SPEC.md — default true (the new intended
+    // default); Caster-only, ignored otherwise. Deliberately not left
+    // undefined: the Go field has no `omitempty`, so an explicit boolean must
+    // always be sent to distinguish "opted out" (false) from "old saved file,
+    // field absent" (which solver.py separately defaults to true).
+    caster_restrict_weapon_families: true,
     caster_spellpowers: [],
     caster_schools: [],
     stat_priorities: [],

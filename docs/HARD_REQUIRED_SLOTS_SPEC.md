@@ -132,6 +132,15 @@ casters at all. Replace this with four real caster-specific `weapon_style` optio
   stick + runearm" above, just with Weapon1 being any crossbow type (light/heavy/
   repeating light/repeating heavy/great — no further narrowing to one specific type,
   unlike the Ranged crossbow styles in §5) instead of a one-handed weapon.
+- **Two-Handed Weapon** (added in a follow-up pass, see
+  docs/CASTER_WEAPON_SELECTION_SPEC.md) — Weapon1 = any of great sword/falchion/great
+  axe/maul/great club/quarterstaff, OR any crossbow type used without a runearm
+  (Weapon2 blocked, same as Quarterstaff). Separate from "Quarterstaff" (which stays
+  locked to the literal weapon type) — added because real items like Arctica, the
+  Mystic Cold (great axe) and Caustica, the Volley of Pain (crossbow, usable
+  two-handed without a runearm) carry real caster stats but were unreachable by any
+  prior caster style. Caster-only: does not change Melee's Two Handed Fighting or
+  Ranged's crossbow styles, which keep their own separate weapon lists.
 
 Selecting "Caster stick + runearm" or "Crossbow and runearm" auto-checks the
 `runearm_use` UI checkbox (`JobConfigurationForm.svelte`) so the display matches
