@@ -7,6 +7,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.3.1] — 2026-08-07
+
+### Changed
+
+- **Excluded Expansion Packs list trimmed to 11 packs** (`frontend/public/expansions.json`),
+  down from the full 66 real `AdventurePack` values — the full list was unwieldy in the
+  UI. Kept: Menace of the Underdark, Shadowfell Conspiracy, Mists of Ravenloft,
+  Masterminds of Sharn, Fables of the Feywild, Sinister Secret of Saltmarsh, The Isle of
+  Dread, Vecna Unleashed, Magic of Myth Drannor, Chill of Ravenloft, Terror of
+  Demogorgon. Frontend-only change. One correction applied against the real data:
+  `"Chill of Ravenloft"` has no "The" prefix in the real `AdventurePack` value — using
+  the requested `"The Chill of Ravenloft"` verbatim would have silently recreated the
+  exact pack-name mismatch fixed in 0.3.0 (GitHub #1).
+
 ## [0.3.0] — 2026-08-07
 
 ### Added
