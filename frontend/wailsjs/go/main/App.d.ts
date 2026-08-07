@@ -3,6 +3,8 @@
 import {models} from '../models';
 import {main} from '../models';
 
+export function GetAppVersion():Promise<string>;
+
 export function GetAugmentByName(arg1:string):Promise<models.XMLAugment>;
 
 export function GetAvailableAugments(arg1:string,arg2:number,arg3:string):Promise<Array<models.XMLAugment>>;
@@ -38,3 +40,5 @@ export function SaveGearset(arg1:main.OptimizationPayload,arg2:main.ResultPayloa
 export function SearchItemsByStat(arg1:string,arg2:number):Promise<main.StatSearchResult>;
 
 export function UpdateExternalSources():Promise<string>;
+
+export function VerifyGearsetChecksum(arg1:string):Promise<main.GearsetChecksumResult>;

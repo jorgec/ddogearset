@@ -209,34 +209,36 @@ def _is_stacking(b_type):
     return (b_type or '').lower().strip() in STACKING_TYPES
 
 
-# DDO rule: a 'Colorless' augment slot accepts any of the 8 standard
-# elemental/celestial gem colors — NOT any augment whatsoever. The augment
-# corpus also contains dozens of other special, item/system-specific slot
-# families (Cannith crafting prefix/suffix/extra slots, Dolorous/Melancholic/
-# Miserable/Woeful named slots, IoD dinosaur-artifact slots like "IoD:
-# Weapon: Fang Slot", "Nearly Complete: ..." slots, Reaper/Random/
-# Thunderforged/Slavelords slots, etc. — confirmed by enumerating every
-# distinct top-level <Augment><Type> across the corpus) that must NEVER be
-# treated as Colorless-compatible. A regression here previously let e.g. a
-# dinosaur Fang augment (type "IoD: Weapon: Fang Slot") match a plain
-# Colorless slot on an ordinary, non-dino item — this set is exactly the
-# fix for that class of bug.
-STANDARD_AUGMENT_COLORS = frozenset({
-    'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'sun', 'moon', 'colorless',
-})
+# CORRECTION (confirmed by a real DDO player, superseding an earlier wrong
+# assumption in this same file): a 'Colorless' augment slot does NOT accept
+# the 8 standard elemental/celestial colors (Red/Orange/Yellow/Green/Blue/
+# Purple/Sun/Moon) — that was the actual bug behind GitHub issue
+# jorgec/ddogearset#2 ("Lunar/Solar gems in colorless slots"), not a fix for
+# anything. Colorless slots only accept augments that are THEMSELVES
+# colorless-compatible — DDO calls these "Diamond" augments.
+#
+# DDOBuilderV2 does NOT reliably encode this via <Type> at all: confirmed by
+# enumerating every one of the 168 distinct real augment <Type> values in the
+# corpus, zero are "Colorless" or "Diamond" or anything colorless-adjacent —
+# e.g. "Diamond of Charisma" is typed "Blue" in the data, not "Colorless".
+# The only reliable signal is the augment's NAME, matched against this
+# pattern (confirmed against the real corpus: 46 matches, every one
+# independently confirmed typed "Blue" — i.e. the <Type> field would have
+# silently misidentified all 46 as Blue-slot-only without this override).
+COLORLESS_AUGMENT_NAME_PATTERN = re.compile(
+    r"^(Diamond of .+|Set Augment: .+|Globe of .+|Clearwater Diamond|"
+    r"Essence of the Epic Litany of the Dead|"
+    r"Ravil's Book of (?:Legendary )?Recipes|The Master's Gift)$"
+)
 
 
-def augment_fits_slot(aug_type, slot_color):
-    """A 'Colorless' slot accepts any STANDARD color augment (see
-    STANDARD_AUGMENT_COLORS) — without this, no y variable is ever created
-    for a Colorless slot (a standard-color augment's own `type` is one of
-    the 8 colors, never the literal string "Colorless"), so Colorless slots
-    would be silently unfillable everywhere in the model: normal optimize
-    runs would just never use them, and calculate-only runs would go
-    infeasible the moment a saved gearset has anything slotted there (see
-    create_model's total_pre_filled_augments guard). Every other slot family
-    (including Colorless itself, for a non-standard augment) requires an
-    EXACT type match — no substring fallback.
+def augment_fits_slot(aug_type, slot_color, aug_name=None):
+    """A 'Colorless' slot accepts an augment ONLY if its name matches
+    COLORLESS_AUGMENT_NAME_PATTERN (see above) or, defensively, if it is
+    ever literally typed "Colorless" in the data (true of none today, but
+    cheap to also honor in case that ever changes). Every other slot family,
+    including Colorless for any other augment, requires an EXACT type
+    match — no substring fallback.
 
     A substring fallback (`slot_color in aug_type`) used to sit here and was
     removed after a real-data audit of the full DDOBuilderV2 corpus (194 item
@@ -255,8 +257,10 @@ def augment_fits_slot(aug_type, slot_color):
     this general augment-fitting path."""
     slot_color = (slot_color or '').lower()
     aug_type = (aug_type or '').lower()
-    if slot_color == 'colorless' and aug_type in STANDARD_AUGMENT_COLORS:
-        return True
+    if slot_color == 'colorless':
+        if aug_type == 'colorless':
+            return True
+        return bool(aug_name) and bool(COLORLESS_AUGMENT_NAME_PATTERN.match(aug_name.strip()))
     return aug_type == slot_color
 
 
@@ -1207,7 +1211,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         color_counts = collections.Counter(item['augments'])
         for color, limit in color_counts.items():
             for aug_idx, aug in enumerate(augments):
-                if augment_fits_slot(aug['type'], color):
+                if augment_fits_slot(aug['type'], color, aug['name']):
                     y[(aug_idx, i, color)] = pulp.LpVariable(f"y_{aug_idx}_{i}_{safe_name(color)}", cat="Binary")
 
     fw = {}
@@ -1255,7 +1259,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
                             else:
                                 color_counts = collections.Counter(item['augments'])
                                 for c in color_counts.keys():
-                                    if augment_fits_slot(matched_aug['type'], c):
+                                    if augment_fits_slot(matched_aug['type'], c, matched_aug['name']):
                                         if (matched_aug_idx, i, c) in y:
                                             matched_color = c
                                             break
@@ -2554,7 +2558,7 @@ def _local_search_augments(item, augments, used_names, initial, evaluate, shortl
     for color in colors:
         pool = [a for a in augments
                 if a['name'] not in used_names
-                and augment_fits_slot(a['type'], color)]
+                and augment_fits_slot(a['type'], color, a['name'])]
         # Pre-filter by raw buff magnitude so the search stays cheap.
         pool.sort(key=lambda a: (-sum(abs(v) for _s, _b, v in a['buffs']), a['name']))
         compatible.append(pool[:shortlist])

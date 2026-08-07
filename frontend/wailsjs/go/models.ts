@@ -227,6 +227,20 @@ export namespace main {
 	        this.duplicateSources = source["duplicateSources"];
 	    }
 	}
+	export class GearsetChecksumResult {
+	    hasChecksum: boolean;
+	    valid: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GearsetChecksumResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hasChecksum = source["hasChecksum"];
+	        this.valid = source["valid"];
+	    }
+	}
 	export class OptimizationPayload {
 	    gearset_name: string;
 	    max_level: number;

@@ -7,7 +7,47 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [0.3.1] — 2026-08-07
+## [0.3.2] — 2026-08-08
+
+### Fixed
+
+- **Colorless augment slots incorrectly accepted standard-color augments**
+  (Solar/Lunar gems and any Red/Orange/Yellow/Green/Blue/Purple-typed augment) —
+  confirmed wrong by a real DDO player after a saved gearset showed `Legendary
+  Thirteen`'s Colorless slot filled with `Solar Gem of Charisma (Legendary)`. This
+  reverses a rule built and tested earlier this session (`STANDARD_AUGMENT_COLORS`)
+  that turned out to be the actual bug behind GitHub
+  [#2](https://github.com/jorgec/ddogearset/issues/2) ("Lunar/Solar gems in colorless
+  slots"), not a fix for it. Colorless slots only accept colorless-compatible
+  ("Diamond") augments — DDOBuilderV2 doesn't reliably encode this via `<Type>` at
+  all (confirmed: zero augments in the real corpus are typed `"Colorless"` or
+  `"Diamond"` — e.g. `Diamond of Charisma` is typed `"Blue"`), so `augment_fits_slot`
+  now identifies them by **name** against a confirmed pattern (`Diamond of ...`,
+  `Set Augment: ...`, `Globe of ...`, `Clearwater Diamond`, and a few other named
+  exceptions), independent of the item's own (unreliable) `<Type>` field. Verified
+  against real data (Solar/Lunar gems now correctly rejected, `Diamond of Charisma`
+  still accepted) and against the reported gearset directly — recalculating it now
+  correctly drops the invalid Solar Gem with an explanatory note instead of silently
+  keeping it. Two tests updated, one new test added; 120 total passing.
+
+### Added
+
+- **`.ddogearset` files now carry a content checksum** (`gearset_checksum.go`, SHA-256
+  over a canonicalized JSON form) computed at save time and re-verified on load. A
+  mismatch (file edited outside the app, corrupted, etc.) shows a non-blocking warning
+  toast — never refuses to load. A file with no checksum (saved before this feature
+  existed) is treated as expected, not a failure.
+- **`.ddogearset` files now carry the app's release version** (`app_version`, separate
+  from the existing file-format `"version"` field) via a new `GetAppVersion` RPC. On
+  load, a version mismatch (or a missing `app_version` — every file saved before this
+  feature) shows a non-blocking warning with an "Update Saved File" button that
+  re-saves the now-migrated config under the current version (does not overwrite the
+  original file). Directly motivated by a real repro: a saved file still carrying the
+  stale `"The Chill of Ravenloft"` pack name (fixed in 0.3.1) silently excluded
+  nothing on reload, with no way to see why — the version-mismatch warning now
+  surfaces exactly that kind of drift, and `Summary.svelte`'s existing
+  `migrateLegacyConfig` (already renaming that stale pack name) is what "Update Saved
+  File" re-runs and persists.
 
 ### Changed
 

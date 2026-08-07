@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
-  import { RunOptimization, SaveGearset } from '../../../../wailsjs/go/main/App';
+  import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum } from '../../../../wailsjs/go/main/App';
   import TierReport from './TierReport.svelte';
   import Accordion from '../ui/Accordion.svelte';
   import { migrateLegacyCasterFields } from '$lib/data/statPriorities';
@@ -14,9 +14,21 @@
       .map((p, i) => ({ stat: p.stat, tier: p.tier ?? 1, cap: p.cap, i }))
       .sort((a, b) => (a.tier - b.tier) || (a.i - b.i));
 
+  // A saved gearset's excluded_packs is matched server-side by EXACT string
+  // against the real AdventurePack value (see python/optimizer.py's
+  // parse_items) — a name that doesn't match exactly excludes nothing, silently.
+  // "The Chill of Ravenloft" was briefly offered as a checkbox value before the
+  // real pack name ("Chill of Ravenloft", no "The") was confirmed — any gearset
+  // saved during that window carries the wrong string forever unless migrated
+  // here. This is exactly the bug behind GitHub issue jorgec/ddogearset#1.
+  const LEGACY_PACK_RENAMES: Record<string, string> = {
+      'The Chill of Ravenloft': 'Chill of Ravenloft',
+  };
+
   // Folds a legacy gearset's caster_spellpowers/caster_schools into Tier 1 and
   // clears them, so the migration runs exactly once per load rather than on
-  // every reactive tick (docs/TIERED_SOLVER_FRONTEND_SPEC.md §5.3).
+  // every reactive tick (docs/TIERED_SOLVER_FRONTEND_SPEC.md §5.3). Also
+  // renames any known-stale excluded_packs entries to their real pack name.
   function migrateLegacyConfig(config: main.OptimizationPayload): main.OptimizationPayload {
       const { priorities, migrated } = migrateLegacyCasterFields(
           config.stat_priorities,
@@ -26,9 +38,32 @@
       if (migrated > 0) {
           showToast(`Imported ${migrated} caster stat(s) from a saved gearset into Tier 1.`, 'info');
       }
+
+      let renamedPacks = 0;
+      const excludedPacks = (config.excluded_packs ?? []).map((p) => {
+          if (LEGACY_PACK_RENAMES[p]) {
+              renamedPacks++;
+              return LEGACY_PACK_RENAMES[p];
+          }
+          return p;
+      });
+      if (renamedPacks > 0) {
+          showToast(
+              `Corrected ${renamedPacks} excluded-pack name(s) from this saved gearset ` +
+              `that didn't match the real pack name and were excluding nothing.`,
+              'info'
+          );
+      }
+
       // Cast mirrors store.ts: the spread drops the wails class's convertValues
       // method, which nothing on this path calls.
-      return { ...config, stat_priorities: priorities, caster_spellpowers: [], caster_schools: [] } as unknown as main.OptimizationPayload;
+      return {
+          ...config,
+          stat_priorities: priorities,
+          caster_spellpowers: [],
+          caster_schools: [],
+          excluded_packs: excludedPacks,
+      } as unknown as main.OptimizationPayload;
   }
 
   // Group all effects by their stat name, then sort alphabetically
@@ -151,14 +186,64 @@
           const file = (e.target as HTMLInputElement).files?.[0];
           if (!file) return;
           const reader = new FileReader();
-          reader.onload = (re) => {
+          reader.onload = async (re) => {
               try {
-                  const data = JSON.parse(re.target?.result as string);
+                  const rawText = re.target?.result as string;
+
+                  // Content-integrity check (docs: gearset_checksum.go) — a
+                  // file saved before this feature existed simply has no
+                  // checksum field at all (hasChecksum: false) and is not
+                  // flagged; only a genuine mismatch (the content changed
+                  // since it was saved — hand-edited, corrupted, etc.) warns.
+                  // Never refuses to load, same "warn, don't block" policy as
+                  // the app-version check below.
+                  try {
+                      const checksumResult = await VerifyGearsetChecksum(rawText);
+                      if (checksumResult.hasChecksum && !checksumResult.valid) {
+                          showToast(
+                              "This gearset file's content does not match its saved checksum — " +
+                              'it may have been modified outside the app since it was saved. ' +
+                              'Loaded anyway, but double-check it before trusting it.',
+                              'error'
+                          );
+                      }
+                  } catch (e) {
+                      console.error('Failed to verify gearset checksum', e);
+                  }
+
+                  const data = JSON.parse(rawText);
                   if (data.config && data.result) {
                       // Full format: hydrate both config params and result
                       const loadedConfig = {...$configStore, ...data.config, calculate_only: false};
                       $configStore = migrateLegacyConfig(loadedConfig);
                       $resultStore = data.result;
+
+                      // Warn (never refuse) on an app-version mismatch — a
+                      // missing app_version means the file predates this check
+                      // entirely (every gearset saved before this feature),
+                      // not a real conflict, so it's treated the same as a
+                      // genuine mismatch: a non-blocking notice with a button
+                      // to re-save under the current version. "Update" just
+                      // re-saves the now-migrated config/result (SaveGearset
+                      // always writes a new timestamped file — nothing here
+                      // overwrites the original on disk).
+                      try {
+                          const currentVersion = await GetAppVersion();
+                          const savedVersion = data.app_version as string | undefined;
+                          if (savedVersion !== currentVersion) {
+                              const desc = savedVersion
+                                  ? `saved with version ${savedVersion}`
+                                  : 'saved before version tracking existed';
+                              showToast(
+                                  `This gearset was ${desc} — you're running ${currentVersion}. ` +
+                                  `Fixes since then (e.g. excluded-pack name corrections) may not be reflected.`,
+                                  'info',
+                                  [{ label: 'Update Saved File', onClick: () => saveGearset() }]
+                              );
+                          }
+                      } catch (e) {
+                          console.error('Failed to check app version', e);
+                      }
                   } else if (data.gearSet) {
                       $resultStore = data;
                       $configStore.pre_equipped = {...data.gearSet};

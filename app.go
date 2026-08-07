@@ -37,6 +37,24 @@ import (
 //go:embed data/stat_sets.default.json
 var defaultStatSets []byte
 
+// AppVersion is the running app's release version, stamped into every saved
+// .ddogearset file (as "app_version", distinct from the file-format schema
+// "version" field below) and returned by GetAppVersion so the frontend can
+// warn on load when a saved file predates fixes that may affect it (e.g. the
+// excluded_packs pack-name migration in Summary.svelte's migrateLegacyConfig).
+//
+// Wails does NOT expose wails.json's productVersion to the running binary at
+// build or runtime (confirmed: no ldflags, no go:embed, no runtime API wired
+// anywhere in this codebase) — this MUST be kept in sync by hand with
+// wails.json's "version"/"productVersion" on every version bump. There is no
+// automated check for drift between the two.
+const AppVersion = "0.3.2"
+
+// GetAppVersion returns the running app's release version (see AppVersion).
+func (a *App) GetAppVersion() string {
+	return AppVersion
+}
+
 // App struct
 type App struct {
 	ctx            context.Context
@@ -910,12 +928,26 @@ func (a *App) SaveGearset(payload OptimizationPayload, result ResultPayload) (st
 	path := filepath.Join(dir, filename)
 
 	saveData := map[string]interface{}{
-		"version":      "1.2",
+		"version": "1.2",
+		// app_version is the release version that produced this file (see
+		// AppVersion) — distinct from "version" above, which is the .ddogearset
+		// file-format schema version, not the app's release version.
+		"app_version":  AppVersion,
 		"gearset_name": payload.GearsetName,
 		"saved_at":     time.Now().Format(time.RFC3339),
 		"config":       payload,
 		"result":       result,
 	}
+
+	// checksum lets VerifyGearsetChecksum (gearset_checksum.go) detect a file
+	// edited outside the app between save and load — see that file's doc
+	// comment for why this must be computed via gearsetChecksum() and not
+	// hashed some other way.
+	checksum, err := gearsetChecksum(saveData)
+	if err != nil {
+		return "", err
+	}
+	saveData["checksum"] = checksum
 
 	bytes, err := json.MarshalIndent(saveData, "", "  ")
 	if err != nil {

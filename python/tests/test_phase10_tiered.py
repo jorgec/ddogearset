@@ -1260,27 +1260,58 @@ def make_augment(name, a_type, buffs):
     return {'name': name, 'type': a_type, 'buffs': list(buffs)}
 
 
-def test_augment_fits_slot_treats_colorless_as_accepting_standard_colors():
-    # A real standard-color augment's `type` is a color (Blue/Red/Green/...),
-    # never literally "Colorless" — a Colorless item slot accepts any of the
-    # 8 standard colors (DDO rule).
-    assert optimizer.augment_fits_slot('Blue', 'Colorless') is True
-    assert optimizer.augment_fits_slot('Green', 'colorless') is True
-    assert optimizer.augment_fits_slot('Sun', 'Colorless') is True
-    assert optimizer.augment_fits_slot('Moon', 'Colorless') is True
+def test_augment_fits_slot_colorless_rejects_standard_colors():
+    # CORRECTION (confirmed by a real DDO player — this reverses what an
+    # earlier version of this test asserted): a Colorless slot does NOT
+    # accept the 8 standard elemental/celestial colors. A "Blue"/"Sun"/
+    # "Moon"-typed augment (e.g. a Solar or Lunar gem) must NOT fit a plain
+    # Colorless slot — this was the actual bug behind GitHub
+    # jorgec/ddogearset#2 ("Lunar/Solar gems in colorless slots"), not
+    # correct behavior. Colorless only accepts colorless-compatible
+    # ("Diamond") augments, identified by name — see the next test.
+    assert optimizer.augment_fits_slot('Blue', 'Colorless') is False
+    assert optimizer.augment_fits_slot('Green', 'colorless') is False
+    assert optimizer.augment_fits_slot('Sun', 'Colorless') is False
+    assert optimizer.augment_fits_slot('Moon', 'Colorless') is False
     # Non-Colorless slots still require an actual color match.
     assert optimizer.augment_fits_slot('Blue', 'Red') is False
     assert optimizer.augment_fits_slot('Blue', 'Blue') is True
 
 
+def test_augment_fits_slot_colorless_accepts_diamond_augments_by_name():
+    # DDOBuilderV2 does not reliably encode "colorless-compatible" via
+    # <Type> at all — e.g. "Diamond of Charisma" is typed "Blue" in the real
+    # corpus, not "Colorless" or anything colorless-adjacent. The augment's
+    # NAME is the only reliable signal (COLORLESS_AUGMENT_NAME_PATTERN),
+    # confirmed against the real corpus (46 matches, every one independently
+    # confirmed typed "Blue").
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', 'Diamond of Charisma') is True
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', 'Diamond of Exceptional Strength') is True
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', 'Clearwater Diamond') is True
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', "The Master's Gift") is True
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', 'Globe of Cursed Blood') is True
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', "Ravil's Book of Legendary Recipes") is True
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', 'Set Augment: Anything') is True
+    # An ordinary Blue-typed augment that ISN'T one of these named exceptions
+    # still correctly does not fit Colorless.
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', 'Sapphire of Charisma') is False
+    assert optimizer.augment_fits_slot('Blue', 'Colorless', 'Diamondback Ring') is False
+    # No name at all (the aug_name=None default) — still correctly rejected,
+    # never a crash.
+    assert optimizer.augment_fits_slot('Blue', 'Colorless') is False
+    # A literal Type=="Colorless" augment (none exist today, but defensively
+    # honored if the data ever adds one) fits regardless of name.
+    assert optimizer.augment_fits_slot('Colorless', 'Colorless') is True
+
+
 def test_augment_fits_slot_rejects_special_family_augments_in_colorless():
     # Regression: a dinosaur-artifact augment (type "IoD: Weapon: Fang Slot")
     # was incorrectly matching ANY Colorless slot on an ordinary, non-dino
-    # item, because an earlier fix treated Colorless as accepting literally
-    # any augment type. Colorless only accepts the 8 standard colors — every
-    # other special slot family (dino IoD slots, Cannith crafting slots,
-    # Dolorous/Melancholic/Miserable/Woeful named slots, etc.) must still
-    # require an exact slot-type match and never fit a plain Colorless slot.
+    # item. Colorless only accepts colorless-compatible "Diamond" augments by
+    # name (see above) — every other special slot family (dino IoD slots,
+    # Cannith crafting slots, Dolorous/Melancholic/Miserable/Woeful named
+    # slots, etc.) must still require an exact slot-type match and never fit
+    # a plain Colorless slot.
     assert optimizer.augment_fits_slot('IoD: Weapon: Fang Slot', 'Colorless') is False
     assert optimizer.augment_fits_slot('IoD: Accessory: Artifact Scale Slot', 'Colorless') is False
     assert optimizer.augment_fits_slot('Cannith Ring Prefix', 'Colorless') is False
@@ -1313,14 +1344,18 @@ def test_augment_fits_slot_rejects_substring_false_positives():
 
 
 def test_calculate_only_credits_pre_filled_augment_in_a_colorless_slot():
+    # Fixture uses a real colorless-compatible ("Diamond") augment name —
+    # DDOBuilderV2 types these "Blue" in the data (confirmed against the real
+    # corpus), which is exactly why COLORLESS_AUGMENT_NAME_PATTERN matches by
+    # name rather than trusting <Type> for Colorless-slot fit.
     item = make_item("Festive Hat", ["Helmet"], [], augments=["Colorless"])
-    augments = [make_augment("+2 Festive Charisma", "Blue", [("Charisma", "Festive", 2.0)])]
+    augments = [make_augment("Diamond of Charisma", "Blue", [("Charisma", "Festive", 2.0)])]
     entries = [PriorityEntry("Charisma", 1, None, 0)]
 
     result, _ = solve(
         [item], entries, augments=augments,
         pre_equipped={"Helmet": "Festive Hat"},
-        pre_filled_augments={"Helmet": {"Colorless": "+2 Festive Charisma"}},
+        pre_filled_augments={"Helmet": {"Colorless": "Diamond of Charisma"}},
         mode="calculate")
 
     assert result.get("errorMessage") is None
