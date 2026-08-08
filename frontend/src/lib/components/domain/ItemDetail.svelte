@@ -791,11 +791,19 @@
           {:else}
             <div class="text-muted-foreground italic">Drop location unknown.</div>
           {/if}
-          <!-- No raids data source exists in this build, so we say nothing about
-               raid status rather than asserting the unverified "not a raid". -->
-          <p class="text-xs text-muted-foreground italic">
-            Raid detection is not available in this version &mdash; see docs/ITEM_DETAIL_SPEC.md &sect;4.3.
-          </p>
+          <!-- docs/RAID_DETECTION_SPEC.md — real, populated raid detection
+               (direct DropLocation match or an upgrade/crafting chain
+               tracing back to a raid item). Say nothing when false rather
+               than asserting the unverified "not a raid" (a raid item whose
+               chain this app's two signals don't happen to catch would
+               otherwise render a false negative badge). -->
+          {#if item.is_raid}
+            <div>
+              <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                Raid Item{item.raid_name ? `: ${item.raid_name}` : ''}
+              </span>
+            </div>
+          {/if}
         </div>
       </details>
     {/if}

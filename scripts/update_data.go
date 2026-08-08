@@ -11,13 +11,24 @@ import (
 )
 
 func main() {
-	raidsLoaded, err := services.InitEnrichment("data/PackMappings.json", "data/Raids.json")
+	// docs/RAID_DETECTION_SPEC.md — raid list now comes from Quests.xml
+	// (already vendored under data/ddobuilder/), not a separately-maintained
+	// Raids.json (which never existed in this repo). Note: this script's
+	// EnrichItem call below is the direct-match-only path (no upgrade-chain
+	// resolution) — see enrichment.go's EnrichItemsInPlace for the
+	// full-corpus-aware batch path the live app uses instead.
+	quests, skippedQuests, errQuests := services.ParseQuests("data/ddobuilder/Quests.xml")
+	if len(skippedQuests) > 0 {
+		fmt.Printf("Skipped %d unparseable quest files.\n", len(skippedQuests))
+	}
+	if errQuests != nil {
+		fmt.Printf("Warning: failed to load Quests.xml, raid detection unavailable: %v\n", errQuests)
+	}
+	raidCount, err := services.InitEnrichment("data/PackMappings.json", quests)
 	if err != nil {
 		fmt.Printf("Warning: enrichment init error: %v\n", err)
 	}
-	if !raidsLoaded {
-		fmt.Println("Note: no raids data source loaded — raid detection is disabled.")
-	}
+	fmt.Printf("Raid detection: %d raids recognized from Quests.xml.\n", raidCount)
 
 	xmlItems, skippedItems, err := services.ParseItems("data/ddobuilder/Items")
 	if err != nil {

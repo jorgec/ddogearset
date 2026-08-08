@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 import pulp
 import re
 import collections
+import functools
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple, Any
 
@@ -82,6 +83,93 @@ RECONCILE_TMLIM = 15
 # Bonus types whose sources genuinely add together. Everything else routes down
 # the d_var (max-of-sources) path.
 STACKING_TYPES = ('stacking', 'mythic', 'reaper')
+
+# docs/PROC_EFFECTS_EXPANSION_SPEC.md — the fixed bonus-type sentinel for
+# presence-flag proc buffs (Shape A/B below): these carry no real magnitude
+# in DDOBuilderV2 (bare `<Buff><Type>X</Type></Buff>` markers with no
+# Value1/BonusType at all, or an augment whose own description says
+# "(Undocumented: Grants X)" with zero <Effect> data), so they're credited as
+# a flat 1.0 "do you have this proc at all" signal. Deliberately NOT a
+# STACKING_TYPES member: two items granting the *same* named proc should
+# still read as 1.0, not 2.0 — max-per-bonus-type is the correct DDO-ish
+# semantics here ("you either have it or you don't"), not sum-of-sources.
+PROC_BONUS_TYPE = 'Proc'
+
+# Shape A (docs/PROC_EFFECTS_EXPANSION_SPEC.md): named procs confirmed to be
+# real `<Buff><Type>` markers on real items whose own occurrences never carry
+# a full (Value1 AND BonusType) pair — most have neither at all; a few (e.g.
+# "Tendon Slice") carry a lone Value1 with no BonusType (10, likely a proc-
+# chance percent, not a comparable magnitude) that the existing valued-buff
+# path can't credit either way. Deliberately a whitelist, not "any buff
+# missing BonusType": ~47 OTHER distinct buff Types in the corpus (Shield,
+# Fortification, Elemental Absorption, etc. — legitimate stats, not procs)
+# also lack a BonusType and must keep today's behavior untouched. Matched by
+# substring against the buff's own Type text (lowercased) since real
+# instances carry suffixes this whitelist doesn't (e.g. "Legendary Vile Grip
+# of the Hidden Hand", "Revel in Blood (Piercing)", "Burning Glory 1").
+PROC_PRESENCE_FLAG_TYPES = frozenset({
+    'antimagic spike', 'bitter frostbite', 'blunt trauma', 'brazen brilliance',
+    'brilliance of the shattered sun', 'burning glory', 'cerulean wave',
+    'coalesced flame', 'coronach', 'dripping with magma', 'eternal fire',
+    'eternal holy burst', 'freezing ice', 'grip of venom', 'inflict blight',
+    'legendary negation', 'lightning lash', 'lingering acidic burn',
+    'memory of binding', 'memory of butchery', 'mind tear', 'nightsinger',
+    'noxious venom spike', 'overwhelming despair', 'quenched', 'revel in blood',
+    'rippling energy', "royalty's frigid response", 'rupturing echo',
+    'shadow spike', 'sinister chill', 'sound and silence', 'sounding',
+    'spell resonance', 'spell turmoil', 'stone prison', 'tendon slice',
+    "the artblade's gift", "the mummy's gift", "titania's warmth",
+    'vile grip of the hidden hand', "vulkoor's bite",
+    'alchemical fire attunement', 'alchemical water attunement',
+    'alchemical air attunement', 'alchemical earth attunement',
+})
+
+# Shape B (docs/PROC_EFFECTS_EXPANSION_SPEC.md): augments confirmed to be
+# real DDOBuilderV2 entries (verified against the corpus) whose own effect
+# data is entirely empty — the augment's Name IS the only signal
+# (DDOBuilderV2 itself marks these "(Undocumented: Grants <Name>)"). Without
+# this whitelist, parse_augments' `if buffs or is_pre_filled:` gate drops
+# them before they ever reach the candidate pool. Deliberately a whitelist,
+# not "any augment with zero effects" — an augment with genuinely no data
+# and no recognized name is far more likely a placeholder/WIP catalog entry
+# than a real proc grant.
+PROC_ZERO_EFFECT_AUGMENT_NAMES = frozenset({
+    'legendary affirmation', 'legendary ash', 'legendary dust', 'legendary ice',
+    'legendary ooze', 'legendary salt', 'legendary vacuum',
+    'alchemical fire attunement', 'alchemical water attunement',
+    'alchemical air attunement', 'alchemical earth attunement', 'paranoia',
+})
+
+
+def _is_proc_presence_flag_type(b_type):
+    """Shape A whitelist membership, tolerant of the real corpus's
+    inconsistent spacing (e.g. 'AlchemicalFireAttunement' with no spaces at
+    all on some items, vs the normal spaced form elsewhere) — compares both
+    sides with whitespace stripped out entirely."""
+    norm = re.sub(r'\s+', '', (b_type or '')).lower()
+    return any(re.sub(r'\s+', '', n) in norm for n in PROC_PRESENCE_FLAG_TYPES)
+
+
+def _proc_priority_match(candidate_text, priorities):
+    """Plain substring match against user priorities for proc presence-flag
+    buffs (Shapes A/B) — deliberately does NOT go through
+    normalize_stat_name's bonus-type-prefix splitting
+    (docs/CASTER_BONUS_TYPE_STATS_SPEC.md's BONUS_TYPE_PREFIXES). Several
+    real proc names (Legendary Affirmation, Legendary Ash, Legendary
+    Negation, ...) literally start with "Legendary", one of the recognized
+    Spell DC/Focus Mastery bonus-type prefix words — routing them through the
+    shared matcher would silently strip that word, require a matching
+    bonus_type that a proc buff never carries, and never match at all.
+    Whitespace-insensitive, same as _is_proc_presence_flag_type."""
+    candidate = re.sub(r'\s+', '', (candidate_text or '')).lower()
+    if not candidate:
+        return None
+    for p in priorities:
+        p_base = re.sub(r'\[\d+\]', '', p).strip()
+        p_norm = re.sub(r'\s+', '', p_base).lower()
+        if p_norm and p_norm in candidate:
+            return p_base
+    return None
 
 # §3.4 — capacity constants used by the upper-bound computation.
 MAX_WEAPON_FILIGREES = 10
@@ -205,6 +293,126 @@ def weapon_types_for_damage_type(damage_type):
     user-facing damage-type choice to create_model's weapon1_eligible_types."""
     dt = (damage_type or '').strip().lower()
     return {w for w, d in WEAPON_DAMAGE_TYPES.items() if d.lower() == dt}
+
+
+# --- Raid detection (docs/RAID_DETECTION_SPEC.md) --------------------------
+#
+# Confirmed real tier-quality prefixes that share a base item's exact name
+# once stripped (verified against the corpus: 1702/1796 "Legendary "-prefixed
+# items, 524/648 "Epic ", 14/28 "Perfected ", 7/8 "Mythic ", 1/1 "Elite " —
+# "Ancient " was tested and dropped, 0/12 real matches, not a real
+# tier-upgrade prefix in this data). Order doesn't matter — every prefix is
+# tried independently.
+RAID_UPGRADE_TIER_PREFIXES = ('Epic ', 'Legendary ', 'Mythic ', 'Perfected ', 'Elite ')
+
+# "<Tier> version of <Name>[ and <Name2>][, ...]" — 605 confirmed real
+# occurrences, always naming one or more ingredient items by their exact name
+# (e.g. "Epic version of Torc of Prince Raiyum-de II", "Cauldron of Sora
+# Katra, Upgraded version of Blade of Fury and Hooked Blade").
+_RAID_VERSION_OF_RE = re.compile(r'(?:upgraded )?version of\s+(.+)', re.IGNORECASE)
+
+# Scoping keywords for the looser ingredient-name cross-reference (needed for
+# catalyst-crafted items like "Perfected Longsword of the Weapon Master",
+# whose real ingredient — "Drow Longsword of the Weapon Master" — isn't
+# reachable by tier-prefix stripping OR "version of" phrasing). Deliberately
+# scoped to crafting-flavored DropLocation text rather than run on every
+# item: bounds the O(items-with-keyword × corpus-size) cost (measured ~3s
+# one-time for the full real corpus) and the false-positive surface from
+# short/generic names appearing incidentally inside unrelated text.
+_RAID_CRAFTING_KEYWORDS = ('turn in', 'catalyst', 'crafting')
+
+# A candidate ingredient name shorter than this is more likely to
+# false-positive-match as a substring of unrelated text than to be a genuine
+# ingredient reference.
+_RAID_MIN_INGREDIENT_NAME_LEN = 8
+
+
+@functools.lru_cache(maxsize=4)
+def _all_item_name_drop_locations(base_dir):
+    """Lightweight Name -> DropLocation index across every item in the
+    corpus, completely unfiltered by ML/pack/armor/etc. Needed because an
+    upgrade chain's *base* item (e.g. a Heroic-tier raid item) is often well
+    under today's endgame ML search floor and would otherwise never appear
+    in the filtered candidate pool `is_raid` resolution needs to walk back
+    through. Cached per base_dir — this project only ever solves against one
+    base_dir per process, so the cache is effectively "compute once per
+    solver invocation," not a source of staleness risk."""
+    out = {}
+    for item_file in glob.glob(os.path.join(base_dir, 'Items', '*.item')):
+        try:
+            tree = ET.parse(item_file)
+            for item_node in tree.findall('.//Item'):
+                name = item_node.findtext('Name')
+                if name:
+                    out[name] = item_node.findtext('DropLocation') or ''
+        except Exception:
+            pass
+    return out
+
+
+def _raid_ingredient_names(name, drop_location, all_names):
+    """The set of other item names this item's raid status should be
+    inherited from, per docs/RAID_DETECTION_SPEC.md's two-signal design.
+    `all_names` is the full corpus name set, for cross-referencing."""
+    found = set()
+    dl = drop_location or ''
+
+    # Signal A — "<Tier> version of <Name>[ and <Name2>]" phrasing.
+    m = _RAID_VERSION_OF_RE.search(dl)
+    if m:
+        tail = re.sub(r'\s*\([^)]*\)\s*$', '', m.group(1)).strip()
+        for part in re.split(r'\s+and\s+|\s*\+\s*', tail):
+            part = part.strip().rstrip('.')
+            if part in all_names:
+                found.add(part)
+
+    # Signal A (cont.) — looser ingredient cross-reference for catalyst-
+    # crafted items whose ingredient name doesn't follow "version of"
+    # phrasing at all. Scoped to crafting-flavored DropLocation text only.
+    dl_lower = dl.lower()
+    if any(kw in dl_lower for kw in _RAID_CRAFTING_KEYWORDS):
+        for candidate in all_names:
+            if (candidate != name
+                    and len(candidate) >= _RAID_MIN_INGREDIENT_NAME_LEN
+                    and candidate in dl):
+                found.add(candidate)
+
+    # Signal B — tier-prefix name stripping (catches e.g. "Perfected X"
+    # items whose DropLocation is a generic catalyst turn-in with no textual
+    # link to "X" at all).
+    for prefix in RAID_UPGRADE_TIER_PREFIXES:
+        if name and name.startswith(prefix):
+            remainder = name[len(prefix):]
+            if remainder in all_names:
+                found.add(remainder)
+
+    found.discard(name)
+    return found
+
+
+def _resolve_is_raid(name, drop_location, raid_names, all_drop_locations, memo):
+    """Memoized graph walk: True if `name` is sourced from a real raid
+    (`drop_location` names a raid directly) OR any of its upgrade/crafting
+    ingredients (transitively) are. `memo` also doubles as a cycle guard —
+    seeded False before recursing, so a (theoretical, never observed) cycle
+    resolves to False rather than infinite-looping."""
+    if name in memo:
+        return memo[name]
+    memo[name] = False
+
+    dl = drop_location or ''
+    if any(rn in dl for rn in raid_names):
+        memo[name] = True
+        return True
+
+    all_names = all_drop_locations.keys()
+    for ingredient_name in _raid_ingredient_names(name, dl, all_names):
+        ingredient_dl = all_drop_locations.get(ingredient_name, '')
+        if _resolve_is_raid(ingredient_name, ingredient_dl, raid_names, all_drop_locations, memo):
+            memo[name] = True
+            return True
+
+    return False
 
 
 def safe_name(s):
@@ -467,6 +675,18 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
             force_dino = True
             art_slot_input = art_slot_input.replace('(dino)', '').strip()
 
+    # docs/RAID_DETECTION_SPEC.md — computed once per call, not per item: the
+    # raid-name set (from Quests.xml via quests_lookup) and the full
+    # unfiltered name->DropLocation index (needed to walk upgrade chains back
+    # to a base item that may itself be below today's ML floor). `raid_memo`
+    # is shared across every item in this call so the graph walk's cost is
+    # paid once per distinct item name, not once per item that references it.
+    raid_names = frozenset(
+        qname for qname, qinfo in (quests_lookup or {}).items() if qinfo.get('is_raid')
+    ) if quests_lookup else frozenset()
+    raid_all_drop_locations = _all_item_name_drop_locations(base_dir) if quests_lookup else {}
+    raid_memo = {}
+
     for item_file in glob.glob(os.path.join(base_dir, 'Items', '*.item')):
         try:
             tree = ET.parse(item_file)
@@ -544,10 +764,20 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                     for quest_name, quest_info in quests_lookup.items():
                         if quest_name in drop_location:
                             item_pack = quest_info.get('AdventurePack')
-                            item_is_raid = quest_info.get('is_raid', False)
                             break
-
-                if not item_is_raid and "raid" in drop_location.lower():
+                    # docs/RAID_DETECTION_SPEC.md — direct match (quest name
+                    # in this item's own DropLocation) OR any upgrade/
+                    # crafting ingredient (transitively) traces back to a
+                    # raid. Replaces the old direct-match-only check; a
+                    # direct match is still the common case and resolves
+                    # immediately inside _resolve_is_raid.
+                    item_is_raid = _resolve_is_raid(
+                        name, drop_location, raid_names, raid_all_drop_locations, raid_memo)
+                elif "raid" in drop_location.lower():
+                    # No Quests.xml-derived raid list available at all (e.g.
+                    # a caller that doesn't pass quests_lookup) — fall back
+                    # to the old crude substring heuristic rather than
+                    # reporting every item as non-raid.
                     item_is_raid = True
 
                 if not is_pre_equipped and excluded_packs and item_pack in excluded_packs:
@@ -578,6 +808,20 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                             buffs.append((stat, b_bonus.strip(), val))
                         except ValueError:
                             pass
+                    elif not b_bonus and _is_proc_presence_flag_type(b_type):
+                        # Shape A (docs/PROC_EFFECTS_EXPANSION_SPEC.md) — a
+                        # whitelisted proc buff missing BonusType (most have
+                        # no Value1 either; a few like Tendon Slice carry one
+                        # that isn't a comparable magnitude). Matched via
+                        # _proc_priority_match, not the `stat` computed above
+                        # — several real proc names ("Legendary Affirmation",
+                        # "Legendary Negation", ...) start with a word
+                        # normalize_stat_name's bonus-type-prefix splitting
+                        # would otherwise misinterpret. Presence-only: see
+                        # PROC_BONUS_TYPE.
+                        proc_stat = _proc_priority_match(b_type, priorities)
+                        if proc_stat:
+                            buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
 
                 # §15.2 — weapon combat properties are direct children of <Item>,
                 # not <Buff> elements, but they land in the same `buffs` list so
@@ -736,6 +980,23 @@ def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, 
                                     buffs.append((stat, b_bonus.strip(), val))
                         except ValueError:
                             pass
+
+                # Shape B (docs/PROC_EFFECTS_EXPANSION_SPEC.md) — a small,
+                # confirmed-real whitelist of augments whose own effect data
+                # is entirely empty (DDOBuilderV2 marks these
+                # "(Undocumented: Grants <Name>)"); the augment's Name is the
+                # only signal. Only fires when the loop above found zero
+                # buffs — an augment with both real effects AND a whitelisted
+                # name (shouldn't happen, but stay conservative) keeps its
+                # real buffs untouched. Matched via _proc_priority_match, not
+                # normalize_stat_name — several whitelisted names ("Legendary
+                # Affirmation", "Legendary Ash", ...) start with a word
+                # normalize_stat_name's bonus-type-prefix splitting would
+                # otherwise misinterpret (see that helper's docstring).
+                if not buffs and name.strip().lower() in PROC_ZERO_EFFECT_AUGMENT_NAMES:
+                    proc_stat = _proc_priority_match(name, priorities)
+                    if proc_stat:
+                        buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
 
                 # A pre-filled augment must never be dropped for having zero
                 # buffs that match the user's *current* stat_priorities — same

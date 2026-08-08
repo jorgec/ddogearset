@@ -12,6 +12,24 @@ type XMLItemData struct {
 	Items   []XMLItem `xml:"Item"`
 }
 
+// XMLQuestData represents the root element of Quests.xml.
+type XMLQuestData struct {
+	XMLName xml.Name   `xml:"Quests"`
+	Quests  []XMLQuest `xml:"Quest"`
+}
+
+// XMLQuest mirrors a <Quest> element, scoped to only what raid detection
+// needs (docs/RAID_DETECTION_SPEC.md) — Quests.xml also carries Patron/
+// Favor/Levels/DoNotShow/etc. fields this app has no use for. IsRaid mirrors
+// MinorArtifact's presence-only-marker convention below: a non-nil pointer
+// means the bare <IsRaid/> element was present, same as Python's
+// `quest_node.find('IsRaid') is not None`.
+type XMLQuest struct {
+	Name          string  `xml:"Name"`
+	AdventurePack string  `xml:"AdventurePack"`
+	IsRaid        *string `xml:"IsRaid"`
+}
+
 // XMLBuff mirrors a <Buff> element verbatim.
 //
 // Every scalar is a string on purpose (INV-2, docs/ITEM_DETAIL_SPEC.md §2.2):

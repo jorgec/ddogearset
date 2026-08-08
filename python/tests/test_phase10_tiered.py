@@ -815,6 +815,70 @@ def test_normalize_stat_name_reaper_bonus_type_not_a_recognized_prefix():
     assert rest == "reaper spell focus mastery"
 
 
+def test_proc_priority_match_bypasses_bonus_type_prefix_collision():
+    # "Legendary" is a recognized BONUS_TYPE_PREFIXES word (for Spell DC/Focus
+    # Mastery scoping) — but several real proc names ("Legendary
+    # Affirmation") also literally start with it. _proc_priority_match must
+    # not strip that word the way normalize_stat_name would.
+    assert optimizer._proc_priority_match(
+        "Legendary Affirmation", ["Legendary Affirmation"]) == "Legendary Affirmation"
+    # normalize_stat_name, by contrast, fails this exact case (documenting
+    # why the dedicated matcher exists).
+    assert optimizer.normalize_stat_name(
+        "Legendary Affirmation", "", "", ["Legendary Affirmation"], bonus_type=None) is None
+
+
+def test_proc_priority_match_is_whitespace_insensitive():
+    # Real corpus inconsistency: some items carry "AlchemicalFireAttunement"
+    # (no spaces) instead of the normal spaced form.
+    assert optimizer._proc_priority_match(
+        "AlchemicalFireAttunement", ["Alchemical Fire Attunement"]) == "Alchemical Fire Attunement"
+
+
+def test_proc_priority_match_no_match_returns_none():
+    assert optimizer._proc_priority_match("Dripping with Magma", ["Melee Power"]) is None
+    assert optimizer._proc_priority_match("", ["Dripping with Magma"]) is None
+
+
+def test_is_proc_presence_flag_type_whitelist_membership():
+    assert optimizer._is_proc_presence_flag_type("Dripping with Magma") is True
+    assert optimizer._is_proc_presence_flag_type("Legendary Vile Grip of the Hidden Hand") is True
+    assert optimizer._is_proc_presence_flag_type("Revel in Blood (Piercing)") is True
+    assert optimizer._is_proc_presence_flag_type("AlchemicalFireAttunement") is True
+    assert optimizer._is_proc_presence_flag_type("Melee Power") is False
+    assert optimizer._is_proc_presence_flag_type("") is False
+
+
+def test_parse_augments_credits_zero_effect_augment_as_presence_flag_real_data():
+    # docs/PROC_EFFECTS_EXPANSION_SPEC.md Shape B, verified against real
+    # DDOBuilderV2 data: "Legendary Affirmation" is a real augment with zero
+    # <Effect> blocks (DDOBuilderV2 marks it "(Undocumented: Grants ...)").
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'DDOBuilderV2',
+                             'Output', 'DataFiles')
+    if not os.path.isdir(base_dir):
+        pytest.skip("DDOBuilderV2 data not present in this environment")
+    augments = optimizer.parse_augments(base_dir, 34, ["Legendary Affirmation"], min_ml=1)
+    hits = [a for a in augments if any(b[0] == "Legendary Affirmation" for b in a['buffs'])]
+    assert len(hits) > 0
+    for h in hits:
+        buff = next(b for b in h['buffs'] if b[0] == "Legendary Affirmation")
+        assert buff == ("Legendary Affirmation", optimizer.PROC_BONUS_TYPE, 1.0)
+
+
+def test_parse_items_credits_real_proc_buff_as_presence_flag_real_data():
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'DDOBuilderV2',
+                             'Output', 'DataFiles')
+    if not os.path.isdir(base_dir):
+        pytest.skip("DDOBuilderV2 data not present in this environment")
+    items = optimizer.parse_items(base_dir, 34, ["Dripping with Magma"], None, None, None,
+                                   True, None, min_ml=1)
+    hits = [it for it in items if any(b[0] == "Dripping with Magma" for b in it['buffs'])]
+    assert len(hits) > 0
+    for it in hits:
+        buff = next(b for b in it['buffs'] if b[0] == "Dripping with Magma")
+        assert buff == ("Dripping with Magma", optimizer.PROC_BONUS_TYPE, 1.0)
+
+
 def test_ac49_weapon_base_sources_are_weapon1_only():
     wb = optimizer.WEAPON_BASE_BONUS_TYPE
     items = [
@@ -1299,6 +1363,125 @@ def test_ac32_ac34_ranking_is_lexicographic_and_excludes_equipped_items():
     scores = [tuple(a["tierScores"].get(str(t), 0.0) for t in range(1, 6))
               for a in res["alternatives"]]
     assert scores == sorted(scores, reverse=True)
+
+
+def test_raid_ingredient_names_version_of_phrasing():
+    all_names = {"Torc of Prince Raiyum-de II", "Epic Torc of Prince Raiyum-de II"}
+    found = optimizer._raid_ingredient_names(
+        "Epic Torc of Prince Raiyum-de II",
+        "Epic version of Torc of Prince Raiyum-de II",
+        all_names)
+    assert found == {"Torc of Prince Raiyum-de II"}
+
+
+def test_raid_ingredient_names_multi_ingredient_combine():
+    all_names = {"Blade of Fury", "Hooked Blade", "Unrelated Item"}
+    found = optimizer._raid_ingredient_names(
+        "Fused Blade",
+        "Cauldron of Sora Katra, Upgraded version of Blade of Fury and Hooked Blade",
+        all_names)
+    assert found == {"Blade of Fury", "Hooked Blade"}
+
+
+def test_raid_ingredient_names_tier_prefix_stripping():
+    # The "Perfected" case (docs/RAID_DETECTION_SPEC.md) — no textual link in
+    # the DropLocation at all, only the shared name suffix.
+    all_names = {"Dragon's Eye", "Perfected Dragon's Eye"}
+    found = optimizer._raid_ingredient_names(
+        "Perfected Dragon's Eye", "Lahar, Turn in Nebula Fragment", all_names)
+    assert found == {"Dragon's Eye"}
+
+
+def test_raid_ingredient_names_crafting_keyword_cross_reference():
+    all_names = {"Drow Longsword of the Weapon Master", "Perfected Longsword of the Weapon Master",
+                 "the Weapon Master Abyssal Catalyst"}
+    found = optimizer._raid_ingredient_names(
+        "Perfected Longsword of the Weapon Master",
+        "Catalyst Crafting, Turn in Drow Longsword of the Weapon Master, "
+        "the Weapon Master Abyssal Catalyst and 50 Abyssal Gems at the Strange Catalyst Forge",
+        all_names)
+    assert "Drow Longsword of the Weapon Master" in found
+
+
+def test_raid_ingredient_names_no_crafting_keyword_skips_loose_scan():
+    # Without a crafting/turn-in keyword, the looser substring scan must not
+    # run at all — otherwise any short coincidental name match anywhere in
+    # ordinary flavor text would false-positive.
+    all_names = {"Sword", "A Blade Called Sword of Doom"}
+    found = optimizer._raid_ingredient_names(
+        "A Blade Called Sword of Doom", "Some ordinary dungeon, end chest", all_names)
+    assert found == set()
+
+
+def test_resolve_is_raid_direct_match():
+    memo = {}
+    all_dl = {"Torc of Prince Raiyum-de II": "Zawabi's Revenge, warded chest"}
+    raid_names = frozenset({"Zawabi's Revenge"})
+    assert optimizer._resolve_is_raid(
+        "Torc of Prince Raiyum-de II", all_dl["Torc of Prince Raiyum-de II"],
+        raid_names, all_dl, memo) is True
+
+
+def test_resolve_is_raid_full_upgrade_chain():
+    # Reproduces the exact real-data chain from docs/RAID_DETECTION_SPEC.md:
+    # base (direct raid match) -> Epic ("version of") -> Legendary ("version
+    # of" chaining one more hop) -> Perfected (tier-prefix only, no textual
+    # DropLocation link at all).
+    all_dl = {
+        "Torc of Prince Raiyum-de II": "Zawabi's Revenge, warded chest",
+        "Epic Torc of Prince Raiyum-de II": "Epic version of Torc of Prince Raiyum-de II",
+        "Legendary Torc of Prince Raiyum-de II": "Legendary version of Epic Torc of Prince Raiyum-de II",
+        "Perfected Torc of Prince Raiyum-de II": "Lahar, Turn in Nebula Fragment",
+    }
+    raid_names = frozenset({"Zawabi's Revenge"})
+    memo = {}
+    for name, dl in all_dl.items():
+        assert optimizer._resolve_is_raid(name, dl, raid_names, all_dl, memo) is True, name
+
+
+def test_resolve_is_raid_non_raid_ingredient_stays_false():
+    # A catalyst-crafted item whose real ingredient is a non-raid quest
+    # reward must resolve False, not be swept in just for sharing crafting
+    # keyword text.
+    all_dl = {
+        "Drow Longsword of the Weapon Master": "The House of Rusted Blades, End Chest",
+        "Perfected Longsword of the Weapon Master":
+            "Catalyst Crafting, Turn in Drow Longsword of the Weapon Master, "
+            "the Weapon Master Abyssal Catalyst and 50 Abyssal Gems at the Strange Catalyst Forge",
+    }
+    raid_names = frozenset({"Zawabi's Revenge"})
+    memo = {}
+    assert optimizer._resolve_is_raid(
+        "Perfected Longsword of the Weapon Master",
+        all_dl["Perfected Longsword of the Weapon Master"], raid_names, all_dl, memo) is False
+
+
+def test_resolve_is_raid_cycle_guard():
+    # Two items whose DropLocations (hypothetically) reference each other —
+    # must not infinite-loop; resolves False since neither has a direct match.
+    all_dl = {
+        "A": "version of Legendary A",
+        "Legendary A": "version of A",
+    }
+    memo = {}
+    assert optimizer._resolve_is_raid("A", all_dl["A"], frozenset(), all_dl, memo) is False
+
+
+def test_parse_items_raid_detection_real_data_full_chain():
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'DDOBuilderV2',
+                             'Output', 'DataFiles')
+    if not os.path.isdir(base_dir):
+        pytest.skip("DDOBuilderV2 data not present in this environment")
+    import parser as ddo_parser
+    quests_lookup = ddo_parser.parse_quests(base_dir)
+    items = optimizer.parse_items(base_dir, 34, [], None, None, None, True, None,
+                                   quests_lookup=quests_lookup, min_ml=1)
+    by_name = {it['name']: it for it in items}
+    for name in ["Torc of Prince Raiyum-de II", "Epic Torc of Prince Raiyum-de II",
+                 "Legendary Torc of Prince Raiyum-de II", "Perfected Torc of Prince Raiyum-de II"]:
+        assert by_name[name]['is_raid'] is True, name
+    # Verified non-raid control: the ingredient itself isn't from a raid.
+    assert by_name["Perfected Longsword of the Weapon Master"]['is_raid'] is False
 
 
 def test_ac35_ring_slots_match_the_ring_item_pool():

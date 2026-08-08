@@ -294,17 +294,83 @@ export const STAT_TAXONOMY: StatTaxonomyCategory[] = [
     {
         label: 'Procs',
         children: [
+            // docs/PROC_EFFECTS_EXPANSION_SPEC.md — the on-spellcast/offhand
+            // named procs below are all confirmed present in real
+            // DDOBuilderV2 data (either a bare marker Buff Type with no
+            // magnitude, or a zero-effect-data augment name — see the spec's
+            // Shape A / Shape B). Every one credits a flat "do you have this
+            // proc at all" presence signal (0 or 1), never a real magnitude
+            // — the exact proc rate/damage described on the DDO wiki isn't
+            // in the data files at all. Grouping is a best-effort read of
+            // each proc's own name/theme (the underlying game mechanics are
+            // themselves undocumented in the data, same caveat as before).
             {
-                label: 'On-Hit',
+                label: 'Damage Procs',
                 children: [
-                    { label: 'On-Hit Damage Proc', stat: 'on hit damage', note: UNDOCUMENTED_PROC },
-                    { label: 'Vulnerability Proc', stat: 'vulnerability', note: UNDOCUMENTED_PROC },
+                    { label: 'Bitter Frostbite (Cold)', stat: 'bitter frostbite', note: UNDOCUMENTED_PROC },
+                    { label: 'Dripping with Magma (Fire)', stat: 'dripping with magma', note: UNDOCUMENTED_PROC },
+                    { label: 'Grip of Venom (Poison)', stat: 'grip of venom', note: UNDOCUMENTED_PROC },
+                    { label: 'Lightning Lash (Electric)', stat: 'lightning lash', note: UNDOCUMENTED_PROC },
+                    { label: 'Lingering Acidic Burn (Acid)', stat: 'lingering acidic burn', note: UNDOCUMENTED_PROC },
+                    { label: 'Revel in Blood (Bleed)', stat: 'revel in blood', note: UNDOCUMENTED_PROC },
+                    { label: 'Rippling Energy (Force)', stat: 'rippling energy', note: UNDOCUMENTED_PROC },
+                    { label: 'Rupturing Echo (Sonic)', stat: 'rupturing echo', note: UNDOCUMENTED_PROC },
+                    { label: 'Inflict Blight (Acid)', stat: 'inflict blight', note: UNDOCUMENTED_PROC },
+                    { label: 'Eternal Fire', stat: 'eternal fire', note: UNDOCUMENTED_PROC },
+                    { label: 'Eternal Holy Burst', stat: 'eternal holy burst', note: UNDOCUMENTED_PROC },
+                    { label: 'Noxious Venom Spike', stat: 'noxious venom spike', note: UNDOCUMENTED_PROC },
+                    { label: 'Coalesced Flame', stat: 'coalesced flame', note: UNDOCUMENTED_PROC },
+                    { label: 'Blunt Trauma', stat: 'blunt trauma', note: UNDOCUMENTED_PROC },
+                    { label: 'Shadow Spike', stat: 'shadow spike', note: UNDOCUMENTED_PROC },
+                    { label: "Vulkoor's Bite", stat: "vulkoor's bite", note: UNDOCUMENTED_PROC },
+                    { label: 'Sinister Chill', stat: 'sinister chill', note: UNDOCUMENTED_PROC },
+                    { label: 'Cerulean Wave', stat: 'cerulean wave', note: UNDOCUMENTED_PROC },
+                    { label: 'Brazen Brilliance', stat: 'brazen brilliance', note: UNDOCUMENTED_PROC },
+                    { label: 'Brilliance of the Shattered Sun', stat: 'brilliance of the shattered sun', note: UNDOCUMENTED_PROC },
+                    { label: 'Burning Glory', stat: 'burning glory', note: UNDOCUMENTED_PROC },
+                    { label: "Royalty's Frigid Response", stat: "royalty's frigid response", note: UNDOCUMENTED_PROC },
                 ],
             },
             {
-                label: 'Dual-Purpose (Attunements)',
+                label: 'Debuff & Crowd Control Procs',
                 children: [
-                    { label: 'Alchemical Attunement', stat: 'attunement', note: UNDOCUMENTED_PROC },
+                    { label: 'Antimagic Spike', stat: 'antimagic spike', note: UNDOCUMENTED_PROC },
+                    { label: 'Coronach', stat: 'coronach', note: UNDOCUMENTED_PROC },
+                    { label: 'Freezing Ice', stat: 'freezing ice', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Negation', stat: 'legendary negation', note: UNDOCUMENTED_PROC },
+                    { label: 'Memory of Binding', stat: 'memory of binding', note: UNDOCUMENTED_PROC },
+                    { label: 'Memory of Butchery', stat: 'memory of butchery', note: UNDOCUMENTED_PROC },
+                    { label: 'Mind Tear', stat: 'mind tear', note: UNDOCUMENTED_PROC },
+                    { label: 'Nightsinger', stat: 'nightsinger', note: UNDOCUMENTED_PROC },
+                    { label: 'Overwhelming Despair', stat: 'overwhelming despair', note: UNDOCUMENTED_PROC },
+                    { label: 'Quenched', stat: 'quenched', note: UNDOCUMENTED_PROC },
+                    { label: 'Sound and Silence', stat: 'sound and silence', note: UNDOCUMENTED_PROC },
+                    { label: 'Sounding', stat: 'sounding', note: UNDOCUMENTED_PROC },
+                    { label: 'Spell Resonance', stat: 'spell resonance', note: UNDOCUMENTED_PROC },
+                    { label: 'Spell Turmoil', stat: 'spell turmoil', note: UNDOCUMENTED_PROC },
+                    { label: 'Stone Prison', stat: 'stone prison', note: UNDOCUMENTED_PROC },
+                    { label: 'Tendon Slice', stat: 'tendon slice', note: UNDOCUMENTED_PROC },
+                    { label: "The Artblade's Gift", stat: "the artblade's gift", note: UNDOCUMENTED_PROC },
+                    { label: "The Mummy's Gift", stat: "the mummy's gift", note: UNDOCUMENTED_PROC },
+                    { label: "Titania's Warmth", stat: "titania's warmth", note: UNDOCUMENTED_PROC },
+                    { label: 'Vile Grip of the Hidden Hand', stat: 'vile grip of the hidden hand', note: UNDOCUMENTED_PROC },
+                ],
+            },
+            {
+                label: 'Elemental Attunement Grants',
+                children: [
+                    { label: 'Alchemical Fire Attunement', stat: 'alchemical fire attunement', note: UNDOCUMENTED_PROC },
+                    { label: 'Alchemical Water Attunement (Cold)', stat: 'alchemical water attunement', note: UNDOCUMENTED_PROC },
+                    { label: 'Alchemical Air Attunement (Electric)', stat: 'alchemical air attunement', note: UNDOCUMENTED_PROC },
+                    { label: 'Alchemical Earth Attunement (Acid)', stat: 'alchemical earth attunement', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Affirmation', stat: 'legendary affirmation', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Ash', stat: 'legendary ash', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Dust', stat: 'legendary dust', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Ice', stat: 'legendary ice', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Ooze', stat: 'legendary ooze', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Salt', stat: 'legendary salt', note: UNDOCUMENTED_PROC },
+                    { label: 'Legendary Vacuum', stat: 'legendary vacuum', note: UNDOCUMENTED_PROC },
+                    { label: 'Paranoia', stat: 'paranoia', note: UNDOCUMENTED_PROC },
                 ],
             },
             {

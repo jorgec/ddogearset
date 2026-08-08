@@ -321,6 +321,24 @@ Called once after each `Parse*` call in both `startup()` and `UpdateExternalSour
 - **`raidsPath` has no corresponding file anywhere in the repo.** `InitEnrichment` requires and unmarshals a JSON array of raid-name strings from this path, and no such file exists — grepping the repo confirms it. Building a raids list is a data-sourcing task outside this spec's scope (the natural source would be replicating Python's `parser.parse_quests`' `is_raid` detection in Go, which is real, separate work).
 - **Resolution for this spec: call `InitEnrichment` with `packMappingsPath` wired to `data/PackMappings.json` and gate raid detection off entirely** — pass an empty/nonexistent raids source and treat a load failure for *that specific file* as non-fatal (log and continue with `raids = nil`, meaning `EnrichItem`'s raid loop simply never matches, `IsRaid` stays `false` for everything). This requires a small change to `InitEnrichment` itself: currently a raid-file load failure makes the whole function return an error, which would also block pack-mapping enrichment. Split it — pack-mapping load failure is still fatal (return error), raids-file load failure is not (log, set `raids = nil`, continue). Document this precisely as **"Raid detection in the item panel's Acquisition section is not available in this pass — every item shows `IsRaid: false`. Pack ID and Wiki URL are available."** This is an honest, decisive scoping of a real, pre-existing gap, not a hidden limitation.
 - After `itemsCache` is populated (both at `startup()` and `UpdateExternalSources()`), loop once and call the enrichment logic (a small adaptation of `EnrichItem` that mutates `XMLItem` fields in place — `EnrichItem` currently builds a *separate* `models.Item`; add a thin `EnrichItemInPlace(item *models.XMLItem)` that sets `PackID`/`WikiURL`/`IsRaid`/`RaidName` directly on the `XMLItem`, sharing the same lookup logic, to avoid maintaining two divergent implementations of the same matching rules) — this is a one-time O(n) pass at cache-load time, not per-request.
+
+> **Update (docs/RAID_DETECTION_SPEC.md): raid detection is now implemented.**
+> The gap described below (§4.3's original resolution, AC-11/AC-12, §11.1
+> item 1) is closed. The finding that unblocked it: DDOBuilderV2's own
+> `Quests.xml` (already vendored and kept current by this app's existing
+> update mechanism) carries a per-quest `<IsRaid/>` marker and was verified
+> to match DDO wiki's "Raids" page exactly (41/41) — no separately-maintained
+> raids file was ever needed. `services.ParseQuests` reads it, and
+> `InitEnrichment(packMappingsPath, quests []models.XMLQuest)` replaces the
+> old `raidsPath string` JSON-file parameter entirely. Raid status is also no
+> longer direct-drop-location-only: `EnrichItemsInPlace` (the batch path
+> `loadCaches` now calls instead of a per-item `EnrichItemInPlace` loop)
+> resolves upgrade/crafting chains too (e.g. a Legendary-tier item whose
+> DropLocation only says `"Legendary version of Epic X"`, where `X` is the
+> real raid drop) — see `docs/RAID_DETECTION_SPEC.md` for the full two-signal
+> design. `EnrichItemInPlace` (singular, direct-match only) still exists for
+> isolated single-item use where building the full corpus index isn't
+> justified — its behavior is unchanged from what's described below.
 - Also parse `setBonusCache` via `ParseSetBonuses`, build `setsByName`.
 - Log skipped-file counts from every `Parse*` call (per §3.1's new return value) via `a.addLog(...)`, so a partially-failed parse is at least visible in `GetSystemLogs()` even though it no longer crashes the cache.
 
@@ -521,7 +539,7 @@ Each `Effects[]` entry: `Types` (joined), `Bonus`, `Item`, `Amount`, and any `Re
 
 ### 7.9 Acquisition rendering
 
-`DropLocations` (list), `PackID` (when non-empty and not the literal fallback value `"base"` — display "Base Game" for that case specifically, matching `enrichment.go:63`'s default), and a static note **"Raid detection is not available in this version — see docs/ITEM_DETAIL_SPEC.md §4.3"** in place of an `IsRaid` badge, since raid detection is out of scope per §4.3's resolution. Do not render a false "Not a raid item" claim — omit the raid line entirely rather than assert something unverified.
+`DropLocations` (list), `PackID` (when non-empty and not the literal fallback value `"base"` — display "Base Game" for that case specifically, matching `enrichment.go`'s default), and — per `docs/RAID_DETECTION_SPEC.md` — a "Raid Item: `{RaidName}`" badge when `IsRaid` is true. Do not render a false "Not a raid item" claim when `IsRaid` is false — omit the raid line entirely rather than assert something unverified (the two-signal detection is real but not exhaustive; a false negative is possible for an upgrade chain neither signal happens to catch, so absence of the badge is not proof).
 
 ### 7.10 Raw Description rendering
 
@@ -617,8 +635,8 @@ export interface XMLSetBonus {
 | ID | Check |
 |---|---|
 | **AC-10** | After `startup()`, `itemsCache` entries have `PackID` populated from `data/PackMappings.json` matching (non-`"base"` for at least one known fixture item whose `DropLocations` matches a configured keyword). |
-| **AC-11** | Every `itemsCache` entry has `IsRaid == false` (raid detection intentionally unavailable per §4.3) — this is a regression guard against silently wiring in a raids file later without updating this spec/the UI's "not available" note. |
-| **AC-12** | A pack-mappings load failure at `InitEnrichment` time is fatal (startup logs an error, `PackID` stays unpopulated for all items) — a missing/absent raids file is **not** fatal (startup succeeds, `IsRaid` stays `false` for all items, one log line noting raid detection is disabled). |
+| **AC-11 (superseded — see docs/RAID_DETECTION_SPEC.md)** | ~~Every `itemsCache` entry has `IsRaid == false`~~ — raid detection is now implemented. Replaced by: `TestEnrichItemsInPlace_UpgradeChain`, `TestEnrichItemsInPlace_CraftedFromNonRaidIngredientStaysFalse`, `TestEnrichItemsInPlace_MultiIngredientCombine` in `enrichment_test.go`. |
+| **AC-12** | A pack-mappings load failure at `InitEnrichment` time is fatal (startup logs an error, `PackID` stays unpopulated for all items) — a `Quests.xml` parse failure is **not** fatal (startup succeeds, `IsRaid` stays `false` for all items since `InitEnrichment` receives an empty `quests` slice, one log line noting the failure — see `docs/RAID_DETECTION_SPEC.md`). |
 
 ### Go — new model fields parse correctly
 
@@ -664,7 +682,7 @@ export interface XMLSetBonus {
 
 ## 11. Out of scope for this pass (deferred, recorded for later)
 
-1. **Raid detection** (§4.3) — no raids data source exists in the repo; `IsRaid` stays `false` for every item until a future pass builds one (likely by replicating Python's `parser.parse_quests` raid-detection logic in Go, or sourcing a static raids list).
+1. ~~**Raid detection** (§4.3) — no raids data source exists in the repo...~~ **Done — see `docs/RAID_DETECTION_SPEC.md`.** `Quests.xml` (already vendored, already kept current) is the raid list; `EnrichItemsInPlace` resolves both direct matches and upgrade/crafting chains.
 2. **Conditional set-bonus solver divergence** (§2.7) — the solver's `.//SetBonus` recursive search credits conditional set bonuses unconditionally; this spec's panel displays them correctly (conditionally) and will visibly disagree with the solver on affected items. Not fixed here.
 3. **Weapon Profile credited-marker treatment** — if `docs/PHASE10_PLAN.md` §15's weapon-base-stat solver work lands, a future pass should extend the credited-marker concept (§6) to Weapon Profile fields too. Not built now; this spec's data model (all-string fields, `origin`-free) does not preclude it later.
 4. **Accordion component itself** — assumed as an external dependency with a minimal stated contract (§7.2); not designed or built as part of this spec.

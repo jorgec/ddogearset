@@ -220,17 +220,18 @@ const (
 	ddoItemsPath        = ddoDataRoot + "/Items"
 	ddoAugmentsPath     = ddoDataRoot + "/Augments"
 	ddoFiligreeSetsPath = ddoDataRoot + "/FiligreeSets"
-	// A single file, not a directory. ParseSetBonuses accepts either, and
-	// pointing it at the file avoids walking (and reporting as "skipped") every
-	// unrelated .xml in DataFiles.
+	// Single files, not directories. ParseSetBonuses/ParseQuests accept
+	// either, and pointing them at the file avoids walking (and reporting as
+	// "skipped") every unrelated .xml in DataFiles.
 	ddoSetBonusesPath = ddoDataRoot + "/SetBonuses.xml"
+	// docs/RAID_DETECTION_SPEC.md — the raid list source. DDOBuilderV2 keeps
+	// this current as new raids ship (verified 41/41 exact match against DDO
+	// wiki's "Raids" page), and this app already re-fetches DDOBuilderV2 on
+	// its existing update schedule, so raid detection stays current with
+	// zero separately-maintained data file.
+	ddoQuestsPath = ddoDataRoot + "/Quests.xml"
 
 	packMappingsPath = "data/PackMappings.json"
-	// No raids data source exists in this repo. Raid detection is therefore
-	// unavailable and every item reports IsRaid == false — this is a deliberate,
-	// documented scoping decision (docs/ITEM_DETAIL_SPEC.md §4.3, §11.1), not an
-	// oversight, and the item panel says so rather than claiming "not a raid".
-	raidsPath = ""
 )
 
 // loadCaches parses every data source, rebuilds all four name indexes, and runs
@@ -243,28 +244,37 @@ const (
 //
 // verb distinguishes the startup log wording from the reload wording.
 func (a *App) loadCaches(verb string) {
-	raidsLoaded, err := services.InitEnrichment(packMappingsPath, raidsPath)
-	if err != nil {
-		// Fatal for enrichment only: items still load, they just carry no pack
-		// attribution. Everything else in the app is unaffected.
-		a.addLog("Failed to load pack mappings, item pack attribution unavailable: " + err.Error())
-	}
-	if !raidsLoaded {
-		a.addLog("Raid detection is disabled: no raids data source is available.")
-	}
-
 	logSkipped := func(kind string, skipped []string) {
 		if len(skipped) > 0 {
 			a.addLog(fmt.Sprintf("Skipped %d unparseable %s file(s); the rest loaded normally.", len(skipped), kind))
 		}
 	}
 
+	// docs/RAID_DETECTION_SPEC.md — parsed before InitEnrichment, which needs
+	// the quest list to build its raid-name set.
+	quests, skippedQuests, errQuests := services.ParseQuests(ddoQuestsPath)
+	logSkipped("quest", skippedQuests)
+	if errQuests != nil {
+		a.addLog("Failed to load Quests.xml, raid detection unavailable: " + errQuests.Error())
+	}
+
+	raidCount, err := services.InitEnrichment(packMappingsPath, quests)
+	if err != nil {
+		// Fatal for enrichment only: items still load, they just carry no pack
+		// attribution. Everything else in the app is unaffected.
+		a.addLog("Failed to load pack mappings, item pack attribution unavailable: " + err.Error())
+	}
+	if errQuests == nil {
+		a.addLog(fmt.Sprintf("Raid detection: %d raids recognized from Quests.xml.", raidCount))
+	}
+
 	items, skippedItems, errItems := services.ParseItems(ddoItemsPath)
 	logSkipped("item", skippedItems)
 	if errItems == nil {
-		for i := range items {
-			services.EnrichItemInPlace(&items[i])
-		}
+		// docs/RAID_DETECTION_SPEC.md — batch enrichment (not per-item
+		// EnrichItemInPlace) so upgrade-chain raid resolution can see the
+		// whole corpus, not just each item in isolation.
+		services.EnrichItemsInPlace(items)
 		a.itemsCache = items
 		a.itemsByName = buildNameIndex(items, func(it models.XMLItem) string { return it.Name })
 		a.addLog(fmt.Sprintf("%s %d items for Gearset Editor", verb, len(items)))

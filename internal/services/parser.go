@@ -145,3 +145,26 @@ func ParseSetBonuses(path string) ([]models.XMLSetBonus, []string, error) {
 
 	return allSets, skipped, err
 }
+
+// ParseQuests reads Quests.xml (docs/RAID_DETECTION_SPEC.md) — `path` may
+// point directly at the file or at a directory containing it, same
+// single-file convention as ParseSetBonuses. This is the raid-list source
+// enrichment.go's raid detection is built on: DDOBuilderV2 keeps this file
+// current as new raids ship (verified 41/41 exact match against DDO wiki's
+// "Raids" page), and this app already re-fetches DDOBuilderV2 on its
+// existing update schedule — so raid detection stays current with zero
+// separately-maintained data file.
+func ParseQuests(path string) ([]models.XMLQuest, []string, error) {
+	var allQuests []models.XMLQuest
+
+	skipped, err := walkXMLFiles(path, ".xml", func(_ string, bytes []byte) error {
+		var data models.XMLQuestData
+		if err := xml.Unmarshal(bytes, &data); err != nil {
+			return err
+		}
+		allQuests = append(allQuests, data.Quests...)
+		return nil
+	})
+
+	return allQuests, skipped, err
+}
