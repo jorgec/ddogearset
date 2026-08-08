@@ -7,6 +7,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.4.2] — 2026-08-09
+
+### Fixed
+
+- **Defensive school saving throws were credited to offensive school
+  priorities.** `Legendary Eyes of Enlightenment` carries `IllusionSave +11`
+  (bonus type Resistance) — a saving throw *against* illusion, which does
+  nothing for the DC of illusion spells you cast. Sharing the school's name was
+  enough for the substring matcher to count it toward an offensive Illusion
+  priority, inflating that stat's realized total (31 vs the correct 20 on the
+  reported gearset). A buff whose structural type says "save" now only matches
+  a priority that itself asks for a save or resistance; it stays selectable by
+  name (`illusion save`) for anyone who wants the defensive stat. Affects the
+  only three colliding types in the corpus: IllusionSave, "Illusion Save",
+  EnchantmentSave.
+
 ## [0.4.1] — 2026-08-09
 
 ### Fixed

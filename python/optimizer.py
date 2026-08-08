@@ -555,6 +555,22 @@ def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
     if 'skill' in typ or 'skill' in item or 'skill' in desc:
         return None
 
+    # A saving-throw buff — IllusionSave, EnchantmentSave, "Illusion Save" —
+    # is a DEFENSIVE stat: it raises YOUR save against that school and does
+    # nothing for the DC of spells you cast. Because it carries the school's
+    # name, a plain substring match happily credits it to an OFFENSIVE
+    # priority: reported from a real gearset, Legendary Eyes of
+    # Enlightenment's "IllusionSave +11 (Resistance)" was being counted
+    # toward an Illusion DC priority and inflating its realized total.
+    #
+    # Rather than dropping these outright (the skill guard's approach), they
+    # are gated per-priority below, so someone who genuinely wants the
+    # defensive stat can still ask for it by name ("illusion save" /
+    # "illusion resistance"). Keyed on the structural Type/Item fields and
+    # never the free-text description, so a buff that merely mentions "save"
+    # in prose isn't swept in.
+    is_save_buff = 'save' in typ or 'save' in item
+
     combined = f"{item} {typ} {desc}".lower()
 
     def match_terms(p_clean):
@@ -617,6 +633,10 @@ def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
             # Weapon combat properties are matched by exact element name in
             # parse_items (§15.2) and must never go through the substring heuristic.
             if p_clean in WEAPON_BASE_STATS:
+                continue
+            # Only a priority that actually asks for a save may claim a
+            # defensive saving-throw buff (see is_save_buff above).
+            if is_save_buff and 'save' not in p_clean and 'resist' not in p_clean:
                 continue
 
             direct, implied = match_terms(p_clean)

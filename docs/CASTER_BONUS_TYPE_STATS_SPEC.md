@@ -14,7 +14,7 @@
    DDOBuilderV2 data (see `SPELL_DC_ALL_SCHOOLS_BONUS_TYPES` /
    `SPELL_FOCUS_MASTERY_BONUS_TYPES` in `statTaxonomy.ts`).
 
-## Post-release corrections (0.4.1)
+## Post-release corrections (0.4.1 / 0.4.2)
 
 Reported from a real saved gearset: all seven `<bonus> spell focus mastery`
 priorities reported "matched nothing". Two separate defects, both mine:
@@ -61,6 +61,28 @@ false. Re-audited against the ML>=29 floor the solver actually parses at:
 | `legendary spell focus mastery` | Single corpus source (Argonnessen Eye Band) is ML 10, below the endgame floor |
 
 Every remaining leaf is verified to have at least one source at ML>=29.
+
+### 3. Defensive school saves credited to offensive school priorities (0.4.2)
+
+Reported from a real gearset: `Legendary Eyes of Enlightenment` carries
+`IllusionSave +11` with bonus type `Resistance` — a saving-throw bonus
+*against* illusion, which does nothing for the DC of illusion spells you
+cast. Because the buff carries the school's name, the substring matcher
+credited it to the user's offensive Illusion priority, inflating the realized
+total to 31 where the real offensive sum is 20.
+
+Only three buff types in the whole corpus collide this way: `IllusionSave`
+(5), `Illusion Save` (2), `EnchantmentSave` (15).
+
+**Fix:** a buff whose structural `Type`/`Item` says "save" may only be claimed
+by a priority that itself asks for a save or resistance. Gated per-priority
+rather than dropped outright (the approach the blanket skill guard takes), so
+the defensive stat stays reachable for anyone who genuinely wants it — a
+priority of `"illusion save"` still matches it. Keyed on the structural fields
+and never the free-text description, so a buff that merely mentions "save" in
+prose isn't swept in. Note the opt-in spelling is `illusion save`, matching the
+data's own name for it; `illusion resistance` is the bonus TYPE, not the stat
+name, and does not match.
 
 **Not a defect:** `exceptional spell focus mastery` still reports unmatched
 for a *Dual Caster* build specifically. All six of its sources (Amplin,

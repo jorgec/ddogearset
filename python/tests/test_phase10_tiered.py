@@ -803,6 +803,47 @@ def test_normalize_stat_name_profane_and_artifact_all_schools_spelldc():
     ) is None
 
 
+def test_defensive_school_save_never_credits_an_offensive_school_priority():
+    # REGRESSION (reported from a real saved gearset): Legendary Eyes of
+    # Enlightenment carries "IllusionSave +11 (Resistance)" — a saving-throw
+    # bonus AGAINST illusion, which does nothing for the DC of illusion spells
+    # you cast. It shares the school name, so the substring matcher credited
+    # it to the user's offensive Illusion priority and inflated the realized
+    # total (31 where the real offensive sum is 20).
+    for prio in ("illusion", "illusion spelldc"):
+        assert optimizer.normalize_stat_name(
+            "IllusionSave", None, None, [prio], bonus_type="Resistance"
+        ) is None, prio
+    # The spaced spelling and the other real colliding school both count.
+    assert optimizer.normalize_stat_name(
+        "Illusion Save", None, None, ["illusion"], bonus_type="Resistance") is None
+    assert optimizer.normalize_stat_name(
+        "EnchantmentSave", None, None, ["enchantment spelldc"], bonus_type="Resistance") is None
+
+
+def test_save_buff_is_still_reachable_by_a_priority_that_asks_for_it():
+    # Gated per-priority rather than dropped outright (unlike the blanket
+    # skill guard), so the defensive stat remains selectable by name.
+    assert optimizer.normalize_stat_name(
+        "IllusionSave", None, None, ["illusion save"], bonus_type="Resistance"
+    ) == "illusion save"
+
+
+def test_offensive_school_stats_unaffected_by_the_save_gate():
+    # The real offensive sources on that same gearset must keep matching.
+    assert optimizer.normalize_stat_name(
+        "SpellDC", "Illusion", None, ["illusion spelldc"], bonus_type="Artifact"
+    ) == "illusion spelldc"
+    assert optimizer.normalize_stat_name(
+        "SchoolFocusNumber", "Illusion", None, ["illusion"], bonus_type="Equipment"
+    ) == "illusion"
+    # A non-save "Resistance"-typed buff (elemental resistance) is not a save
+    # and must not be caught by the gate.
+    assert optimizer.normalize_stat_name(
+        "Resistance", "Fire", None, ["fire resistance"], bonus_type="Resistance"
+    ) == "fire resistance"
+
+
 def test_spell_focus_mastery_not_swallowed_by_an_earlier_school_dc_priority():
     # REGRESSION (reported from a real saved gearset): every "…dc"/"…focus"
     # priority carries the universal Spell-Focus-Mastery match terms, because
