@@ -302,6 +302,56 @@ export const STAT_TAXONOMY: StatTaxonomyCategory[] = [
         ],
     },
     {
+        // One flat, alphabetical list: the 21 individual DDO skills plus the
+        // in-game ability/themed SKILL-GROUP bonuses ("Intelligence Skills",
+        // "Alluring Skills", …). Skills were previously absent from the picker
+        // AND dropped outright by the solver's matcher, so a Spellcraft or
+        // Disable Device priority could not be expressed at all, let alone
+        // matched — even though the data is well-structured for it
+        // (Type='SkillBonus', Item='<skill>', 992 buffs). Both halves fixed;
+        // see python/optimizer.py's is_skill_buff.
+        //
+        // Bonus-type scoping works here for free via the existing prefix
+        // mechanism (a priority of "insightful spellcraft skill" requires an
+        // Insightful-typed buff), so those are not enumerated as leaves.
+        label: 'Skills',
+        children: [
+            // Individual skills carry an explicit " skill" suffix in the WIRE
+            // string. The bare name is ambiguous and silently collides with
+            // unrelated stats — verified against the corpus, "heal" also
+            // matched HealingAmplification (183) and HealingLore (88) versus
+            // only 33 real Heal-skill buffs; "repair" matched Reconstruction,
+            // RepairAmplification and RepairLore; "hide" matched RoughHide.
+            // The buff text is literally "<skill> skillbonus", so the suffix
+            // both disambiguates and still matches. Re-audited: with it, all
+            // 21 match ONLY genuine SkillBonus buffs.
+            ...[
+                'Balance', 'Bluff', 'Concentration', 'Diplomacy', 'Disable Device',
+                'Haggle', 'Heal', 'Hide', 'Intimidate', 'Jump', 'Listen',
+                'Move Silently', 'Open Lock', 'Perform', 'Repair', 'Search',
+                'Spellcraft', 'Spot', 'Swim', 'Tumble', 'Use Magic Device',
+            ].map((s) => ({ label: s, stat: `${s.toLowerCase()} skill` })),
+
+            // Ability and themed skill-group bonuses, named exactly as the
+            // data names them. The themed ones (Alluring/Astute/Mighty/
+            // Nimble/Prudent) are DDO's own labels for an ability's skill
+            // group, but the data files carry no description saying WHICH
+            // ability each covers — so they are listed under their real names
+            // rather than folded into a guessed ability mapping.
+            //
+            // Constitution/Strength/Wisdom Skills are deliberately absent:
+            // each has exactly one source in the whole corpus and all three
+            // are below the ML>=29 floor the solver parses at, so they could
+            // only ever report "matched nothing" (same audit that removed
+            // three dead bonus-type leaves in 0.4.1).
+            ...[
+                'Alluring Skills', 'Astute Skills', 'Charisma Skills',
+                'Dexterity Skills', 'Intelligence Skills', 'Mighty Skills',
+                'Nimble Skills', 'Prudent Skills',
+            ].map((s) => ({ label: s, stat: s.toLowerCase() })),
+        ].sort((a, b) => a.label.localeCompare(b.label)),
+    },
+    {
         label: 'Procs',
         children: [
             // docs/PROC_EFFECTS_EXPANSION_SPEC.md — the on-spellcast/offhand

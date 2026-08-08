@@ -167,6 +167,22 @@ mkdir -p "$DIST_DIR"
 cp -R "$BUILT_PATH" "${DIST_DIR}/DDO Gearset Optimizer.app"
 echo "   copied ${DIST_DIR}/DDO Gearset Optimizer.app"
 
+# ── 6. Zip it for handoff ──────────────────────────────────────────────────
+# `ditto`, not `zip`: it preserves symlinks, resource forks and the ad-hoc
+# code signature applied in step 4. Plain `zip -r` flattens the symlinks
+# inside .app frameworks, and the extracted copy can then be reported as
+# damaged by Gatekeeper — the exact failure step 4's signing exists to avoid.
+#
+# Step 5 wipes DIST_DIR wholesale, so any previous zip is already gone; the
+# explicit rm keeps the overwrite guaranteed if these steps are ever reordered.
+ZIP_PATH="${DIST_DIR}/DDO Gearset Optimizer.zip"
+echo ""
+echo "-> Zipping for handoff..."
+rm -f "$ZIP_PATH"
+ditto -c -k --sequesterRsrc --keepParent \
+    "${DIST_DIR}/DDO Gearset Optimizer.app" "$ZIP_PATH"
+echo "   wrote ${ZIP_PATH} ($(du -h "$ZIP_PATH" | cut -f1))"
+
 echo ""
 echo "Build complete (self-contained, ${PLATFORM})."
 echo "Ready to hand off from: $(cd "$DIST_DIR" && pwd)"

@@ -442,6 +442,26 @@ def _weapon_family_key(item):
     return None
 
 
+# The 21 real DDO skills, taken from the distinct <Item> values on the
+# corpus's 992 SkillBonus buffs (docs/CASTER_BONUS_TYPE_STATS_SPEC.md's
+# post-release corrections). Used to decide whether a user's priority is
+# asking for a skill, so a skill buff is never absorbed by an unrelated
+# priority — see is_skill_buff in normalize_stat_name.
+SKILL_NAMES = frozenset({
+    'balance', 'bluff', 'concentration', 'diplomacy', 'disable device',
+    'haggle', 'heal', 'hide', 'intimidate', 'jump', 'listen',
+    'move silently', 'open lock', 'perform', 'repair', 'search',
+    'spellcraft', 'spot', 'swim', 'tumble', 'use magic device',
+})
+
+
+def _priority_wants_skill(p_clean):
+    """True when a priority is asking for a skill: it either names one of the
+    real skills outright, or says "skill(s)" (covering the group buffs like
+    "Alluring Skills Bonus" that have no per-skill <Item>)."""
+    return 'skill' in p_clean or any(s in p_clean for s in SKILL_NAMES)
+
+
 def _is_stacking(b_type):
     return (b_type or '').lower().strip() in STACKING_TYPES
 
@@ -552,8 +572,25 @@ def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
     desc = (desc or '').lower()
     bonus_type = (bonus_type or '').strip().lower()
 
-    if 'skill' in typ or 'skill' in item or 'skill' in desc:
-        return None
+    # Skills used to be dropped outright here (`if 'skill' in typ/item/desc:
+    # return None`), a blanket simplification carried over from the original
+    # Phase 3 integration. It meant a Spellcraft or Disable Device priority
+    # could never match anything, even though the data is perfectly
+    # structured for it: Type='SkillBonus', Item='<skill name>', with a real
+    # Value1 and BonusType (992 such buffs across 21 skills).
+    #
+    # They cannot simply be un-dropped, though. Alongside per-skill buffs the
+    # corpus carries GROUP buffs typed e.g. "Intelligence Skills - Exceptional
+    # Bonus" or "Alluring Skills Bonus" — bonuses to the skills governed by an
+    # ability, NOT to the ability score. Matching those by plain substring
+    # would let an "Intelligence" ability priority absorb them, which is the
+    # same defect class as the school-save bug below.
+    #
+    # So skills are gated per-priority instead: only a priority that actually
+    # asks for a skill may claim a skill buff. Structural fields only, never
+    # the free-text description, so a buff that merely mentions "skills" in
+    # prose is unaffected.
+    is_skill_buff = 'skill' in typ or 'skill' in item
 
     # A saving-throw buff — IllusionSave, EnchantmentSave, "Illusion Save" —
     # is a DEFENSIVE stat: it raises YOUR save against that school and does
@@ -637,6 +674,11 @@ def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
             # Only a priority that actually asks for a save may claim a
             # defensive saving-throw buff (see is_save_buff above).
             if is_save_buff and 'save' not in p_clean and 'resist' not in p_clean:
+                continue
+            # Likewise, only a skill-seeking priority may claim a skill buff
+            # (see is_skill_buff above) — this is what stops an "Intelligence"
+            # ability priority from absorbing "Intelligence Skills" buffs.
+            if is_skill_buff and not _priority_wants_skill(p_clean):
                 continue
 
             direct, implied = match_terms(p_clean)

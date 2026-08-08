@@ -14,7 +14,7 @@
    DDOBuilderV2 data (see `SPELL_DC_ALL_SCHOOLS_BONUS_TYPES` /
    `SPELL_FOCUS_MASTERY_BONUS_TYPES` in `statTaxonomy.ts`).
 
-## Post-release corrections (0.4.1 / 0.4.2)
+## Post-release corrections (0.4.1 / 0.4.2 / 0.4.3)
 
 Reported from a real saved gearset: all seven `<bonus> spell focus mastery`
 priorities reported "matched nothing". Two separate defects, both mine:
@@ -84,6 +84,42 @@ prose isn't swept in. Note the opt-in spelling is `illusion save`, matching the
 data's own name for it; `illusion resistance` is the bonus TYPE, not the stat
 name, and does not match.
 
+### 4. Skills were unreachable entirely (0.4.3)
+
+Reported: the solver could not find skills such as Spellcraft or Disable
+Device. Two causes, both total blockers:
+
+- `normalize_stat_name` opened with a blanket
+  `if 'skill' in typ or 'skill' in item or 'skill' in desc: return None`,
+  carried over from the original Phase 3 integration. Every skill buff was
+  discarded before matching — despite the data being well formed for it:
+  `Type='SkillBonus'`, `Item='<skill>'`, with real `Value1`/`BonusType`
+  (992 buffs across 21 skills).
+- `statTaxonomy.ts` offered no skills at all, and the picker has no free-text
+  entry, so the priority could not even be expressed.
+
+**Why the guard could not simply be deleted:** alongside per-skill buffs the
+corpus carries GROUP buffs typed `"Intelligence Skills - Exceptional Bonus"`,
+`"Alluring Skills Bonus"`, etc. — bonuses to the skills *governed by* an
+ability, not to the ability score. Substring matching would let an
+`Intelligence` ability priority absorb them: the same defect class as §3.
+
+**Fix:** skills are gated per-priority, mirroring §3 — only a priority that
+names one of the 21 real skills (`SKILL_NAMES`, derived from the corpus's own
+`<Item>` values) or says "skill" may claim a skill buff. The `desc` arm of the
+old guard was dropped as dead: zero buffs in the corpus mention skills in
+`Description1` without also saying so in `Type`/`Item`.
+
+Bonus-type scoping works on skills for free through the existing prefix
+mechanism (`"insightful spellcraft"` requires an Insightful-typed buff).
+
+**Known limitation:** the ability-group buffs are only claimable by naming
+them (e.g. `"intelligence skills"`). They are not credited to the individual
+skills that ability governs — Spellcraft is Intelligence-based in DDO, so
+mechanically it does benefit, but attributing that would need a
+skill-to-ability mapping the data files do not carry, and inventing one was
+out of scope.
+
 **Not a defect:** `exceptional spell focus mastery` still reports unmatched
 for a *Dual Caster* build specifically. All six of its sources (Amplin,
 Arctica, Collision, …) are two-handed/crossbow Weapon1 items, which that
@@ -110,9 +146,16 @@ one specific bonus type.
 `frontend/src/lib/data/statTaxonomy.ts` has leaves for "Spell Schools (Spell
 DC)", "Spell Lore", "Spell Critical Damage", and "Spellpower" — but no entry
 for `SpellFocusMastery`, DDO's universal (applies to every school at once)
-spell-DC bonus. The stat picker is taxonomy-driven with no free-text entry
-(`StatPriorityEditor.svelte`'s `addStat` only fires from the picker), so a
-user cannot add it today by any means, bonus-type-scoped or not.
+spell-DC bonus, so it is not offered in the picker's tree.
+
+**CORRECTION (0.4.3):** this section originally claimed the picker is
+"taxonomy-driven with no free-text entry", and that a user therefore could not
+add such a stat by any means. That is wrong — `StatPicker.svelte` has a
+"Use a custom stat name…" field that adds an arbitrary string as a priority.
+The taxonomy gap was real (nothing in the tree offered it), but the stat was
+always reachable by typing it. This also explains how a bare `illusion`
+priority — which no picker leaf emits — reached a real saved gearset and
+surfaced the §3 defensive-save bug.
 
 (`python/optimizer.py`'s `normalize_stat_name` would actually match a literal
 `"spell focus mastery"` priority correctly if one existed — the substring

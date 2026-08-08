@@ -803,6 +803,97 @@ def test_normalize_stat_name_profane_and_artifact_all_schools_spelldc():
     ) is None
 
 
+def test_skill_priorities_match_real_skill_buffs():
+    # REGRESSION (reported): the solver could not find skills at all — a
+    # blanket `if 'skill' in typ/item/desc: return None` guard from the
+    # original Phase 3 integration dropped every one, so a Spellcraft or
+    # Disable Device priority matched nothing despite 992 well-structured
+    # SkillBonus buffs in the corpus. These are the wire strings the stat
+    # picker actually emits (see statTaxonomy.ts).
+    assert optimizer.normalize_stat_name(
+        "SkillBonus", "Spellcraft", None, ["spellcraft skill"], bonus_type="Competence"
+    ) == "spellcraft skill"
+    assert optimizer.normalize_stat_name(
+        "SkillBonus", "Disable Device", None, ["disable device skill"], bonus_type="Competence"
+    ) == "disable device skill"
+    # The bare name still works, for anything hand-entered or pre-existing.
+    assert optimizer.normalize_stat_name(
+        "SkillBonus", "Spellcraft", None, ["spellcraft"], bonus_type="Competence"
+    ) == "spellcraft"
+
+
+def test_skill_leaves_use_a_suffix_because_bare_names_collide():
+    # Why the picker emits "<skill> skill" rather than the bare name: several
+    # skills are substrings of unrelated stats. Verified against the corpus —
+    # bare "heal" also matched HealingAmplification (183 buffs) and HealingLore
+    # (88) versus only 33 real Heal-skill buffs; "repair" matched
+    # Reconstruction/RepairAmplification/RepairLore; "hide" matched RoughHide.
+    for typ, bare in (("HealingAmplification", "heal"),
+                      ("HealingLore", "heal"),
+                      ("RepairAmplification", "repair"),
+                      ("RoughHide", "hide")):
+        assert optimizer.normalize_stat_name(
+            typ, None, None, [bare], bonus_type="Enhancement") == bare, (typ, bare)
+        # ...and the suffixed form the picker ships does NOT collide.
+        assert optimizer.normalize_stat_name(
+            typ, None, None, [bare + " skill"], bonus_type="Enhancement") is None, (typ, bare)
+    # The suffix still matches the genuine skill buff, whose text is
+    # literally "<skill> skillbonus".
+    assert optimizer.normalize_stat_name(
+        "SkillBonus", "Heal", None, ["heal skill"], bonus_type="Competence") == "heal skill"
+
+
+def test_ability_and_themed_skill_group_leaves_match():
+    # The group bonuses the picker lists alongside individual skills.
+    assert optimizer.normalize_stat_name(
+        "Intelligence Skills - Exceptional Bonus", None, None,
+        ["intelligence skills"], bonus_type="Exceptional") == "intelligence skills"
+    assert optimizer.normalize_stat_name(
+        "Alluring Skills Bonus", None, None,
+        ["alluring skills"], bonus_type="Exceptional") == "alluring skills"
+    assert optimizer.normalize_stat_name(
+        "Exceptional Nimble Skills", None, None,
+        ["nimble skills"], bonus_type="Exceptional") == "nimble skills"
+
+
+def test_skill_buffs_respect_the_bonus_type_prefix_mechanism():
+    # Bonus-type scoping falls out of the existing prefix mechanism.
+    assert optimizer.normalize_stat_name(
+        "SkillBonus", "Spellcraft", None, ["insightful spellcraft skill"], bonus_type="Insightful"
+    ) == "insightful spellcraft skill"
+    assert optimizer.normalize_stat_name(
+        "SkillBonus", "Spellcraft", None, ["insightful spellcraft skill"], bonus_type="Quality"
+    ) is None
+
+
+def test_ability_skill_group_buff_never_credits_the_ability_priority():
+    # The reason the blanket guard could not simply be deleted: the corpus
+    # also carries GROUP buffs like "Intelligence Skills - Exceptional Bonus"
+    # — a bonus to Intelligence-BASED SKILLS, not to the Intelligence score.
+    # An ability priority must not absorb them (same defect class as the
+    # school-save bug).
+    assert optimizer.normalize_stat_name(
+        "Intelligence Skills - Exceptional Bonus", None, None,
+        ["Intelligence"], bonus_type="Exceptional"
+    ) is None
+    # ...but a skill-seeking priority may still claim it.
+    assert optimizer.normalize_stat_name(
+        "Intelligence Skills - Exceptional Bonus", None, None,
+        ["intelligence skills"], bonus_type="Exceptional"
+    ) == "intelligence skills"
+
+
+def test_real_ability_buff_unaffected_by_the_skill_gate():
+    # The genuine ability-score buff must still match its priority, and a
+    # skill priority must not steal it.
+    assert optimizer.normalize_stat_name(
+        "AbilityBonus", "Intelligence", None, ["Intelligence"], bonus_type="Enhancement"
+    ) == "Intelligence"
+    assert optimizer.normalize_stat_name(
+        "AbilityBonus", "Intelligence", None, ["spellcraft"], bonus_type="Enhancement"
+    ) is None
+
+
 def test_defensive_school_save_never_credits_an_offensive_school_priority():
     # REGRESSION (reported from a real saved gearset): Legendary Eyes of
     # Enlightenment carries "IllusionSave +11 (Resistance)" — a saving-throw

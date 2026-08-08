@@ -7,6 +7,49 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.4.3] — 2026-08-09
+
+### Fixed
+
+- **Skills could never be optimized for.** A blanket guard carried over from
+  the original Phase 3 integration (`if 'skill' in typ/item/desc: return None`)
+  dropped every skill buff before matching, so a Spellcraft or Disable Device
+  priority found nothing — despite 992 well-structured `SkillBonus` buffs
+  across 21 skills sitting in the data with real values and bonus types. The
+  stat picker also offered no skills at all, so the priority could not even be
+  expressed. Both halves fixed.
+
+  The guard could not simply be deleted: the corpus also carries GROUP buffs
+  typed like "Intelligence Skills - Exceptional Bonus" — a bonus to the skills
+  governed by an ability, *not* to the ability score — and plain substring
+  matching would let an `Intelligence` priority absorb them. Skills are now
+  gated per-priority instead (only a priority naming a skill, or saying
+  "skill", may claim a skill buff), the same targeted approach used for
+  defensive school saves in 0.4.2.
+
+### Added
+
+- **Skills in the stat picker** — one flat, alphabetical "Skills" list holding
+  all 21 individual DDO skills plus the in-game skill-GROUP bonuses
+  ("Intelligence Skills", "Alluring Skills", "Nimble Skills", …). Bonus-type
+  scoping works on them for free via the existing prefix mechanism, e.g.
+  "insightful spellcraft skill" requires an Insightful-typed buff.
+
+  Individual skills use a `"<skill> skill"` wire string rather than the bare
+  name, because several bare names silently collide with unrelated stats —
+  audited against the corpus, `heal` also matched HealingAmplification (183
+  buffs) and HealingLore (88) against only 33 real Heal-skill buffs; `repair`
+  matched Reconstruction/RepairAmplification/RepairLore; `hide` matched
+  RoughHide. The buff text is literally `"<skill> skillbonus"`, so the suffix
+  disambiguates and still matches. Constitution/Strength/Wisdom Skills are
+  omitted: one corpus source each, all below the ML>=29 solver floor.
+
+### Changed
+
+- `build-mac.sh` now zips the finished app into `dist/<platform>/`, replacing
+  any existing zip. Uses `ditto` rather than `zip` so symlinks, resource forks
+  and the ad-hoc code signature survive the round trip.
+
 ## [0.4.2] — 2026-08-09
 
 ### Fixed
