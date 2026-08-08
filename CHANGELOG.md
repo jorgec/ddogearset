@@ -7,6 +7,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.3.7] — 2026-08-08
+
+### Added
+
+- **App icon and header logo** now use `logo.jpg`.
+- **Solver/console layout**: once the layout goes side-by-side (`lg`
+  breakpoint), the configuration form now takes 2/3 width and the console
+  1/3 (was the reverse).
+
 ## [0.3.6] — 2026-08-08
 
 ### Added

@@ -10,6 +10,7 @@
   import Toast from '$lib/components/domain/Toast.svelte';
   import { ParseMetadata } from '../wailsjs/go/main/App';
   import { isParsing, currentTab } from '$lib/store';
+  import logoUrl from './assets/images/logo.jpg';
 
   onMount(async () => {
     // Optionally trigger an initial parse if needed based on Phase 4 Spec
@@ -28,8 +29,8 @@
   <!-- Header -->
   <header class="glass-panel px-6 py-4 flex items-center justify-between sticky top-0 z-10">
     <div class="flex items-center space-x-3">
-      <div class="bg-primary text-primary-foreground p-2 rounded-md">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cpu"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
+      <div class="p-1 rounded-md overflow-hidden">
+        <img src={logoUrl} alt="DDO Gear Optimizer logo" class="h-8 w-8 rounded-sm object-cover" />
       </div>
       <div>
         <h1 class="text-xl font-bold tracking-tight">DDO Gear Optimizer</h1>
@@ -66,14 +67,14 @@
   <!-- Main Content Area -->
   <div class="flex-1 overflow-hidden relative flex flex-col">
     {#if $currentTab === 'solver'}
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full flex-1">
-      <!-- Left Column: Config -->
-      <div class="lg:col-span-4 flex flex-col space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full flex-1">
+      <!-- Left Column: Config (2/3 width once side-by-side) -->
+      <div class="lg:col-span-2 flex flex-col space-y-6">
         <JobConfigurationForm />
       </div>
 
-      <!-- Right Column: Status Console -->
-      <div class="lg:col-span-8 flex flex-col space-y-6">
+      <!-- Right Column: Status Console (1/3 width once side-by-side) -->
+      <div class="lg:col-span-1 flex flex-col space-y-6">
         <StatusConsole />
       </div>
     </div>
