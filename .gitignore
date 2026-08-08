@@ -35,3 +35,5 @@ frontend/wailsjs/runtime/runtime.d.ts
 frontend/wailsjs/runtime/runtime.js
 
 .DS_Store
+
+dist/darwin-arm64/DDO Gearset Optimizer.zip
