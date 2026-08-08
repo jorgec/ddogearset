@@ -141,6 +141,15 @@ casters at all. Replace this with four real caster-specific `weapon_style` optio
   two-handed without a runearm) carry real caster stats but were unreachable by any
   prior caster style. Caster-only: does not change Melee's Two Handed Fighting or
   Ranged's crossbow styles, which keep their own separate weapon lists.
+- **Any** (added in a follow-up pass) — fully unrestricted: `w1_list`/`w2_list`
+  are both `None` (not a list), which is `parse_items`' own "no type
+  restriction" signal, so every weapon type across every other caster style is
+  reachable at once. Weapon2 is left optional rather than forced empty or
+  forced present — the solver freely chooses whichever weapon/offhand
+  combination (any style, any type, including no Weapon2 at all) scores best.
+  The caster craftable-family restriction toggle is a no-op for this style
+  specifically, since there's no already-narrowed type set left to restrict
+  within.
 
 Selecting "Caster stick + runearm" or "Crossbow and runearm" auto-checks the
 `runearm_use` UI checkbox (`JobConfigurationForm.svelte`) so the display matches

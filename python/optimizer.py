@@ -211,6 +211,29 @@ def safe_name(s):
     return re.sub(r'[^a-zA-Z0-9_]', '_', str(s))
 
 
+def _weapon_family_key(item):
+    """Diversity key for find_slot_alternatives (per explicit instruction: a
+    'reskin' of an already-suggested weapon — same named line, just a
+    different weapon type — is not a true alternative). Real DDO themed
+    weapon sets name every type variant identically apart from the type
+    itself, e.g. 'Legendary Cataclysmic Greataxe' / '...Falchion' / '...Great
+    Crossbow' (verified against the real corpus: ~30 Cataclysmic variants,
+    one per weapon type, all sharing the same augment slots/buffs). Returns
+    the shared prefix (a same-family signal) when `item`'s name literally
+    ends with its own weapon type (ignoring whitespace/case); returns None
+    for non-weapons or names that don't follow this pattern (e.g. unique
+    named items like 'Arctica, the Mystic Cold' are never deduped against
+    anything — nothing else shares that exact name)."""
+    weapon_type = item.get('weapon_type')
+    if not weapon_type:
+        return None
+    norm_name = re.sub(r'\s+', '', item.get('name', '')).lower()
+    norm_type = re.sub(r'\s+', '', weapon_type).lower()
+    if norm_type and norm_name.endswith(norm_type) and len(norm_name) > len(norm_type):
+        return norm_name[:-len(norm_type)]
+    return None
+
+
 def _is_stacking(b_type):
     return (b_type or '').lower().strip() in STACKING_TYPES
 
@@ -2529,6 +2552,34 @@ def find_slot_alternatives(items, sets, augments, filigrees, entries, required_s
 
     candidates.sort(key=lambda c: (_lex_key(c['scores'], c['penalty']), _negname(c['item']['name'])),
                     reverse=True)
+
+    # Diversity filter (explicit instruction): don't let a single "reskinned"
+    # weapon family (same named line, different weapon type — see
+    # _weapon_family_key) fill every alternative slot. Walk the score-sorted
+    # list once, keeping only the single best-scoring candidate per family
+    # key; same-family runners-up are held back as a fallback fill in case
+    # the pool doesn't have enough distinct families to reach `count` (a true
+    # alternative that scores slightly lower is still preferred over a
+    # same-family repeat, but never return fewer alternatives than the pool
+    # actually supports).
+    diverse = []
+    seen_family_keys = set()
+    same_family_fallback = []
+    for cand in candidates:
+        fam = _weapon_family_key(cand['item'])
+        if fam is None or fam not in seen_family_keys:
+            diverse.append(cand)
+            if fam is not None:
+                seen_family_keys.add(fam)
+        else:
+            same_family_fallback.append(cand)
+        if len(diverse) >= count:
+            break
+    if len(diverse) < count:
+        diverse.extend(same_family_fallback[:count - len(diverse)])
+        diverse.sort(key=lambda c: (_lex_key(c['scores'], c['penalty']), _negname(c['item']['name'])),
+                     reverse=True)
+    candidates = diverse
 
     priority_stats = [e.stat for e in entries]
     out = []

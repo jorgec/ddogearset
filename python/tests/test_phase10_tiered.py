@@ -1169,6 +1169,27 @@ def test_resolve_weapon_lists_caster_two_handed_weapon():
     assert w1_types == set(w1)  # family-restricted by default, same as other caster styles
 
 
+def test_resolve_weapon_lists_caster_any_is_fully_unrestricted():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists(
+        {"build_type": "Caster", "weapon_style": "Any"})
+    assert w1 is None
+    assert w2 is None
+    assert req2 is False
+    # The craftable-family toggle is a no-op for 'Any' — nothing to restrict
+    # within since there's no already-narrowed type set.
+    assert w1_types is None
+    assert w2_types is None
+
+
+def test_resolve_weapon_lists_caster_any_stays_unrestricted_even_with_family_toggle_on():
+    w1, w2, req2, w1_types, w2_types = solver.resolve_weapon_lists({
+        "build_type": "Caster", "weapon_style": "Any",
+        "caster_restrict_weapon_families": True,
+    })
+    assert w1_types is None
+    assert w2_types is None
+
+
 def test_resolve_weapon_lists_melee_two_handed_fighting_unaffected_by_caster_change():
     # The new caster 'Two-Handed Weapon' style must not leak into Melee's
     # existing 'Two Handed Fighting' weapon list (no crossbows there).
@@ -1301,6 +1322,101 @@ def test_ac35_ring_slots_match_the_ring_item_pool():
     names = [a["itemName"] for a in res["alternatives"]]
     assert names == ["Ring Of A"]          # Ring Of B is equipped in Ring_2 (EC-15)
     assert "Hat" not in names
+
+
+def test_weapon_family_key_detects_reskinned_variants():
+    greataxe = make_item("Legendary Cataclysmic Greataxe", ["Weapon1"], [])
+    greataxe['weapon_type'] = 'Great Axe'
+    falchion = make_item("Legendary Cataclysmic Falchion", ["Weapon1"], [])
+    falchion['weapon_type'] = 'Falchion'
+    unique = make_item("Arctica, the Mystic Cold", ["Weapon1"], [])
+    unique['weapon_type'] = 'Great Axe'
+
+    key_a = optimizer._weapon_family_key(greataxe)
+    key_b = optimizer._weapon_family_key(falchion)
+    assert key_a is not None
+    assert key_a == key_b
+    # A uniquely-named item never collides with anything, even one sharing
+    # its weapon type.
+    assert optimizer._weapon_family_key(unique) is None
+
+
+def test_weapon_family_key_none_for_non_weapons():
+    ring = make_item("Ring Of A", ["Ring"], [])
+    assert optimizer._weapon_family_key(ring) is None
+
+
+def test_find_slot_alternatives_does_not_suggest_same_family_reskins():
+    # Explicit instruction: if a Cataclysmic Greataxe was the top suggestion,
+    # don't fill the rest of the list with Cataclysmic Falchion/Longsword/etc
+    # — those are the same weapon with only the type changed, not true
+    # alternatives, even though each scores identically (same buffs).
+    family_types = [
+        ("Legendary Cataclysmic Greataxe", "Great Axe", 10.0),
+        ("Legendary Cataclysmic Falchion", "Falchion", 10.0),
+        ("Legendary Cataclysmic Great Crossbow", "Great Crossbow", 10.0),
+        ("Legendary Cataclysmic Warhammer", "Warhammer", 10.0),
+    ]
+    items = []
+    for name, wtype, val in family_types:
+        it = make_item(name, ["Weapon1"], [("A", "Enhancement", val)])
+        it['weapon_type'] = wtype
+        items.append(it)
+    # Two genuinely distinct alternatives, scoring lower.
+    distinct1 = make_item("Plain Warhammer", ["Weapon1"], [("A", "Enhancement", 3.0)])
+    distinct1['weapon_type'] = 'Warhammer'
+    distinct2 = make_item("Rusty Dagger", ["Weapon1"], [("A", "Enhancement", 2.0)])
+    distinct2['weapon_type'] = 'Dagger'
+    items.extend([distinct1, distinct2])
+
+    entries = [PriorityEntry("A", 1, None, 0)]
+    required = ["Weapon1"]
+    ub_sources = optimizer.build_ub_sources(items, {}, [], [], required)
+    ub_all = optimizer.compute_stat_upper_bounds(ub_sources, items, required, {}, True)
+    ub_nofil = optimizer.compute_stat_upper_bounds(ub_sources, items, required, {}, False)
+    weights = optimizer.compute_tier_weights(entries)
+
+    # count is clamped to a minimum of 3 internally (find_slot_alternatives'
+    # own _clamp(count, 3, 10)) — request exactly that floor.
+    res = optimizer.find_slot_alternatives(
+        items, {}, [], [], entries, required, {}, {}, {},
+        "Weapon1", "", 3, ub_all, ub_nofil, weights)
+
+    names = [a["itemName"] for a in res["alternatives"]]
+    assert len(names) == 3
+    # Exactly one Cataclysmic variant (the best-scoring one) plus both
+    # genuinely distinct items — never two Cataclysmic variants together,
+    # even though three of them are tied for the top score.
+    assert "Plain Warhammer" in names
+    assert "Rusty Dagger" in names
+    assert sum(1 for n in names if n.startswith("Legendary Cataclysmic")) == 1
+
+
+def test_find_slot_alternatives_backfills_same_family_when_pool_too_small():
+    # If the entire eligible pool IS one family, we must still return `count`
+    # alternatives (never silently return fewer just to enforce diversity).
+    family_types = [
+        ("Legendary Cataclysmic Greataxe", "Great Axe"),
+        ("Legendary Cataclysmic Falchion", "Falchion"),
+        ("Legendary Cataclysmic Warhammer", "Warhammer"),
+    ]
+    items = []
+    for name, wtype in family_types:
+        it = make_item(name, ["Weapon1"], [("A", "Enhancement", 5.0)])
+        it['weapon_type'] = wtype
+        items.append(it)
+
+    entries = [PriorityEntry("A", 1, None, 0)]
+    required = ["Weapon1"]
+    ub_sources = optimizer.build_ub_sources(items, {}, [], [], required)
+    ub_all = optimizer.compute_stat_upper_bounds(ub_sources, items, required, {}, True)
+    ub_nofil = optimizer.compute_stat_upper_bounds(ub_sources, items, required, {}, False)
+    weights = optimizer.compute_tier_weights(entries)
+
+    res = optimizer.find_slot_alternatives(
+        items, {}, [], [], entries, required, {}, {}, {},
+        "Weapon1", "", 3, ub_all, ub_nofil, weights)
+    assert len(res["alternatives"]) == 3
 
 
 def test_ac36_cold_callable_baseline_is_populated():

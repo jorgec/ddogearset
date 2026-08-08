@@ -330,6 +330,22 @@ def resolve_weapon_lists(parsed_data):
                                   'repeating light crossbow',
                                   'repeating heavy crossbow', 'great crossbow']
         w2_list = ['none']
+    elif weapon_style == 'Any':
+        # Caster-only, fully unrestricted: no weapon_style-based type
+        # narrowing on Weapon1 or Weapon2 at all — the solver picks whichever
+        # weapon/offhand combination (any style, any type) scores best.
+        # `None` here (not a list) is parse_items' own "no restriction"
+        # signal (see allowed_w1_list/allowed_w2_list — a falsy value skips
+        # the type filter entirely), so this reaches every weapon type across
+        # every other caster style at once, including ones no named style
+        # covers on its own. Weapon2 is left optional, not required: `None`
+        # doesn't force one, so the solver is free to equip nothing there too
+        # if that scores best. The caster craftable-family toggle below is a
+        # no-op for this style specifically (guarded on w1_list not being
+        # None) since there's no already-narrowed type set left to restrict
+        # within — "Any" means genuinely unrestricted.
+        w1_list = None
+        w2_list = None
     else:
         w1_list = twf_weapons
         w2_list = twf_weapons
@@ -354,8 +370,13 @@ def resolve_weapon_lists(parsed_data):
     # only for Dual Caster (also a "caster stick") — Orb/Runearm slots are
     # deliberately left unrestricted (see spec §3).
     if build_type == 'Caster' and parsed_data.get('caster_restrict_weapon_families', True):
-        weapon1_eligible_types = set(w1_list)
-        if weapon_style == 'Dual Caster':
+        # 'Any' leaves w1_list/w2_list as None (genuinely unrestricted) —
+        # there's no already-narrowed type set left to restrict within, so
+        # the family gate is a no-op for this style specifically regardless
+        # of the toggle.
+        if w1_list is not None:
+            weapon1_eligible_types = set(w1_list)
+        if weapon_style == 'Dual Caster' and w2_list is not None:
             weapon2_eligible_types = set(w2_list)
 
     return w1_list, w2_list, require_weapon2, weapon1_eligible_types, weapon2_eligible_types

@@ -141,8 +141,30 @@ decision point, not assuming.
    into `pre_equipped`/`pre_filled_augments`/`pre_filled_filigrees` on click, mirroring
    how the undo snapshot already works for stat-set applies.
 
+5. **Weapon-family diversity filter** (added in a follow-up pass, explicit
+   instruction): `find_slot_alternatives` no longer lets a single "reskinned"
+   weapon set (same named line, only the weapon type differs — e.g.
+   `Legendary Cataclysmic Greataxe` / `...Falchion` / `...Great Crossbow`, all
+   ~30 variants sharing identical buffs) fill multiple slots in the
+   alternatives list. `optimizer._weapon_family_key(item)` detects this when
+   an item's name literally ends with its own declared `weapon_type`
+   (case/whitespace-insensitive); the ranked candidate list then keeps only
+   the single best-scoring item per family key, falling back to same-family
+   repeats only when the eligible pool doesn't have enough distinct families
+   to fill `count` (never returns fewer alternatives than the pool actually
+   supports). Known limitation: this only catches the clean `<name> <weapon
+   type>` naming pattern — verified true for Cataclysmic, Calamitous, and
+   most Defiled Reliquary variants — not "flavor renamed" reskins where the
+   display name doesn't literally contain the declared weapon type (e.g. a
+   Club renamed "Sceptre", or the "Dwarven Waraxe"/`Dwarven Axe` name/type
+   spelling mismatch); those still aren't deduped against their family.
+
 ## Out of scope for this pass
 
-- No changes to the backend — `GetSlotAlternatives`, `find_slot_alternatives`,
-  `run_alternatives` are unmodified; this is purely wiring a UI onto an existing RPC.
+- No changes to the backend beyond the weapon-family diversity filter (item 5
+  above) — `GetSlotAlternatives` and `run_alternatives` are otherwise
+  unmodified; this is purely wiring a UI onto an existing RPC.
 - No search-time/budget control, per the finding above.
+- Broadening the diversity filter to catch "flavor renamed" reskins (Sceptre/
+  Dwarven Waraxe-style name/weapon_type mismatches, see item 5) — the current
+  suffix-match heuristic only catches the clean naming pattern.

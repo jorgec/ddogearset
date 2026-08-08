@@ -7,6 +7,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.3.6] — 2026-08-08
+
+### Added
+
+- **"Any" caster weapon style.** Fully unrestricted Weapon1/Weapon2 — no
+  weapon_style-based type narrowing at all, and Weapon2 is optional rather
+  than required. The solver freely picks whichever weapon/offhand
+  combination across every other caster style scores best. The caster
+  craftable-family restriction toggle is a no-op for this style specifically
+  (nothing left to restrict within).
+- **Weapon-family diversity filter for slot alternatives.** `GetSlotAlternatives`
+  no longer fills the suggestion list with reskins of the same weapon set
+  (e.g. Legendary Cataclysmic Greataxe + ...Falchion + ...Great Crossbow, ~30
+  variants sharing identical buffs) — keeps only the best-scoring item per
+  detected weapon family, falling back to same-family repeats only when the
+  pool has too few distinct families to fill the requested count. Known
+  limitation: only catches names that literally end with their declared
+  weapon type (Cataclysmic/Calamitous/most Defiled Reliquary) — "flavor
+  renamed" reskins like a Club renamed "Sceptre" aren't caught yet (see
+  docs/SLOT_ALTERNATIVES_UI_SPEC.md).
+
 ## [0.3.5] — 2026-08-08
 
 ### Added

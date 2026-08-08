@@ -160,10 +160,14 @@
   // — broader two-handed pool: great sword/falchion/great axe/maul/great
   // club/quarterstaff plus all crossbow types with no runearm, Weapon2
   // blocked; covers items like Arctica/Caustica that Quarterstaff alone
-  // couldn't reach). These are real weapon_style values the backend already
-  // understands (python/solver.py's resolve_weapon_lists) — unlike the old
-  // forced 'None', which gave casters no Weapon2 slot at all.
-  const CASTER_WEAPON_STYLES = ['Dual Caster', 'Stick and Orb', 'Stick and Runearm', 'Crossbow and Runearm', 'Quarterstaff', 'Two-Handed Weapon'];
+  // couldn't reach), Any (fully unrestricted — no weapon_style-based type
+  // narrowing on Weapon1 or Weapon2 at all, and Weapon2 is optional rather
+  // than required; the solver picks whichever weapon/offhand combination
+  // across every other style scores best). These are real weapon_style
+  // values the backend already understands (python/solver.py's
+  // resolve_weapon_lists) — unlike the old forced 'None', which gave casters
+  // no Weapon2 slot at all.
+  const CASTER_WEAPON_STYLES = ['Dual Caster', 'Stick and Orb', 'Stick and Runearm', 'Crossbow and Runearm', 'Quarterstaff', 'Two-Handed Weapon', 'Any'];
   const MELEE_WEAPON_STYLES = ['Two Weapon Fighting', 'Two Handed Fighting', 'Single Weapon Fighting', 'Sword and Board', 'Single Handed Weapon and Runearm'];
 
   // Styles whose Weapon2 is unconditionally a runearm — runearm_use is
