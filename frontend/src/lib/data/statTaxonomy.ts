@@ -78,16 +78,26 @@ function elementLeaves(suffix: string): StatTaxonomyLeaf[] {
 // augments, Dinosaur Bone horns, etc.) and on real SpellFocusMastery item
 // buffs, respectively. Reaper is deliberately excluded everywhere (a
 // stacking bonus type tied to Reaper difficulty, not a gear-farming target,
-// same exclusion python/optimizer.py's BONUS_TYPE_PREFIXES makes). Each list
-// is scoped to only the bonus types actually observed for that stat, so no
-// leaf here can ever match zero real sources.
+// same exclusion python/optimizer.py's BONUS_TYPE_PREFIXES makes).
+//
+// CORRECTION: these lists were originally derived by scanning the whole
+// corpus with no level floor and without separating school-specific from
+// All-Schools effects, and the comment here wrongly claimed no leaf could
+// match zero sources. Three did, and were removed after re-auditing against
+// the ML>=29 floor the solver actually parses at:
+//   • Enhancement / Fortune "All Schools" DC — those bonus types exist ONLY
+//     on school-specific SpellDC effects (Item=Evocation, …), never on
+//     Item=All, so an All-Schools leaf for them matched nothing at any level.
+//   • Legendary Spell Focus Mastery — its single corpus source (Argonnessen
+//     Eye Band) is ML 10, far below the endgame floor, so it could never
+//     match in a real solve.
+// Every entry below is verified to have at least one source at ML>=29.
 const SPELL_DC_ALL_SCHOOLS_BONUS_TYPES = [
     'Sacred', 'Quality', 'Profane', 'Artifact', 'Insightful', 'Exceptional',
-    'Equipment', 'Enhancement', 'Fortune',
+    'Equipment',
 ];
 const SPELL_FOCUS_MASTERY_BONUS_TYPES = [
     'Sacred', 'Quality', 'Profane', 'Insightful', 'Exceptional', 'Equipment',
-    'Legendary',
 ];
 
 export const STAT_TAXONOMY: StatTaxonomyCategory[] = [

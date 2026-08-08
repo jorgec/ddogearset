@@ -222,7 +222,7 @@
   $: hasUnprovenStage = ($resultStore?.tierReport?.stages ?? []).some((s) => !s.proven);
 </script>
 
-<div class="space-y-4">
+<div class="space-y-1">
 
   <!-- 1. Build Profile — always visible, never collapsible -->
   <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">

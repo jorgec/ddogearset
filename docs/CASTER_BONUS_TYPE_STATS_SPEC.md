@@ -12,8 +12,61 @@
    equipment, legendary, enhancement, fortune`. Taxonomy leaves were only
    added for bonus-type/stat combinations actually confirmed present in real
    DDOBuilderV2 data (see `SPELL_DC_ALL_SCHOOLS_BONUS_TYPES` /
-   `SPELL_FOCUS_MASTERY_BONUS_TYPES` in `statTaxonomy.ts`) — no leaf can ever
-   match zero real sources.
+   `SPELL_FOCUS_MASTERY_BONUS_TYPES` in `statTaxonomy.ts`).
+
+## Post-release corrections (0.4.1)
+
+Reported from a real saved gearset: all seven `<bonus> spell focus mastery`
+priorities reported "matched nothing". Two separate defects, both mine:
+
+### 1. An earlier school-DC priority swallowed every SpellFocusMastery buff
+
+`normalize_stat_name` appends the universal terms `"spell focus mastery"` /
+`"spellfocusmastery"` to the match list of **any** priority containing `dc` or
+`focus` — correct in principle, because Spell Focus Mastery raises the DC of
+every school, so a school-DC priority genuinely benefits from it.
+
+But those terms sat in the *same flat list* as the priority's own, and the
+matcher returns the first priority that matches in user list order. So
+`"evocation spelldc"` (Tier 2) claimed every SpellFocusMastery buff, starving
+the seven explicit Tier-3 SFM priorities to zero sources.
+
+This defect **predates** this feature — it was latent in the original
+`normalize_stat_name` and only became reachable once "spell focus mastery"
+became independently selectable.
+
+**Fix:** match terms are split into `direct` (what the priority literally
+names) and `implied` (universal SFM), and matching runs in two passes — every
+priority gets a shot at a direct match before any priority may claim the buff
+through an implied one. Within a pass, earlier priorities still win, so
+ordering semantics are otherwise unchanged, and a user who lists only school
+DCs still credits SFM buffs on the second pass exactly as before.
+
+**Why the original verification missed it:** each new stat was tested *in
+isolation* against the corpus, never alongside a school-DC priority — the
+exact combination that triggers it. Regression tests now cover both
+directions of the ordering and both halves of the contract.
+
+### 2. Three taxonomy leaves could never match at endgame
+
+The bonus-type lists were derived by scanning the whole corpus with no level
+floor, and without separating school-specific from All-Schools effects — so
+the original claim here that "no leaf can ever match zero real sources" was
+false. Re-audited against the ML>=29 floor the solver actually parses at:
+
+| Removed leaf | Why it was dead |
+|---|---|
+| `enhancement all spelldc` | Enhancement SpellDC exists only on school-specific effects (`Item=Evocation`, …), never `Item=All` — 0 sources at any level |
+| `fortune all spelldc` | Same — 0 sources at any level |
+| `legendary spell focus mastery` | Single corpus source (Argonnessen Eye Band) is ML 10, below the endgame floor |
+
+Every remaining leaf is verified to have at least one source at ML>=29.
+
+**Not a defect:** `exceptional spell focus mastery` still reports unmatched
+for a *Dual Caster* build specifically. All six of its sources (Amplin,
+Arctica, Collision, …) are two-handed/crossbow Weapon1 items, which that
+weapon style legitimately excludes. It matches under a two-handed or `Any`
+weapon style.
 
 ## Ask
 

@@ -77,68 +77,85 @@
   </header>
 
   <!-- ==================== Dashboard ==================== -->
-  <!-- 5fr / 9fr / 6fr == the spec's 25% / 45% / 30%. -->
-  <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[5fr_9fr_6fr] gap-3 p-3 overflow-y-auto lg:overflow-hidden">
+  <!-- One grid owns the whole body, because the configuration drawer is no
+       longer a full-width strip under everything: it occupies the columns
+       1-2 region only, while the console column runs the FULL height beside
+       it (row-span-2) and is unaffected by the drawer opening.
+
+       Columns: 5fr / 9fr / 6fr == the design spec's 25% / 45% / 30%.
+       Rows swap which band gets the free space:
+         closed -> sockets+vellum take it, drawer is just its title bar
+         open   -> the drawer takes it, sockets+vellum collapse to header
+                   strips (still visible as context, per the mockup)
+       Row placement is lg-only; below that everything stacks in DOM order. -->
+  <div
+    class="flex-1 min-h-0 grid grid-cols-1 gap-3 p-3 overflow-y-auto lg:overflow-hidden
+           lg:grid-cols-[5fr_9fr_6fr]
+           {$drawerOpen
+             ? 'lg:grid-rows-[minmax(0,6.5rem)_minmax(0,1fr)]'
+             : 'lg:grid-rows-[minmax(0,1fr)_auto]'}"
+  >
     <!-- Left 25% — Gear Sockets (§4.2) -->
-    <section class="min-h-0 lg:overflow-y-auto" aria-label="Gear sockets">
+    <section class="min-h-0 lg:col-start-1 lg:row-start-1 lg:overflow-hidden" aria-label="Gear sockets">
       <GearsetEditor />
     </section>
 
     <!-- Center 45% — The Vellum Scroll (§4.3) -->
-    <section class="min-h-0 lg:overflow-y-auto" aria-label="Summary">
+    <section class="min-h-0 lg:col-start-2 lg:row-start-1 lg:overflow-hidden" aria-label="Summary">
       <Summary />
     </section>
 
-    <!-- Right 30% — Console & Trove (§4.4).
-         All three stay mounted; only visibility toggles, so switching never
-         drops scroll position, an in-flight search, or a loaded CSV. -->
-    <section class="min-h-0 lg:overflow-y-auto" aria-label="Readouts">
+    <!-- Right 30% — Console & Trove (§4.4). Spans both rows: full height in
+         either drawer state. All three readouts stay mounted; only visibility
+         toggles, so switching never drops scroll position, an in-flight
+         search, or a loaded CSV. -->
+    <section class="min-h-0 lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:overflow-hidden" aria-label="Readouts">
       <div class:hidden={$rightPanel !== 'console'} class="h-full"><StatusConsole /></div>
       <div class:hidden={$rightPanel !== 'ownedItems'} class="h-full"><OwnedItems /></div>
       <div class:hidden={$rightPanel !== 'itemSearch'} class="h-full"><ItemSearch /></div>
     </section>
-  </div>
 
-  <!-- ==================== Bottom drawer (§5) ==================== -->
-  <div class="shrink-0 border-t border-carved bg-obsidian">
-    <div class="flex items-center gap-1 px-3">
-      <button
-        type="button"
-        on:click={() => ($drawerOpen = !$drawerOpen)}
-        aria-expanded={$drawerOpen}
-        class="flex items-center gap-2 py-2 pr-4 text-xs panel-title hover:text-vellum transition-colors"
-      >
-        <svg class="h-3 w-3 transition-transform duration-200 {$drawerOpen ? '' : '-rotate-90'}"
-             viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M12 16L6 9h12z" />
-        </svg>
-        Configuration &amp; Auto-Solver
-      </button>
+    <!-- Configuration & Auto-Solver (§5) — spans columns 1-2 only. -->
+    <div class="min-h-0 lg:col-start-1 lg:col-span-2 lg:row-start-2 panel flex flex-col">
+      <div class="flex items-center gap-1 px-3 shrink-0">
+        <button
+          type="button"
+          on:click={() => ($drawerOpen = !$drawerOpen)}
+          aria-expanded={$drawerOpen}
+          class="flex items-center gap-2 py-2 pr-4 text-xs panel-title hover:text-vellum transition-colors"
+        >
+          <svg class="h-3 w-3 transition-transform duration-200 {$drawerOpen ? '' : '-rotate-90'}"
+               viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 16L6 9h12z" />
+          </svg>
+          Configuration &amp; Auto-Solver
+        </button>
+
+        {#if $drawerOpen}
+          <div class="flex items-center gap-1 ml-auto py-1">
+            <button
+              type="button"
+              on:click={() => (drawerSection = 'config')}
+              class="belt-stud px-3 py-1 text-xs {drawerSection === 'config' ? 'belt-stud-active' : ''}"
+            >Build &amp; Priorities</button>
+            <button
+              type="button"
+              on:click={() => (drawerSection = 'filigrees')}
+              class="belt-stud px-3 py-1 text-xs {drawerSection === 'filigrees' ? 'belt-stud-active' : ''}"
+            >Filigrees</button>
+          </div>
+        {/if}
+      </div>
 
       {#if $drawerOpen}
-        <div class="flex items-center gap-1 ml-auto py-1">
-          <button
-            type="button"
-            on:click={() => (drawerSection = 'config')}
-            class="belt-stud px-3 py-1 text-xs {drawerSection === 'config' ? 'belt-stud-active' : ''}"
-          >Build &amp; Priorities</button>
-          <button
-            type="button"
-            on:click={() => (drawerSection = 'filigrees')}
-            class="belt-stud px-3 py-1 text-xs {drawerSection === 'filigrees' ? 'belt-stud-active' : ''}"
-          >Filigrees</button>
+        <div class="flex-1 min-h-0 overflow-y-auto border-t border-carved p-3">
+          <!-- Same keep-mounted rule as the right column: switching sections
+               must not discard a half-filled configuration. -->
+          <div class:hidden={drawerSection !== 'config'}><JobConfigurationForm /></div>
+          <div class:hidden={drawerSection !== 'filigrees'}><FiligreeEditor /></div>
         </div>
       {/if}
     </div>
-
-    {#if $drawerOpen}
-      <div class="max-h-[42vh] overflow-y-auto border-t border-carved p-3">
-        <!-- Same keep-mounted rule as the right column: switching sections
-             must not discard a half-filled configuration. -->
-        <div class:hidden={drawerSection !== 'config'}><JobConfigurationForm /></div>
-        <div class:hidden={drawerSection !== 'filigrees'}><FiligreeEditor /></div>
-      </div>
-    {/if}
   </div>
 </main>
 

@@ -7,6 +7,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.4.1] — 2026-08-09
+
+### Fixed
+
+- **Bonus-type-scoped Spell Focus Mastery priorities reported "matched
+  nothing"** (reported from a real saved gearset). `normalize_stat_name` adds
+  the universal Spell-Focus-Mastery match terms to any priority containing
+  "dc"/"focus" — correct, since SFM raises every school's DC — but they sat in
+  the same flat list as the priority's own terms, and the matcher returns the
+  first priority matching in user list order. So a "evocation spelldc"
+  priority swallowed every SpellFocusMastery buff and starved the explicit
+  "<bonus> spell focus mastery" priorities to zero sources. Match terms are now
+  split into direct vs implied and evaluated in two passes: every priority gets
+  a shot at a direct match before any may claim the buff by implication. A
+  gearset listing only school DCs still credits SFM exactly as before. The
+  defect predated the 0.3.5 feature that exposed it.
+- **Removed three stat-picker options that could never match at endgame**,
+  found by re-auditing the 0.3.5 bonus-type lists against the ML>=29 floor the
+  solver actually parses at: "Enhancement"/"Fortune" All-Schools Spell DC (both
+  bonus types exist only on school-specific DC effects, never All-Schools) and
+  "Legendary" Spell Focus Mastery (its only source is an ML 10 item).
+
 ## [0.4.0] — 2026-08-08
 
 Major UI redesign — see `docs/DDO_Gear_Optimizer_Design_Spec.pdf` (design) and

@@ -803,6 +803,50 @@ def test_normalize_stat_name_profane_and_artifact_all_schools_spelldc():
     ) is None
 
 
+def test_spell_focus_mastery_not_swallowed_by_an_earlier_school_dc_priority():
+    # REGRESSION (reported from a real saved gearset): every "…dc"/"…focus"
+    # priority carries the universal Spell-Focus-Mastery match terms, because
+    # SFM raises the DC of every school. When those terms sat in the same flat
+    # list as the priority's own, "evocation spelldc" swallowed every
+    # SpellFocusMastery buff purely by being earlier in the user's list, and
+    # all seven "<bonus> spell focus mastery" priorities below it reported
+    # "matched nothing". A priority that names the stat OUTRIGHT must win over
+    # one that only matches it by implication, regardless of list order.
+    priorities = ["evocation spelldc", "sacred spell focus mastery"]
+    assert optimizer.normalize_stat_name(
+        "SpellFocusMastery", None, None, priorities, bonus_type="Sacred"
+    ) == "sacred spell focus mastery"
+
+
+def test_school_dc_priority_still_credits_spell_focus_mastery_when_alone():
+    # The other half of the contract: a user who lists only school DCs and no
+    # explicit Spell Focus Mastery priority must STILL credit SFM buffs, on
+    # the implied pass. Removing the implied terms outright would have been a
+    # silent behaviour regression for every existing gearset.
+    assert optimizer.normalize_stat_name(
+        "SpellFocusMastery", None, None, ["evocation spelldc"], bonus_type="Sacred"
+    ) == "evocation spelldc"
+
+
+def test_direct_match_beats_implied_regardless_of_priority_order():
+    # Same rule with the order flipped, so the fix can't be satisfied by
+    # accident through ordering alone.
+    for order in (["sacred spell focus mastery", "evocation spelldc"],
+                  ["evocation spelldc", "sacred spell focus mastery"]):
+        assert optimizer.normalize_stat_name(
+            "SpellFocusMastery", None, None, order, bonus_type="Sacred"
+        ) == "sacred spell focus mastery", order
+
+
+def test_school_specific_spelldc_buff_still_goes_to_its_school_priority():
+    # Guard against the two-pass split accidentally redirecting a genuine
+    # school-specific SpellDC buff away from its school priority.
+    assert optimizer.normalize_stat_name(
+        "SpellDC", "Evocation", None,
+        ["evocation spelldc", "sacred spell focus mastery"], bonus_type="Equipment"
+    ) == "evocation spelldc"
+
+
 def test_normalize_stat_name_reaper_bonus_type_not_a_recognized_prefix():
     # Reaper is deliberately excluded from BONUS_TYPE_PREFIXES (a stacking
     # bonus type, not a gear-farming target) — "Reaper Spell Focus Mastery"

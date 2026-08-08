@@ -557,45 +557,72 @@ def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
 
     combined = f"{item} {typ} {desc}".lower()
 
-    for p in priorities:
-        p_base = re.sub(r'\[\d+\]', '', p).strip()
-        required_bonus, p_clean = _split_bonus_type_prefix(p_base.lower())
-        if required_bonus and required_bonus != bonus_type:
-            continue
-        # Weapon combat properties are matched by exact element name in
-        # parse_items (§15.2) and must never go through the substring heuristic.
-        if p_clean in WEAPON_BASE_STATS:
-            continue
-        p_no_space = p_clean.replace(' ', '')
+    def match_terms(p_clean):
+        """(direct, implied) match strings for one priority.
 
-        matches = [p_clean, p_no_space]
+        `direct` are the stat this priority literally names. `implied` are
+        stats it only benefits from indirectly — currently just Spell Focus
+        Mastery, which raises the DC of EVERY school, so any school-DC
+        priority legitimately profits from it.
+
+        The split matters because a buff is attributed to exactly one
+        priority. Before it existed, every "…dc"/"…focus" priority carried
+        the universal Spell-Focus-Mastery terms in the same flat list, so a
+        priority like "evocation spelldc" would swallow every
+        SpellFocusMastery buff purely by being earlier in the user's list —
+        starving an explicit "sacred spell focus mastery" priority to zero
+        sources and reporting it as matching nothing.
+        """
+        direct = [p_clean, p_clean.replace(' ', '')]
+        implied = []
         if p_clean == 'prr':
-            matches.extend(['physical resistance', 'physicalresistancerating'])
+            direct.extend(['physical resistance', 'physicalresistancerating'])
         elif p_clean == 'mrr':
-            matches.extend(['magical resistance', 'magicalresistancerating'])
+            direct.extend(['magical resistance', 'magicalresistancerating'])
         elif p_clean == 'hamp' or p_clean == 'healing amp':
-            matches.extend(['healing amplification'])
+            direct.extend(['healing amplification'])
 
         if 'spell power' in p_clean:
-            matches.append(p_clean.replace('spell power', 'spellpower'))
+            direct.append(p_clean.replace('spell power', 'spellpower'))
         if 'spell crit chance' in p_clean or 'spell lore' in p_clean:
             ele = p_clean.replace('spell crit chance', '').replace('spell lore', '').strip()
-            matches.append(f"{ele} spelllore")
-            matches.append(f"{ele} spell lore")
+            direct.append(f"{ele} spelllore")
+            direct.append(f"{ele} spell lore")
         if 'spell crit damage' in p_clean or 'spell critical damage' in p_clean:
             ele = p_clean.replace('spell crit damage', '').replace('spell critical damage', '').strip()
-            matches.append(f"{ele} spellcriticaldamage")
-            matches.append(f"{ele} spell critical damage")
+            direct.append(f"{ele} spellcriticaldamage")
+            direct.append(f"{ele} spell critical damage")
         if 'dc' in p_clean or 'focus' in p_clean:
             school = p_clean.replace('dc', '').replace('focus', '').replace('spell', '').strip()
-            matches.append(f"{school} spellfocus")
-            matches.append(f"{school} spell focus")
-            matches.append(f"spell focus mastery")
-            matches.append(f"spellfocusmastery")
+            direct.append(f"{school} spellfocus")
+            direct.append(f"{school} spell focus")
+            # Universal, school-agnostic — hence implied, not direct. A
+            # priority that names Spell Focus Mastery outright already
+            # matches it through `direct` above.
+            implied.append("spell focus mastery")
+            implied.append("spellfocusmastery")
+        return direct, implied
 
-        for m in matches:
-            if m in combined:
-                return p_base
+    # Two passes: every priority gets a shot at a DIRECT match before any
+    # priority is allowed to claim the buff through an implied one. Within a
+    # pass, earlier priorities still win, preserving the original ordering
+    # semantics. A user who lists only school DCs and no Spell Focus Mastery
+    # priority still credits SFM buffs on the second pass, exactly as before.
+    for use_implied in (False, True):
+        for p in priorities:
+            p_base = re.sub(r'\[\d+\]', '', p).strip()
+            required_bonus, p_clean = _split_bonus_type_prefix(p_base.lower())
+            if required_bonus and required_bonus != bonus_type:
+                continue
+            # Weapon combat properties are matched by exact element name in
+            # parse_items (§15.2) and must never go through the substring heuristic.
+            if p_clean in WEAPON_BASE_STATS:
+                continue
+
+            direct, implied = match_terms(p_clean)
+            for m in (implied if use_implied else direct):
+                if m in combined:
+                    return p_base
     return None
 
 
