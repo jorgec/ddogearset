@@ -7,6 +7,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.4.4] — 2026-08-09
+
+### Fixed
+
+- **Hireling stats were credited to the player.** Reported as an inexplicable
+  filigree pick: the solver equipped two copies of "The Cry of Battle: +1
+  Constitution" even though Constitution was only Tier 3 and filigrees count
+  toward Tier 1 alone. It was not chasing the Constitution — filigrees also act
+  as set PIECES, and set bonuses they activate are tagged as set sources rather
+  than filigree ones, so they legitimately count at every tier. The bug was
+  what that set grants: `HirelingPRR +20` / `HirelingMRR +20`, defence for your
+  HIRELING. Since "prr" is a substring of "hirelingprr", both were credited to
+  the player's own Tier-3 prr/mrr priorities, so the solver spent two filigree
+  slots buying +40 of defence the character never receives — reported PRR 67
+  against a real 47, MRR 61 against 41.
+
+  A `Hireling*` buff now only matches a priority that says "hireling" (same
+  per-priority gate as the 0.4.2 school saves and 0.4.3 skill groups). The
+  whole family is four types: HirelingAbilityBonus, HirelingMeleePower,
+  HirelingPRR, HirelingMRR.
+
 ## [0.4.3] — 2026-08-09
 
 ### Fixed

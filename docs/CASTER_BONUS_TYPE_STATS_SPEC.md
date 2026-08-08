@@ -14,7 +14,7 @@
    DDOBuilderV2 data (see `SPELL_DC_ALL_SCHOOLS_BONUS_TYPES` /
    `SPELL_FOCUS_MASTERY_BONUS_TYPES` in `statTaxonomy.ts`).
 
-## Post-release corrections (0.4.1 / 0.4.2 / 0.4.3)
+## Post-release corrections (0.4.1 / 0.4.2 / 0.4.3 / 0.4.4)
 
 Reported from a real saved gearset: all seven `<bonus> spell focus mastery`
 priorities reported "matched nothing". Two separate defects, both mine:
@@ -119,6 +119,33 @@ skills that ability governs — Spellcraft is Intelligence-based in DDO, so
 mechanically it does benefit, but attributing that would need a
 skill-to-ability mapping the data files do not carry, and inventing one was
 out of scope.
+
+### 5. Hireling stats credited to the player (0.4.4)
+
+Reported as "why did the solver add The Cry of Battle (+1 Constitution)?" —
+Constitution was Tier 3 and filigrees only count toward Tier 1, so the pick
+looked inexplicable. It was not chosen for its Constitution at all:
+
+- Filigrees count as SET PIECES (`create_model`: `pieces += fw[idx] + fm[idx]`
+  for filigrees whose `set` matches), and set-bonus sources are tagged
+  `origin='set'`. `z_nofil` drops only `origin='filigree'`, so a set bonus
+  activated BY filigrees counts at every tier — Tier 3 included. Two copies
+  of The Cry of Battle were equipped purely to switch its 2-piece on.
+- That 2-piece grants `HirelingPRR +20` and `HirelingMRR +20` — defence for
+  your HIRELING. `"prr"` is a substring of `"hirelingprr"`, so both were
+  credited to the user's own Tier-3 prr/mrr priorities. Reported PRR 67 vs a
+  real 47; MRR 61 vs 41.
+
+The filigree-as-set-piece mechanism is correct and stays. The misattribution
+was the bug.
+
+**Fix:** a `Hireling*` buff may only be claimed by a priority that says
+"hireling" — same per-priority gate as §3 and §4. Blast radius is small and
+fully enumerated: `HirelingAbilityBonus`, `HirelingMeleePower`, `HirelingPRR`,
+`HirelingMRR` are the only such types in the corpus. Audited for siblings —
+the other non-player-stat names (Eidolon Summons, Minion of the Mockery,
+Augment Summoning, …) are named abilities, not stat types, and cannot collide
+with a stat priority.
 
 **Not a defect:** `exceptional spell focus mastery` still reports unmatched
 for a *Dual Caster* build specifically. All six of its sources (Amplin,

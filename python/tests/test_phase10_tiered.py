@@ -803,6 +803,35 @@ def test_normalize_stat_name_profane_and_artifact_all_schools_spelldc():
     ) is None
 
 
+def test_hireling_buffs_never_credit_the_players_own_stats():
+    # REGRESSION (reported): The Cry of Battle's 2-piece filigree set grants
+    # HirelingPRR +20 / HirelingMRR +20 — defence for your HIRELING, not you.
+    # The stat name contains the player's own, so substring matching credited
+    # both to the user's prr/mrr priorities, and the solver spent two filigree
+    # slots buying +40 of defence it would never receive (reported PRR 67 vs
+    # the real 47, MRR 61 vs 41).
+    for typ, prio in (("HirelingPRR", "prr"),
+                      ("HirelingMRR", "mrr"),
+                      ("HirelingMeleePower", "melee power")):
+        assert optimizer.normalize_stat_name(
+            typ, None, None, [prio], bonus_type="Stacking") is None, (typ, prio)
+
+
+def test_hireling_stat_still_reachable_when_asked_for_by_name():
+    assert optimizer.normalize_stat_name(
+        "HirelingPRR", None, None, ["hireling prr"], bonus_type="Stacking"
+    ) == "hireling prr"
+
+
+def test_players_own_defensive_stats_unaffected_by_the_hireling_gate():
+    assert optimizer.normalize_stat_name(
+        "PhysicalResistanceRating", None, None, ["prr"], bonus_type="Enhancement") == "prr"
+    assert optimizer.normalize_stat_name(
+        "MagicalResistanceRating", None, None, ["mrr"], bonus_type="Enhancement") == "mrr"
+    assert optimizer.normalize_stat_name(
+        "MeleePower", None, None, ["melee power"], bonus_type="Enhancement") == "melee power"
+
+
 def test_skill_priorities_match_real_skill_buffs():
     # REGRESSION (reported): the solver could not find skills at all — a
     # blanket `if 'skill' in typ/item/desc: return None` guard from the

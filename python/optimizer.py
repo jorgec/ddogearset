@@ -592,6 +592,16 @@ def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
     # prose is unaffected.
     is_skill_buff = 'skill' in typ or 'skill' in item
 
+    # A Hireling* buff (HirelingPRR, HirelingMRR, HirelingMeleePower,
+    # HirelingAbilityBonus) buffs YOUR HIRELING, not you. The stat name is a
+    # substring of the character's own stat, so a plain match credits it to
+    # the player: reported from a real gearset, The Cry of Battle's 2-piece
+    # bonus (HirelingPRR +20 / HirelingMRR +20) was counted toward the user's
+    # own PRR and MRR priorities, and the solver duly spent two filigree slots
+    # acquiring +40 of defence that goes to a hireling. Same defect class as
+    # the school-save and ability-skill-group collisions.
+    is_hireling_buff = 'hireling' in typ or 'hireling' in item
+
     # A saving-throw buff — IllusionSave, EnchantmentSave, "Illusion Save" —
     # is a DEFENSIVE stat: it raises YOUR save against that school and does
     # nothing for the DC of spells you cast. Because it carries the school's
@@ -679,6 +689,10 @@ def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
             # (see is_skill_buff above) — this is what stops an "Intelligence"
             # ability priority from absorbing "Intelligence Skills" buffs.
             if is_skill_buff and not _priority_wants_skill(p_clean):
+                continue
+            # Only a priority explicitly asking for a hireling stat may claim
+            # a Hireling* buff (see is_hireling_buff above).
+            if is_hireling_buff and 'hireling' not in p_clean:
                 continue
 
             direct, implied = match_terms(p_clean)
