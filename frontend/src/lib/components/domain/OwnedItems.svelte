@@ -12,12 +12,12 @@
   import ItemDetail from './ItemDetail.svelte';
   import { fly, fade } from 'svelte/transition';
 
-  // Backed by a module-level store (store.ts), not local state — this screen
-  // is destroyed/recreated by App.svelte's {#if $currentTab === 'ownedItems'}
-  // block on every tab switch, so a plain `let` here would lose the loaded
-  // CSV the moment the user looked at another tab. It's the same store the
-  // solver-form accordion reads/writes, so a CSV loaded from either screen
-  // shows up in both.
+  // Backed by a module-level store (store.ts), not local state. The dashboard
+  // redesign now keeps this panel mounted when another readout is fronted, so
+  // the original reason (App.svelte destroying it on every tab switch) no
+  // longer applies — but the store is still the right home, because it is the
+  // SAME store the solver form's "Owned Items (Trove Import)" accordion reads
+  // and writes: a CSV loaded from either place has to show up in both.
   let loading = false;
   let searchQuery = '';
 
@@ -69,11 +69,11 @@
   }
 </script>
 
-<div class="flex flex-col space-y-6 p-4 md:p-6 bg-background rounded-lg border border-border shadow-sm">
-  <div class="flex items-center justify-between border-b border-border/50 pb-4">
+<div class="panel flex flex-col h-full space-y-3 p-3">
+  <div class="space-y-2 shrink-0">
     <div>
-      <h2 class="text-2xl font-bold tracking-tight">Owned Items</h2>
-      <p class="text-sm text-muted-foreground mt-1">
+      <h2 class="panel-title text-sm">Owned Items</h2>
+      <p class="text-[11px] text-steel mt-1">
         Browse a Trove inventory export. Only items that match a real DDOBuilderV2
         item are shown — no augments, no filigrees, no unmatched/unusable rows.
       </p>
@@ -82,58 +82,52 @@
       type="button"
       on:click={loadTroveCSV}
       disabled={loading}
-      class="px-4 py-2 bg-secondary text-secondary-foreground border border-border rounded shadow-sm hover:bg-secondary/80 transition-colors disabled:opacity-50"
+      class="w-full px-3 py-1.5 text-xs bg-secondary text-secondary-foreground border border-border rounded hover:bg-secondary/80 hover:shadow-press transition-all disabled:opacity-50"
     >
       {loading ? 'Loading...' : $troveImportStore.items.length > 0 ? 'Load a different CSV' : 'Load Trove CSV...'}
     </button>
   </div>
 
   {#if $troveImportStore.items.length > 0}
-    <div class="flex items-center justify-between">
-      <p class="text-sm text-muted-foreground italic">
+    <div class="space-y-2 shrink-0">
+      <p class="text-[11px] text-steel italic">
         {$troveImportStore.fileName} — {$troveImportStore.totalRows} rows, {$troveImportStore.items.length} usable items
       </p>
       <input
         type="text"
         bind:value={searchQuery}
         placeholder="Filter by name..."
-        class="w-64 flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        class="trove-filter w-full flex h-9 rounded-md border border-input bg-void px-3 py-1 text-sm placeholder:text-steel/50 focus:outline-none"
       />
     </div>
 
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm text-left">
-        <thead class="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
-          <tr>
-            <th class="px-3 py-2 font-medium">Name</th>
-            <th class="px-3 py-2 font-medium">ML</th>
-            <th class="px-3 py-2 font-medium">Pack</th>
-            <th class="px-3 py-2 font-medium">Character</th>
-            <th class="px-3 py-2 font-medium">Location</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-border">
-          {#each filteredItems as item (item.name)}
-            <tr class="hover:bg-muted/30 transition-colors">
-              <td class="px-3 py-2">
-                <button
-                  type="button"
-                  on:click={() => openDrawer(item.name)}
-                  class="font-medium text-primary hover:underline text-left"
-                >
+    <!-- §4.4 — "a condensed table view". A real <table> needs five columns
+         that cannot fit the 30%-wide readout column, so each row folds into
+         a two-line entry: name + ML on top, provenance beneath. -->
+    <div class="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+      <ul class="divide-y divide-carved">
+        {#each filteredItems as item (item.name)}
+          <li>
+            <button
+              type="button"
+              on:click={() => openDrawer(item.name)}
+              class="w-full text-left py-1.5 px-1.5 rounded hover:bg-carved/50 transition-colors group"
+            >
+              <div class="flex items-baseline gap-2">
+                <span class="flex-1 text-xs font-medium text-vellum truncate group-hover:text-gold transition-colors" title={item.name}>
                   {item.name}
-                </button>
-              </td>
-              <td class="px-3 py-2 text-muted-foreground">{item.minLevel}</td>
-              <td class="px-3 py-2 text-xs italic text-muted-foreground">{item.packId || '—'}</td>
-              <td class="px-3 py-2 text-xs text-muted-foreground">{item.character || '—'}</td>
-              <td class="px-3 py-2 text-xs text-muted-foreground">{item.location || '—'}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+                </span>
+                <span class="text-[10px] text-steel shrink-0">ML {item.minLevel}</span>
+              </div>
+              <div class="text-[10px] text-steel/70 truncate">
+                {[item.character, item.location, item.packId].filter(Boolean).join(' · ') || '—'}
+              </div>
+            </button>
+          </li>
+        {/each}
+      </ul>
       {#if filteredItems.length === 0}
-        <p class="text-muted-foreground text-sm py-6 text-center">No items match "{searchQuery}".</p>
+        <p class="text-steel text-xs py-6 text-center">No items match "{searchQuery}".</p>
       {/if}
     </div>
   {:else if !loading}
@@ -153,7 +147,7 @@
      animation itself regardless. -->
 {#if selectedItemName}
   <button
-    class="fixed inset-0 z-40 bg-black/40"
+    class="fixed inset-0 z-40 bg-void/70 backdrop-blur-md"
     on:click={closeDrawer}
     aria-label="Close item details"
     transition:fade={{ duration: 150 }}

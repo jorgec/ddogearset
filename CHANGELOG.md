@@ -7,6 +7,48 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.4.0] — 2026-08-08
+
+Major UI redesign — see `docs/DDO_Gear_Optimizer_Design_Spec.pdf` (design) and
+`docs/DASHBOARD_REDESIGN_SPEC.md` (implementation notes and decisions).
+
+### Changed
+
+- **Single-page dashboard replaces the six-tab layout.** Gear Sockets (25%),
+  the Vellum Summary Scroll (45%) and the readout column (30%) are all on
+  screen at once, with a collapsible Configuration & Auto-Solver drawer along
+  the bottom. The top "belt" now switches only the right column between
+  Console / Owned Items / Item Search. Every panel stays **mounted** when not
+  fronted, so switching no longer drops scroll position, an in-flight search,
+  a loaded Trove CSV or a half-filled configuration — the old tab system
+  destroyed and recreated each view on every switch.
+- **Dark-only theme** built on the design spec's palette (Void Black,
+  Obsidian, Carved Stone, Aged/Burnt Vellum, Artificer Gold, Dragon's Blood,
+  Arcane Blue, Nature's Vitality, Polished Steel). `darkMode: ["class"]` was
+  removed rather than maintaining a light/dark pair for a design that only
+  ships dark.
+- **Typography**: Cinzel for headings, Inter for data, Fira Code for the
+  console — all bundled locally via `@fontsource` (latin subsets), not linked
+  from a CDN, since this ships as an offline desktop app.
+- **Gear slots are now sockets**: recessed empty states reading "Socket Empty"
+  / "Engrave Relic", item-type glyphs, and item names coloured by rarity
+  (Legendary → gold, Epic → purple), derived from the item name prefix with
+  minimum level as the authoritative fallback.
+- **Item picker/detail moved from a side pane into a blurred-backdrop modal**
+  — the old side-by-side layout could not fit a 25%-wide column, and the
+  design spec §6 calls for exactly this treatment.
+- **Set bonuses render as lit/dim pips** instead of a bulleted list. Entries
+  are collapsed to one row per set at its highest active tier: the solver's
+  `activeSets` lists every active *tier* separately (a 4-piece set appears as
+  2-, 3- and 4-piece), which as a plain list read as three separate sets. The
+  pip denominator is looked up via `GetSetBonus` and falls back to
+  all-pips-lit when a set definition can't be resolved.
+- **Owned Items condensed** from a five-column table (unreadable at 30% width)
+  to two-line rows, with a glowing focus border on the filter field.
+- After a successful solve the app now collapses the configuration drawer to
+  reveal the result, replacing the old jump to the Gearset Editor tab — the
+  sockets and summary are always visible now, so there is no tab to jump to.
+
 ## [0.3.7] — 2026-08-08
 
 ### Added

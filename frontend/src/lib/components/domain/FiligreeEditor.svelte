@@ -78,10 +78,9 @@
 
 </script>
 
-<div class="h-full flex flex-col overflow-hidden bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm">
-    <div class="mb-6">
-        <h2 class="text-2xl font-bold tracking-tight">Sentient Filigrees</h2>
-        <p class="text-sm text-muted-foreground mt-1">Manage filigrees for your equipped Minor Artifact and Sentient Weapon.</p>
+<div class="flex flex-col">
+    <div class="mb-3">
+        <p class="text-[11px] text-steel">Manage filigrees for your equipped Minor Artifact and Sentient Weapon.</p>
     </div>
 
     <div class="flex-1 overflow-y-auto space-y-8 pr-2">

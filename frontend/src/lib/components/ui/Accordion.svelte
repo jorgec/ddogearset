@@ -52,7 +52,7 @@
   }
 </script>
 
-<div class="space-y-2 border-t border-border pt-4">
+<div class="space-y-2 border-t border-carved pt-3">
   <button
     type="button"
     class="flex items-center justify-between w-full text-left"
@@ -60,10 +60,10 @@
     aria-expanded={open}
     aria-controls={contentId}
   >
-    <span class="text-sm font-medium leading-none">{title}</span>
+    <span class="panel-title text-xs leading-none">{title}</span>
     <span class="flex items-center space-x-2">
       {#if !open && summary}
-        <span class="text-muted-foreground text-xs">{summary}</span>
+        <span class="text-steel text-[11px]">{summary}</span>
       {/if}
       <span class="text-muted-foreground">{open ? '▲' : '▼'}</span>
     </span>

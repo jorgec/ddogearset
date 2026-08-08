@@ -83,7 +83,7 @@
                   <td class="py-1 pr-3">{stage.tier}</td>
                   <td class="py-1 pr-3">{fmt(stage.goalValue, 4)}</td>
                   <td class="py-1 pr-3">
-                    <span class="{stage.proven ? 'text-green-500' : 'text-amber-500'}">
+                    <span class="{stage.proven ? 'text-vitality' : 'text-gold'}">
                       {stage.proven ? 'Optimal' : (STATUS_LABEL[stage.status] ?? stage.status)}
                     </span>
                   </td>
@@ -99,7 +99,7 @@
           </table>
         </div>
         {#if report.stages.some((s) => !s.proven)}
-          <p class="text-[10px] text-amber-500">
+          <p class="text-[10px] text-gold">
             At least one stage hit its time limit before proving optimality — raising Total Search
             Time may improve this result.
           </p>
@@ -150,7 +150,7 @@
     {/if}
 
     {#if unmatched.length > 0}
-      <p class="text-[11px] text-amber-500">
+      <p class="text-[11px] text-gold">
         <span class="font-medium">These priorities matched nothing in the data files:</span>
         {unmatched.join(', ')}. Check the spelling on the Solver tab — these chips are badged there.
       </p>

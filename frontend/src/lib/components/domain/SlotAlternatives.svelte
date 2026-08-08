@@ -149,7 +149,7 @@
 </script>
 
 <button
-  class="fixed inset-0 z-40 bg-black/40"
+  class="fixed inset-0 z-40 bg-void/70 backdrop-blur-md"
   on:click={onClose}
   aria-label="Close alternatives"
   transition:fade={{ duration: 150 }}

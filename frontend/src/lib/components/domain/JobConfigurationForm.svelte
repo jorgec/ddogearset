@@ -13,7 +13,7 @@
   // writes into the same stat_priorities array the rest of this form already
   // uses, with no standing binding to go stale.
 
-  import { configStore, isOptimizing, resultStore, currentTab, showToast, troveImportStore } from '$lib/store';
+  import { configStore, isOptimizing, resultStore, drawerOpen, showToast, troveImportStore } from '$lib/store';
   import { RunOptimization, UpdateExternalSources } from '../../../../wailsjs/go/main/App';
   import { loadTroveCsv } from '$lib/services/troveImport';
   import { hydrateConfigFromSlots } from '../../store';
@@ -119,7 +119,10 @@
             $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
         }
         showToast('Optimization complete.', 'success');
-        $currentTab = 'editor';
+        // The gear sockets and vellum summary are always on screen now, so
+        // there is no editor tab to jump to — collapsing the configuration
+        // drawer is what reveals the result the user just asked for.
+        $drawerOpen = false;
       } else {
         showToast(result.errorMessage || 'Optimization failed.', 'error');
       }
@@ -219,14 +222,10 @@
   $: hasUnprovenStage = ($resultStore?.tierReport?.stages ?? []).some((s) => !s.proven);
 </script>
 
-<div class="glass-panel p-6 space-y-6">
-  <div class="space-y-2">
-    <h2 class="text-xl font-semibold tracking-tight">Gear Optimization Configuration</h2>
-    <p class="text-sm text-muted-foreground">Configure your character build and optimizer constraints.</p>
-  </div>
+<div class="space-y-4">
 
   <!-- 1. Build Profile — always visible, never collapsible -->
-  <div class="grid grid-cols-2 gap-4">
+  <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
     <div class="space-y-2">
       <label class="text-sm font-medium leading-none" for="build-type">Build Type</label>
       <select id="build-type" bind:value={$configStore.build_type} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
@@ -446,7 +445,7 @@
         when you use many tiers. The backend clamps this to a hard ceiling of 1800 seconds.
       </p>
       {#if lastRunSeconds !== undefined}
-        <p class="text-[10px] {hasUnprovenStage ? 'text-amber-500' : 'text-muted-foreground'}">
+        <p class="text-[10px] {hasUnprovenStage ? 'text-gold' : 'text-muted-foreground'}">
           Last run: {lastRunSeconds.toFixed(1)}s of {$configStore.max_search_time}s budget{hasUnprovenStage ? ' — a stage hit its time limit before proving optimality.' : '.'}
         </p>
       {/if}
@@ -455,11 +454,11 @@
 
   <!-- Actions — always visible, so they stay reachable regardless of which
        sections are expanded. -->
-  <div class="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-background/80 backdrop-blur border-t border-border space-y-3">
+  <div class="sticky bottom-0 -mx-3 px-3 py-3 bg-obsidian/95 backdrop-blur border-t border-carved flex flex-wrap gap-2">
     <button
       on:click={handleOptimize}
       disabled={$isOptimizing}
-      class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+      class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-6 py-2 flex-1 min-w-[12rem]"
     >
       {#if $isOptimizing}
         <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
@@ -472,7 +471,7 @@
     <button
       on:click={handleUpdateData}
       disabled={isUpdatingData}
-      class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border h-10 px-4 py-2"
+      class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border h-9 px-4 py-2 flex-1 min-w-[12rem]"
     >
       {#if isUpdatingData}
         <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>

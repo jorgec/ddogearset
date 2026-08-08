@@ -115,11 +115,14 @@ export function flashStats(stats: string[], durationMs = 3000) {
 }
 // --- Trove inventory import state -------------------------------------------
 // One shared store for both the solver-form accordion and the standalone
-// Owned Items screen. Two reasons this has to be a single store rather than
-// one per screen:
-//   1. Both screens live inside a `{#if $currentTab === ...}` block in
-//      App.svelte, so the component is destroyed and recreated on every tab
-//      switch — plain component-local state does not survive that.
+// Owned Items panel. This originally had two justifications; the dashboard
+// redesign retired the first one:
+//   1. (No longer applies) Both screens used to sit inside a
+//      `{#if $currentTab === ...}` block, so each was destroyed and recreated
+//      on every tab switch and component-local state could not survive it.
+//      App.svelte now keeps every panel mounted and toggles visibility
+//      instead (docs/DASHBOARD_REDESIGN_SPEC.md), so local state *would* now
+//      survive — but reason 2 is the load-bearing one and is unchanged.
 //   2. Loading a CSV from either screen must be visible from the other: the
 //      accordion needs the owned-name set (items + augments, unfiltered
 //      against the catalog — the solver itself does that matching) to
@@ -162,7 +165,26 @@ export const troveImportStore = writable<TroveImportState>({
 export const logsStore = writable<string[]>([]);
 export const isParsing = writable(false);
 export const isOptimizing = writable(false);
-export const currentTab = writable<'solver' | 'editor' | 'filigrees' | 'summary' | 'itemSearch' | 'ownedItems'>('solver');
+// docs/DASHBOARD_REDESIGN_SPEC.md — the old six-way `currentTab` is gone.
+// Gear sockets, the vellum summary and the configuration drawer are now
+// permanently on screen, so the only thing left to switch is which of the
+// three right-column readouts is fronted. All three stay MOUNTED regardless
+// (App.svelte toggles visibility rather than using `{#if}`), so none of them
+// loses scroll position, in-flight fetches or local state when you look away.
+export type RightPanel = 'console' | 'ownedItems' | 'itemSearch';
+export const rightPanel = writable<RightPanel>('console');
+
+// The bottom configuration drawer (§5). Persisted so the app reopens the way
+// you left it; defaults to open, since configuration is the primary input on
+// a first run.
+const DRAWER_KEY = 'ddo.drawerOpen';
+const drawerInitial = typeof localStorage !== 'undefined'
+    ? localStorage.getItem(DRAWER_KEY) !== 'false'
+    : true;
+export const drawerOpen = writable<boolean>(drawerInitial);
+drawerOpen.subscribe((v) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(DRAWER_KEY, String(v));
+});
 
 // Computes hydrated pre_equipped/pre_filled_augments/pre_filled_filigrees from
 // the current config plus the last known solved/loaded gearset's per-slot

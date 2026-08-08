@@ -280,82 +280,159 @@
           $isOptimizing = false;
       }
   }
+
+  // --- Redesign helpers (docs/DASHBOARD_REDESIGN_SPEC.md) ------------------
+
+  // §6 — the picker/detail is a focus-stealing modal now rather than a side
+  // pane: this panel lives in a 25%-wide column that cannot host both. Gated
+  // on there actually being something to show, so clearing a slot (which
+  // leaves `selectedSlot` set) can't pop an empty dialog.
+  $: modalOpen = selectedSlot !== null
+      && (selectedItemDetails !== null || availableItems.length > 0 || searchQuery !== "" || isFetchingItems);
+
+  function closeModal() {
+      selectedSlot = null;
+      availableItems = [];
+      searchQuery = "";
+      selectedItemDetails = null;
+  }
+
+  // §4.2 — "item name is displayed in a distinct color based on rarity
+  // (e.g. Purple for Epic, Orange for Legendary)". DDO encodes exactly that
+  // in the item name itself ("Legendary …" / "Epic …"), with minimum level as
+  // the authoritative fallback for anything not prefixed — so this reads real
+  // data rather than inventing a rarity field the corpus doesn't have.
+  function rarityClass(name: string, ml: number): string {
+      const n = (name || '').toLowerCase();
+      if (n.startsWith('legendary') || ml >= 30) return 'text-gold';
+      if (n.startsWith('epic') || ml >= 20) return 'text-[#A78BFA]';
+      return 'text-vellum';
+  }
+
+  const SLOT_ICON: Record<string, string> = {
+      Helmet: 'M4 13a8 8 0 0116 0v4H4z',
+      Necklace: 'M7 4a5 5 0 0010 0M12 9v3m0 0a2.5 2.5 0 100 5 2.5 2.5 0 000-5z',
+      Trinket: 'M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z',
+      Cloak: 'M8 3l4 4 4-4 4 6-3 12H7L4 9z',
+      Belt: 'M3 10h18v4H3zM10 9v6h4V9z',
+      Ring_1: 'M12 9a4.5 4.5 0 100 9 4.5 4.5 0 000-9zM10 6.5L12 3l2 3.5',
+      Ring_2: 'M12 9a4.5 4.5 0 100 9 4.5 4.5 0 000-9zM10 6.5L12 3l2 3.5',
+      Gloves: 'M7 12V6.5a1.5 1.5 0 013 0V11m0-4.5a1.5 1.5 0 013 0V11m0-3a1.5 1.5 0 013 0v6a5 5 0 01-5 5h-2a4 4 0 01-4-4v-3',
+      Boots: 'M8 3v9c0 3 1 5 4 5h6v-3l-4-2V3z',
+      Bracers: 'M6 5h12l-2 6 2 8H8l2-8z',
+      Armor: 'M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z',
+      Goggles: 'M3 10h18v3a3 3 0 01-3 3h-1a3 3 0 01-3-3h-4a3 3 0 01-3 3H6a3 3 0 01-3-3z',
+      Weapon1: 'M14 3l7 7-9 9-3-3 2-2-2-2 2-2-2-2z',
+      Weapon2: 'M14 3l7 7-9 9-3-3 2-2-2-2 2-2-2-2z',
+  };
 </script>
 
-<div class="h-full flex space-x-6 overflow-hidden">
-  <!-- Left Side: Gearset Slots -->
-  <div class="w-1/2 flex flex-col space-y-4 overflow-y-auto pr-2 pb-8">
-      <div class="flex justify-between items-center">
-          <h2 class="text-xl font-semibold tracking-tight">Equipment Slots</h2>
-          <div class="flex space-x-2">
-              <button on:click={clearAll} class="px-3 py-1 text-sm bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded transition-colors">Clear</button>
-              <button on:click={calculateGearSet} disabled={$isOptimizing} class="px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded transition-colors flex items-center">
-                  {#if $isOptimizing}
-                      <span class="mr-1 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-                  {/if}
-                  Calculate Stats
-              </button>
-          </div>
+<div class="panel h-full flex flex-col min-h-0">
+  <!-- Panel header -->
+  <div class="px-3 pt-3 pb-2 shrink-0">
+    <div class="flex items-baseline justify-between gap-2">
+      <h2 class="panel-title text-sm">Gear Sockets</h2>
+      <div class="flex items-center gap-1.5">
+        <button
+          on:click={calculateGearSet}
+          disabled={$isOptimizing}
+          class="px-2 py-1 text-[11px] rounded bg-carved text-vellum hover:bg-carved/70 hover:shadow-press border border-carved transition-all disabled:opacity-50 flex items-center gap-1"
+          title="Recalculate stats from the currently socketed gear"
+        >
+          {#if $isOptimizing}
+            <span class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+          {/if}
+          Calculate
+        </button>
+        <button
+          on:click={clearAll}
+          class="px-2 py-1 text-[11px] rounded text-steel hover:text-blood hover:bg-carved transition-colors border border-transparent hover:border-carved"
+          title="Clear every socket"
+        >Clear</button>
       </div>
-      <div class="grid grid-cols-1 gap-2">
-          {#each baseSlots as slot}
-              <div class="glass-panel p-3 flex justify-between items-center transition-colors {selectedSlot === slot ? 'ring-2 ring-primary' : ''}">
-                  <div class="font-medium w-24 border-r border-border/50">{slot.replace('_1', ' 1').replace('_2', ' 2')}</div>
-                  
-                  {#if $resultStore.gearSet[slot]}
-                      <button class="flex-1 text-left px-4 font-mono text-primary truncate hover:underline" on:click={() => handleItemClick(slot, $resultStore.gearSet[slot])}>
-                          {$resultStore.gearSet[slot]}
-                      </button>
-                      <button on:click={() => alternativesSlot = slot} class="text-muted-foreground hover:text-primary p-1" title="Find alternatives for this slot">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                      </button>
-                      <button on:click={() => clearSlot(slot)} class="text-muted-foreground hover:text-destructive p-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                      </button>
-                  {:else}
-                      <button class="flex-1 text-left px-4 text-muted-foreground italic hover:text-primary" on:click={() => handleSlotClick(slot)}>
-                          Empty Slot (Click to add)
-                      </button>
-                      <button on:click={() => alternativesSlot = slot} class="text-muted-foreground hover:text-primary p-1" title="Find alternatives for this slot">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                      </button>
-                  {/if}
-              </div>
-          {/each}
-      </div>
+    </div>
+    <div class="gold-rule mt-2"></div>
   </div>
 
-  <!-- Right Side: Details & Dropdowns -->
-  <div class="w-1/2 glass-panel p-6 flex flex-col overflow-y-auto">
-      {#if availableItems.length > 0 || searchQuery !== ""}
-          <div class="flex justify-between items-center mb-4">
-              <h3 class="font-semibold text-lg">Select {selectedSlot}</h3>
-              <button class="text-muted-foreground hover:text-primary" on:click={() => {availableItems = []; searchQuery = "";}}>Cancel</button>
+  <!-- §4.2 — slots presented as physical sockets waiting to be filled. -->
+  <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-1.5">
+    {#each baseSlots as slot}
+      {@const itemName = $resultStore?.gearSet?.[slot]}
+      {@const detail = $resultStore?.slots?.[slot]}
+      {@const ml = detail?.item?.ml ?? 0}
+      <div class="group relative flex items-center gap-2 px-2 py-1.5 transition-colors
+                  {itemName ? 'socket-filled' : 'socket'}
+                  {selectedSlot === slot ? 'ring-1 ring-gold/60' : ''}">
+        <!-- item-type glyph -->
+        <svg class="h-4 w-4 shrink-0 {itemName ? 'text-gold/80' : 'text-carved'}"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d={SLOT_ICON[slot] ?? 'M12 3l9 9-9 9-9-9z'} />
+        </svg>
+
+        <div class="min-w-0 flex-1">
+          <div class="text-[10px] uppercase tracking-wider text-steel/70 leading-none">
+            {slot.replace('_1', ' 1').replace('_2', ' 2')}
           </div>
-          <div class="mb-4">
-              <input type="text" bind:value={searchQuery} on:input={handleSearchInput} placeholder="Search names or raw XML data..." class="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" />
-          </div>
-          <div class="flex-1 overflow-y-auto space-y-2">
-              {#if isFetchingItems}
-                  <p class="text-muted-foreground animate-pulse">Loading items...</p>
-              {:else}
-                  {#each availableItems as item}
-                      <button on:click={() => selectItem(item)} class="w-full text-left p-3 rounded bg-muted/30 hover:bg-muted border border-transparent hover:border-border transition-colors">
-                          <div class="font-medium">{item.Name}</div>
-                          <div class="text-xs text-muted-foreground">ML: {item.MinLevel}</div>
-                      </button>
-                  {/each}
-                  {#if availableItems.length === 0}
-                      <p class="text-muted-foreground text-sm">No items found for this slot and level range.</p>
-                  {/if}
-              {/if}
-          </div>
-      {:else if selectedItemDetails}
-          <!-- The whole detail view now lives in ItemDetail.svelte, which
-               self-fetches the full item (buffs, weapon/armor profile, augment
-               choices, set bonuses, effects, acquisition) and owns the augment
-               picker. slotDetail comes from the same slot being displayed so the
-               credited-marker badges refer to the right solve output (EC-12). -->
+          {#if itemName}
+            <button
+              class="mt-0.5 block w-full text-left text-xs font-medium truncate hover:underline {rarityClass(itemName, ml)}"
+              on:click={() => handleItemClick(slot, itemName)}
+              title={itemName}
+            >{itemName}</button>
+          {:else}
+            <button
+              class="mt-0.5 block w-full text-left text-xs italic text-steel/50 hover:text-gold transition-colors"
+              on:click={() => handleSlotClick(slot)}
+            >{slot.startsWith('Weapon') ? 'Engrave Relic' : 'Socket Empty'}</button>
+          {/if}
+        </div>
+
+        <!-- actions: quiet until the socket is hovered/focused -->
+        <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+          <button on:click={() => alternativesSlot = slot}
+                  class="p-1 rounded text-steel hover:text-gold hover:bg-carved transition-colors"
+                  title="Find alternatives for this slot">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/></svg>
+          </button>
+          {#if itemName}
+            <button on:click={() => clearSlot(slot)}
+                    class="p-1 rounded text-steel hover:text-blood hover:bg-carved transition-colors"
+                    title="Clear this socket">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          {/if}
+        </div>
+      </div>
+    {/each}
+  </div>
+</div>
+
+<!-- §6 — item selection/detail modal: blurred backdrop, Obsidian body. -->
+{#if modalOpen}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-void/70 backdrop-blur-md"
+    role="button"
+    tabindex="-1"
+    on:click|self={closeModal}
+    on:keydown={(e) => e.key === 'Escape' && closeModal()}
+  >
+    <div class="panel w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="flex items-center justify-between px-4 py-3 shrink-0">
+        <h3 class="panel-title text-sm">
+          {selectedItemDetails ? selectedItemDetails.Name : `Select ${(selectedSlot ?? '').replace('_1', ' 1').replace('_2', ' 2')}`}
+        </h3>
+        <button on:click={closeModal} class="p-1 rounded text-steel hover:text-vellum hover:bg-carved transition-colors" title="Close">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="gold-rule mx-4 shrink-0"></div>
+
+      <div class="flex-1 min-h-0 overflow-y-auto p-4">
+        {#if selectedItemDetails}
           <ItemDetail
               itemName={selectedItemDetails.Name}
               slot={selectedSlot}
@@ -363,14 +440,36 @@
               mode="edit"
               on:minorArtifactToggle={(e) => handleMinorArtifactToggle(e.detail.checked)}
           />
-      {:else}
-          <div class="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground p-12">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-4 opacity-50"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>
-              <p>Select a slot on the left to view or edit its item.</p>
-          </div>
-      {/if}
+        {:else}
+          <input
+            type="text"
+            bind:value={searchQuery}
+            on:input={handleSearchInput}
+            placeholder="Search names or raw XML data..."
+            class="w-full h-10 rounded-md border border-input bg-void px-3 py-2 text-sm placeholder:text-steel/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mb-3"
+          />
+          {#if isFetchingItems}
+            <p class="text-steel animate-pulse text-sm">Consulting the archives…</p>
+          {:else if availableItems.length === 0}
+            <p class="text-steel text-sm">No items found for this slot and level range.</p>
+          {:else}
+            <div class="space-y-1.5">
+              {#each availableItems as item}
+                <button
+                  on:click={async () => { await selectItem(item); closeModal(); }}
+                  class="w-full text-left px-3 py-2 rounded bg-void/60 border border-carved hover:border-gold/40 hover:bg-carved/40 transition-colors"
+                >
+                  <div class="text-sm font-medium {rarityClass(item.Name, item.MinLevel)}">{item.Name}</div>
+                  <div class="text-[11px] text-steel">ML {item.MinLevel}</div>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+      </div>
+    </div>
   </div>
-</div>
+{/if}
 
 {#if alternativesSlot}
   {@const currentAlternativesSlot = alternativesSlot}

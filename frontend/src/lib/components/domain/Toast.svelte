@@ -4,9 +4,9 @@
   import { fly } from 'svelte/transition';
 
   const kindClasses: Record<string, string> = {
-      success: 'bg-green-600 text-white',
+      success: 'bg-vitality text-white',
       error: 'bg-destructive text-destructive-foreground',
-      info: 'bg-slate-800 text-white',
+      info: 'bg-carved text-white',
   };
 
   // An action consumes the toast: the caller's snapshot-based Undo is

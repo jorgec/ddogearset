@@ -149,7 +149,7 @@
   };
   const CREDIT_CLASS: Record<Exclude<Credit, null>, string> = {
       counted: 'bg-primary/15 text-primary border-primary/30',
-      superseded: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
+      superseded: 'bg-gold/15 text-gold border-gold/30',
       'not-priority': 'bg-muted text-muted-foreground border-border',
   };
 
@@ -681,7 +681,7 @@
                         <div class="text-muted-foreground">{emb.Description}</div>
                       {/if}
                       {#if emb.SetBonus}
-                        <div class="text-amber-500">
+                        <div class="text-gold">
                           Grants the "{emb.SetBonus}" set &mdash; conditional, requires the "{emb.Name}" upgrade
                         </div>
                       {/if}
@@ -714,7 +714,7 @@
                 {/if}
               </div>
               {#if ref.viaAugment}
-                <p class="text-xs text-amber-500">
+                <p class="text-xs text-gold">
                   Conditional &mdash; requires the "{ref.viaAugment}" upgrade
                   {#if !conditionalIsSelected(ref)}(not currently selected){/if}
                 </p>
@@ -799,7 +799,7 @@
                otherwise render a false negative badge). -->
           {#if item.is_raid}
             <div>
-              <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-gold/20 text-gold border border-gold/30">
                 Raid Item{item.raid_name ? `: ${item.raid_name}` : ''}
               </span>
             </div>

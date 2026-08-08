@@ -58,11 +58,11 @@
   }
 </script>
 
-<div class="flex flex-col space-y-6 p-4 md:p-6 bg-background rounded-lg border border-border shadow-sm">
-  <div class="flex items-center justify-between border-b border-border/50 pb-4">
+<div class="panel flex flex-col h-full space-y-3 p-3">
+  <div class="flex items-center justify-between gap-2">
     <div>
-      <h2 class="text-2xl font-bold tracking-tight">Item Search by Stat</h2>
-      <p class="text-sm text-muted-foreground mt-1">Browse items, augments, and filigrees granting a specific stat.</p>
+      <h2 class="panel-title text-sm">Item Search by Stat</h2>
+      <p class="text-[11px] text-steel mt-1">Browse items, augments, and filigrees granting a specific stat.</p>
     </div>
   </div>
 

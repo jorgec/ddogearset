@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
-  import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum } from '../../../../wailsjs/go/main/App';
+  import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus } from '../../../../wailsjs/go/main/App';
   import TierReport from './TierReport.svelte';
   import Accordion from '../ui/Accordion.svelte';
   import { migrateLegacyCasterFields } from '$lib/data/statPriorities';
@@ -178,6 +178,53 @@
       expandedSourceKey = expandedSourceKey === key ? null : key;
   }
 
+  // --- Set-bonus pips (docs/DASHBOARD_REDESIGN_SPEC.md §4.3) ---------------
+  // "Do not just list them. Use small graphical pips (e.g. 2/3 lit pips) to
+  // quickly show how many pieces of a set are active." The active count is in
+  // the solver's own "Name (N-piece)" string; the TOTAL is not, so it's looked
+  // up from the set definition's own tier list (the highest EquippedCount any
+  // tier requires) and cached per set name. A set whose definition can't be
+  // resolved falls back to total == active, i.e. all pips lit — never a
+  // fabricated denominator.
+  let setTierMax: Record<string, number> = {};
+
+  function parseActiveSet(s: string): { name: string; active: number } {
+      const m = (s || '').match(/^(.*?)\s*\((\d+)[-\s]?piece\)$/i);
+      return m ? { name: m[1].trim(), active: parseInt(m[2], 10) } : { name: s, active: 0 };
+  }
+
+  async function loadSetTierMax(names: string[]) {
+      for (const n of names) {
+          if (!n || n in setTierMax) continue;
+          setTierMax[n] = 0; // claim the key before awaiting so a re-run can't double-fetch
+          try {
+              const sb: any = await GetSetBonus(n);
+              const counts = (sb?.Tiers ?? [])
+                  .map((t: any) => parseInt(t.EquippedCount, 10))
+                  .filter((v: number) => !isNaN(v));
+              setTierMax[n] = counts.length ? Math.max(...counts) : 0;
+              setTierMax = { ...setTierMax };
+          } catch {
+              /* leave 0 — the pip row falls back to active-count-only */
+          }
+      }
+  }
+
+  // `activeSets` lists every active TIER, not every set — a 4-piece Zarigan's
+  // shows up three times as "(2-piece)", "(3-piece)" and "(4-piece)". Rendering
+  // one pip row per entry would claim three separate sets. Collapse to one row
+  // per set at its highest active tier, which is what "how many pieces of a set
+  // are active" actually means.
+  $: activeSetRows = (() => {
+      const byName = new Map<string, number>();
+      for (const s of ($resultStore?.activeSets ?? [])) {
+          const { name, active } = parseActiveSet(s);
+          byName.set(name, Math.max(byName.get(name) ?? 0, active));
+      }
+      return [...byName.entries()].map(([name, active]) => ({ name, active }));
+  })();
+  $: loadSetTierMax(activeSetRows.map((r) => r.name));
+
   function loadGearset() {
       const input = document.createElement('input');
       input.type = 'file';
@@ -308,25 +355,27 @@
   }
 </script>
 
-<div class="h-full flex flex-col space-y-6 overflow-y-auto p-4 md:p-6 bg-background rounded-lg border border-border shadow-sm">
-  <div class="flex items-center justify-between border-b border-border/50 pb-4">
-      <div>
-          <h2 class="text-2xl font-bold tracking-tight">Gearset Breakdown Summary</h2>
-          <p class="text-sm text-muted-foreground mt-1">A complete overview of all prioritized and granted effects.</p>
-      </div>
-      <div class="flex items-center space-x-3">
-          <div class="flex items-center space-x-2">
-            <label for="gearset-name-input" class="text-sm font-medium text-muted-foreground whitespace-nowrap">Name:</label>
-            <input id="gearset-name-input" type="text" bind:value={$configStore.gearset_name} class="w-36 rounded-md border-input bg-background px-3 py-1 text-sm border focus:border-primary focus:ring-primary h-8" placeholder="My Gearset" />
+<div class="vellum h-full flex flex-col overflow-y-auto p-4 space-y-4">
+  <div class="shrink-0">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+          <h2 class="panel-title text-sm">Vellum Summary Scroll</h2>
+          <div class="flex items-center gap-1.5">
+            <input id="gearset-name-input" type="text" bind:value={$configStore.gearset_name}
+                   class="w-32 rounded border border-carved bg-void/50 px-2 py-1 text-xs text-vellum placeholder:text-steel/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                   placeholder="Gearset name" />
+            <button on:click={loadGearset} disabled={$isOptimizing}
+                    class="px-2 py-1 text-[11px] rounded border border-carved bg-carved/60 text-vellum hover:bg-carved hover:shadow-press transition-all disabled:opacity-50 flex items-center gap-1">
+                {#if $isOptimizing}
+                    <span class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                {/if}
+                Load
+            </button>
+            <button on:click={saveGearset} disabled={$isOptimizing}
+                    class="px-2 py-1 text-[11px] rounded bg-arcane text-white hover:bg-arcane/85 transition-colors disabled:opacity-50">Save</button>
           </div>
-          <button on:click={loadGearset} disabled={$isOptimizing} class="px-3 py-1 text-sm bg-muted text-muted-foreground hover:bg-muted/80 rounded transition-colors flex items-center">
-              {#if $isOptimizing}
-                  <span class="mr-1 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-              {/if}
-              Load
-          </button>
-          <button on:click={saveGearset} disabled={$isOptimizing} class="px-3 py-1 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded transition-colors">Save Output</button>
       </div>
+      <p class="text-[11px] text-steel mt-1">A complete overview of all prioritized and granted effects.</p>
+      <div class="gold-rule my-3"></div>
   </div>
 
   {#if !$resultStore || !$resultStore.success || !Object.keys($resultStore.gearSet || {}).length}
@@ -337,37 +386,49 @@
       </div>
   {:else}
       <!-- Active Sets and Filigrees Summary -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {#if $resultStore.activeSets && $resultStore.activeSets.length > 0}
-          <div class="bg-muted/20 p-4 rounded-lg border border-border/50">
-              <h4 class="font-semibold text-primary mb-3">Active Set Bonuses</h4>
-              <ul class="list-disc pl-5 text-sm space-y-1 text-foreground">
-                  {#each $resultStore.activeSets as set}
-                      <li>{set}</li>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {#if activeSetRows.length > 0}
+          <div>
+              <h4 class="panel-title text-xs mb-2">Active Set Bonuses</h4>
+              <ul class="space-y-1">
+                  {#each activeSetRows as row}
+                      {@const total = setTierMax[row.name] || row.active}
+                      <li class="flex items-start gap-2">
+                          <span class="flex gap-[3px] pt-[5px] shrink-0" aria-hidden="true">
+                              {#each Array(total) as _, i}
+                                  <span class="pip {i < row.active ? 'pip-lit' : 'pip-dim'}"></span>
+                              {/each}
+                          </span>
+                          <span class="text-xs text-vellum leading-snug">
+                              {row.name}
+                              <span class="text-steel">({row.active}/{total})</span>
+                          </span>
+                      </li>
                   {/each}
               </ul>
           </div>
           {/if}
 
           {#if $resultStore.filigrees && ( ($resultStore.filigrees.weapon && $resultStore.filigrees.weapon.length > 0) || ($resultStore.filigrees.artifact && $resultStore.filigrees.artifact.length > 0) )}
-          <div class="bg-muted/20 p-4 rounded-lg border border-border/50">
-              <h4 class="font-semibold text-primary mb-3">Granted Filigrees</h4>
+          <!-- §4.3 — filigrees grouped tightly, smaller type, to save vertical space. -->
+          <div>
+              <h4 class="panel-title text-xs mb-2">Granted Filigrees</h4>
               {#if $resultStore.filigrees.weapon && $resultStore.filigrees.weapon.length > 0}
                   <div class="mb-2">
-                      <span class="text-xs font-semibold text-muted-foreground uppercase">Weapon</span>
-                      <ul class="list-disc pl-5 text-sm space-y-1 text-foreground">
+                      <span class="text-[10px] font-semibold text-steel uppercase tracking-wider">Weapon</span>
+                      <ul class="text-[11px] leading-snug text-vellum/90">
                           {#each $resultStore.filigrees.weapon as f}
-                              <li>{f}</li>
+                              <li class="truncate" title={f}>{f}</li>
                           {/each}
                       </ul>
                   </div>
               {/if}
               {#if $resultStore.filigrees.artifact && $resultStore.filigrees.artifact.length > 0}
                   <div>
-                      <span class="text-xs font-semibold text-muted-foreground uppercase">Minor Artifact</span>
-                      <ul class="list-disc pl-5 text-sm space-y-1 text-foreground">
+                      <span class="text-[10px] font-semibold text-steel uppercase tracking-wider">Minor Artifact</span>
+                      <ul class="text-[11px] leading-snug text-vellum/90">
                           {#each $resultStore.filigrees.artifact as f}
-                              <li>{f}</li>
+                              <li class="truncate" title={f}>{f}</li>
                           {/each}
                       </ul>
                   </div>
@@ -387,7 +448,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
               Optimized Priority Targets
           </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {#each sortedPriorities as { stat, tier, cap }, i}
                   <div class="p-4 rounded-lg bg-card border border-border relative overflow-hidden group hover:border-primary/50 transition-colors">
                       <div class="absolute top-0 right-0 w-16 h-16 bg-primary/10 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
@@ -453,7 +514,7 @@
           {#if groupedEffects.length === 0}
               <p class="text-sm text-muted-foreground italic">No effects data available. Did you run the optimizer?</p>
           {:else}
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-8">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
                   {#each groupedEffects as [statName, sources]}
                       <div class="flex flex-col space-y-2">
                           <h4 class="font-medium text-foreground text-sm border-b border-border/40 pb-1">{statName}</h4>

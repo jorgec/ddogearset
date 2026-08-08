@@ -1,76 +1,200 @@
+/* Bundled locally rather than linked from Google Fonts — this ships as an
+   offline Wails desktop app, so a CDN link would silently fall back to system
+   fonts whenever the machine is offline. Latin subsets only, to keep the
+   binary from carrying Cyrillic/Greek/Vietnamese ranges nothing here uses. */
+@import '@fontsource/cinzel/latin-400.css';
+@import '@fontsource/cinzel/latin-600.css';
+@import '@fontsource/cinzel/latin-700.css';
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+@import '@fontsource/fira-code/latin-400.css';
+@import '@fontsource/fira-code/latin-500.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 210 40% 98%; /* slate-50 */
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%; /* blue-600 */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%; /* red-600 */
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%; /* slate-200 */
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+
+    /* --- TEXTURE HOOKS -------------------------------------------------
+       The design spec's mockup shows leather, wood grain and parchment.
+       Those need real image assets; until they exist these resolve to a
+       procedural gradient that reads as "material" without pretending to be
+       photographic. To drop in real artwork later, override just these four
+       with url(...) — no component markup has to change, because every
+       surface below composites its texture layer from these variables. */
+    --texture-belt: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.25) 100%);
+    --texture-panel: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.025) 0%, transparent 70%);
+    --texture-vellum: repeating-linear-gradient(
+      112deg, rgba(232,227,216,0.014) 0px, rgba(232,227,216,0.014) 1px, transparent 1px, transparent 5px);
+    --texture-stone: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 40%);
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%; /* slate-950 */
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%; /* slate-800 */
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-  }
-}
-
-@layer base {
   html {
     /* Responsive base font size: scales with viewport width, clamped
        between 14px (small/shrunk windows) and 18px (max). */
     font-size: clamp(14px, 1rem + 0.3vw, 18px);
   }
+
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
-    font-family: "Inter", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    @apply bg-background text-foreground font-sans;
+    /* A very faint arcane wash so Void Black doesn't read as a flat void. */
+    background-image:
+      radial-gradient(ellipse 120% 70% at 50% -10%, rgba(59,130,246,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 90% 50% at 50% 110%, rgba(212,175,55,0.03) 0%, transparent 60%);
+    background-attachment: fixed;
   }
+
+  /* §3 — ornate serif establishes the fantasy tone on every heading. */
   h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
     text-wrap: balance;
   }
-  p {
-    text-wrap: pretty;
+
+  p { text-wrap: pretty; }
+
+  /* Dark-native scrollbars; the default light ones are jarring on Void Black. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #121212; }
+  ::-webkit-scrollbar-thumb {
+    background: #2D2D35;
+    border-radius: 5px;
+    border: 2px solid #121212;
   }
+  ::-webkit-scrollbar-thumb:hover { background: #3d3d47; }
+
+  /* Native form controls render their popup lists with the OS light theme
+     unless told otherwise. */
+  select, input, textarea { color-scheme: dark; }
+  option { @apply bg-obsidian text-vellum; }
 }
 
-.glass-panel {
-  @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-sm rounded-lg;
-}
+@layer components {
+  /* ---- Panels -------------------------------------------------------- */
+  /* Retains the historical .glass-panel name so the components already using
+     it pick up the new treatment without edits — it is no longer "glass",
+     it's carved obsidian. */
+  .glass-panel,
+  .panel {
+    @apply bg-obsidian border border-carved rounded-lg shadow-lg;
+    background-image: var(--texture-panel);
+  }
 
+  /* §4 — every panel is titled in Artificer Gold, Cinzel, letter-spaced. */
+  .panel-title {
+    @apply font-display text-gold tracking-[0.12em] uppercase;
+  }
+
+  /* A hairline gold rule under panel headers, fading out at both ends so it
+     reads as an inlay rather than a hard border. */
+  .gold-rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212,175,55,0.55), transparent);
+  }
+
+  /* ---- Gear sockets (§4.2) ------------------------------------------- */
+  /* Empty slots are physical recesses, not list rows. */
+  .socket {
+    @apply bg-void border border-carved rounded-md shadow-socket;
+    background-image: var(--texture-stone);
+  }
+
+  .socket-filled {
+    @apply bg-obsidian border rounded-md;
+    border-color: rgba(212, 175, 55, 0.35);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.5), 0 0 8px rgba(212,175,55,0.07);
+  }
+
+  /* ---- The Vellum Scroll (§4.3) -------------------------------------- */
+  .vellum {
+    @apply bg-vellum-dark border border-carved rounded-lg;
+    background-image: var(--texture-vellum);
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.45);
+  }
+
+  /* ---- Arcane console (§4.4) ----------------------------------------- */
+  .arcane-console {
+    @apply bg-void border rounded-lg font-mono shadow-arcane;
+    border-color: rgba(59, 130, 246, 0.28);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Subtle CRT scanlines. pointer-events:none so it never eats clicks. */
+  .arcane-console::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, rgba(59,130,246,0.035) 0px, rgba(59,130,246,0.035) 1px, transparent 1px, transparent 3px);
+  }
+
+  /* ---- The Belt: global navigation (§4.1) ---------------------------- */
+  .belt {
+    @apply bg-obsidian border-y border-carved;
+    background-image: var(--texture-belt);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 8px rgba(0,0,0,0.5);
+  }
+
+  /* §6 — hover brightens and presses inward. */
+  .belt-stud {
+    @apply text-steel rounded-md transition-all duration-150;
+  }
+  .belt-stud:hover {
+    @apply text-vellum bg-carved shadow-press;
+  }
+  .belt-stud-active {
+    @apply text-gold bg-carved shadow-press;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.35);
+  }
+
+  /* ---- Status crystal (§4.1) ----------------------------------------- */
+  .crystal {
+    @apply inline-block rounded-sm;
+    width: 0.7rem;
+    height: 0.7rem;
+    transform: rotate(45deg);
+  }
+  .crystal-ready {
+    background: linear-gradient(135deg, #34d399, #10B981);
+    box-shadow: 0 0 8px rgba(16,185,129,0.75), inset 0 0 3px rgba(255,255,255,0.5);
+  }
+  .crystal-busy {
+    background: linear-gradient(135deg, #fbbf24, #D4AF37);
+    box-shadow: 0 0 8px rgba(212,175,55,0.75), inset 0 0 3px rgba(255,255,255,0.5);
+  }
+
+  /* §4.4 — the Trove filter is "prominent, stylized with a glowing bottom
+     border when focused". */
+  .trove-filter {
+    border-bottom-width: 2px;
+    border-bottom-color: #2D2D35;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .trove-filter:focus {
+    border-bottom-color: #D4AF37;
+    box-shadow: 0 3px 10px -3px rgba(212, 175, 55, 0.6);
+  }
+
+  /* ---- Set-bonus pips (§4.3) ----------------------------------------- */
+  .pip {
+    @apply inline-block rounded-full;
+    width: 0.45rem;
+    height: 0.45rem;
+    border: 1px solid rgba(212,175,55,0.45);
+  }
+  .pip-lit {
+    background: #D4AF37;
+    box-shadow: 0 0 5px rgba(212,175,55,0.8);
+  }
+  .pip-dim { background: transparent; }
+}
