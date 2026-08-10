@@ -63,6 +63,8 @@ class RawItem:
     weapon_type: Optional[str]
     damage_type: Optional[str]
     craftable_family: bool
+    armor_type: Optional[str]
+    drop_location: Optional[str]
 
 
 @dataclass
@@ -70,6 +72,7 @@ class RawAugment:
     name: str
     type: str
     buffs: list
+    min_level: int
 
 
 @dataclass
@@ -134,6 +137,12 @@ def walk_items(base_dir: str, quests_lookup: dict) -> List[RawItem]:
                     weapon_type=granted['weapon_type'],
                     damage_type=granted['damage_type'],
                     craftable_family=granted['craftable_family'],
+                    # Not part of _item_from_node's return shape (that
+                    # extractor is shared with the search, which never needed
+                    # these) — read directly off the node and the provenance
+                    # tuple this loop already computed.
+                    armor_type=item_node.findtext('Armor'),
+                    drop_location=provenance[0] or None,
                 ))
             except Exception:
                 # A single malformed node must not abort the whole build; it
@@ -156,9 +165,11 @@ def walk_augments(base_dir: str) -> List[RawAugment]:
                                              with_raw=True)
                 if granted is None:
                     continue
+                ml_node = aug_node.find('MinLevel')
+                ml = int(ml_node.text) if ml_node is not None and ml_node.text else 0
                 out.append(RawAugment(
                     name=granted['name'], type=granted['type'],
-                    buffs=granted['buffs']))
+                    buffs=granted['buffs'], min_level=ml))
             except Exception:
                 continue
     return out

@@ -18,6 +18,11 @@ from .identity import NAMESPACES, Registry
 from .stat_dimension import StatDimension
 from .walk import Corpus
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "python"))
+from rules.constants import PROC_BONUS_TYPE  # noqa: E402
+
 # Mirrors rules.provenance.RAID_UPGRADE_TIER_PREFIXES — duplicated rather than
 # imported so entity resolution here stays a pure function of strings, with no
 # dependency surprise if that tuple's meaning ever drifts for the SEARCH side.
@@ -62,6 +67,7 @@ class TransformResult:
     set_tiers: List[dict] = field(default_factory=list)
     stats: List[dict] = field(default_factory=list)
     effects: List[dict] = field(default_factory=list)
+    effect_targets: List[dict] = field(default_factory=list)
     quests: List[dict] = field(default_factory=list)
 
     validation_errors: List[str] = field(default_factory=list)
@@ -71,6 +77,13 @@ class TransformResult:
 def transform(corpus: Corpus, registry: Registry, *, built_at: str,
              commit: str, aliases: Dict[str, Dict[str, Optional[str]]],
              strict: bool) -> TransformResult:
+    """KNOWN GAP: `item_upgrade` (schema doc §5.1's from_uuid/to_uuid edges,
+    derived from `_RAID_VERSION_OF_RE`) is not populated. `item_family`
+    already groups an item with its tier siblings via `_family_and_tier`,
+    which is what every 0.5.0/0.5.1 feature actually needs (family grouping,
+    not directed upgrade chains). Load still creates the `item_upgrade`
+    table, empty, for schema completeness — nothing reads it yet, and adding
+    the edges later needs no migration."""
     r = TransformResult(registry=registry)
     aliases = aliases or {}
 
@@ -95,10 +108,25 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
     def emit_effects(source_uuid: str, buffs: list) -> None:
         """`buffs` entries are 4-tuples from the extractors called with
         with_raw=True: (display_name, bonus_type, value, (raw_type, raw_target)).
-        The display name is NOT stored on the effect row — it exists only to
-        drive the live solver's priority match and has no place in the
-        catalog, which is priority-agnostic by construction. The effect's
-        identity is its `stat_uuid`, resolved from the TRUE raw pair."""
+        The display name is NOT stored — it exists only to drive the live
+        solver's priority match and has no place in a priority-agnostic
+        catalog. `effect` and `effect_target` are separate tables, matching the
+        schema doc §5.1 exactly: `effect` is the (source, ordinal, bonus_type,
+        value) tuple, `effect_target` is a distinct table of WHICH stat(s) it
+        applies to, because a single `<Effect>` can legitimately grant one
+        amount to several `<Item>` targets (Force/Physical/Untyped) or several
+        `<Type>` stats.
+
+        SCOPING NOTE (matches decision 8, out of scope for 0.5.0 — see
+        docs/0.5.0/00_ETL_START_HERE.md §9.3): `_item_buffs_from_node` still
+        calls `buff_node.findtext('Item')`, which reads only the FIRST <Item>
+        of a repeating set — the extractor never sees the other targets, so
+        this ETL cannot yet emit more than one `effect_target` row per effect.
+        Every effect gets exactly one target row at position 0. The table
+        exists so that changing first-wins to all-targets, if that
+        investigation concludes it should, is a change to the extractor plus
+        one new loop here — not a schema migration.
+        """
         for ordinal, entry in enumerate(buffs):
             _display, bonus_type, value, raw_pair = entry
             raw_type, raw_target = raw_pair
@@ -109,6 +137,11 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
                 "ordinal": ordinal,
                 "bonus_type": bonus_type,
                 "value": value,
+                "is_proc": bonus_type == PROC_BONUS_TYPE,
+            })
+            r.effect_targets.append({
+                "effect_uuid": eff_uuid,
+                "position": 0,
                 "stat_uuid": stat_id(raw_type, raw_target),
             })
 
@@ -135,9 +168,11 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
             "min_level": it.ml,
             "weapon_type": it.weapon_type,
             "damage_type": it.damage_type,
+            "armor_type": it.armor_type,
             "is_minor_artifact": it.minor,
             "is_raid": it.is_raid,
             "craftable_family": it.craftable_family,
+            "drop_location": it.drop_location,
             "adventure_pack": it.pack,
         })
         for slot in it.slots:
@@ -178,7 +213,8 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
                                commit=commit, strict=strict)
         r.sources.append({"uuid": src.entity_uuid, "kind": "augment", "name": aug.name})
         r.augments.append({
-            "uuid": src.entity_uuid, "name": aug.name, "colour": aug.type})
+            "uuid": src.entity_uuid, "name": aug.name, "colour": aug.type,
+            "min_level": aug.min_level})
         emit_effects(src.entity_uuid, aug.buffs)
     registry.reconcile_disappeared("augment", seen_augment_keys, aliases.get("augment", {}))
 
@@ -246,11 +282,17 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
         emit_effects(src.entity_uuid, merged_buffs)
 
     # --- quests --------------------------------------------------------
+    seen_quest_names = set()
     for name, info in corpus.quests.items():
+        seen_quest_names.add(name)
+        quest_ent = registry.resolve("quest", name, built_at=built_at,
+                                     commit=commit, strict=strict)
         r.quests.append({
+            "uuid": quest_ent.entity_uuid,
             "name": name, "adventure_pack": info.get("AdventurePack"),
             "is_raid": bool(info.get("is_raid")),
         })
+    registry.reconcile_disappeared("quest", seen_quest_names, aliases.get("quest", {}))
 
     # --- the stat dimension, now fully populated by every emit_effects() call
     for key, row in dim:
@@ -280,11 +322,22 @@ def _validate(r: TransformResult) -> List[str]:
 
     source_uuids = {s["uuid"] for s in r.sources}
     stat_uuids = {s["uuid"] for s in r.stats}
+    effect_uuids = {e["uuid"] for e in r.effects}
     for eff in r.effects:
         if eff["source_uuid"] not in source_uuids:
             errors.append(f"effect {eff['uuid']} references unknown source {eff['source_uuid']}")
-        if eff["stat_uuid"] not in stat_uuids:
-            errors.append(f"effect {eff['uuid']} references unknown stat {eff['stat_uuid']}")
+    for tgt in r.effect_targets:
+        if tgt["effect_uuid"] not in effect_uuids:
+            errors.append(f"effect_target references unknown effect {tgt['effect_uuid']}")
+        if tgt["stat_uuid"] not in stat_uuids:
+            errors.append(f"effect_target references unknown stat {tgt['stat_uuid']}")
+    # Every effect must have at least one target — an effect with none would
+    # be a value with no meaning, and Load's FK on effect_target can't catch
+    # an ABSENCE the way it catches a bad reference.
+    targeted_effects = {tgt["effect_uuid"] for tgt in r.effect_targets}
+    for eff in r.effects:
+        if eff["uuid"] not in targeted_effects:
+            errors.append(f"effect {eff['uuid']} has no effect_target row")
 
     set_uuids = {s["uuid"] for s in r.gear_sets}
     for row in r.item_sets:

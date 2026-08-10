@@ -297,12 +297,21 @@ CREATE TABLE item_augment_slot (
     PRIMARY KEY (item_uuid, position)
 ) WITHOUT ROWID;
 
+-- CORRECTED against real data (Phase 2 implementation): `name` is NOT unique.
+-- "Deathblock" names two DIFFERENT augments in different colour slots
+-- (Cannith Armor Suffix vs Accessory Devastation) — the natural key is
+-- name+colour, not name alone. DDOBuilderV2 also ships exactly one pair
+-- ("Twilight" / Cannith Armor Prefix) sharing BOTH name and colour with
+-- different bonus types — no field distinguishes them. That case has no
+-- automatic resolution; the ETL reports it as a validation error and refuses
+-- to load either row until a human decides (etl/transform.py).
 CREATE TABLE augment (
     uuid      TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
-    name      TEXT NOT NULL UNIQUE,
+    name      TEXT NOT NULL,
     colour    TEXT NOT NULL,
     min_level INTEGER NOT NULL DEFAULT 0
 ) WITHOUT ROWID;
+CREATE INDEX augment_name_idx ON augment(name);
 
 CREATE TABLE filigree (
     uuid          TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
@@ -370,6 +379,13 @@ CREATE TABLE effect (
 
 -- THE multi-<Item> fix. position keeps XML order, so first-wins is
 -- `position = 0` and all-targets is dropping the predicate (decision 8).
+--
+-- IMPLEMENTATION STATUS (Phase 2): the extractors (`rules.extract`) still
+-- call `buff_node.findtext('Item')` — first-<Item>-only — so they never SEE
+-- the other targets to emit. Every effect currently gets exactly one
+-- effect_target row at position 0. The table exists so that resolving
+-- decision 8 is a change to the extractor plus one new loop in
+-- etl/transform.py's emit_effects — not a schema migration.
 CREATE TABLE effect_target (
     effect_uuid TEXT NOT NULL REFERENCES effect(uuid) ON DELETE CASCADE,
     position    INTEGER NOT NULL,
