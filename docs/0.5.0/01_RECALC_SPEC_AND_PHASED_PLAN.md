@@ -45,7 +45,7 @@ construction, not by coincidence.
 
 ## 2. What the earlier documents got wrong or never measured
 
-Five findings that change the plan. Each is measured, not argued.
+Six findings that change the plan. Each is measured, not argued.
 
 ### 2.1 The subprocess costs 3.8 seconds, not 300 ms — and it is fixable
 
@@ -228,6 +228,15 @@ load-bearing decision of the whole design.
 | `warnings` | **New.** Physical-rule observations (§3.5) |
 | `tierScores`, `tierReport` | `{}` / minimal — parity with today's calculate mode, which already returns empty |
 
+**Payload cost, measured on all 13 real gearsets with results** (§7 review item
+1): the full result payload is **10–18 KB**; `allEffects` is 1.9–3.4 KB of it and
+grows to 3.1–5.4 KB structured (+56–68% on that key, **+2 KB on the whole
+response**). Real gearsets carry **36–57 effects**, not hundreds. The measured
+bridge cliff is 64 KB *arguments* at concurrency 40 — this response is ~20 KB
+and travels the other way. `otherStats` adds little: the 14 items of a full
+caster gearset expose **34 `<Buff>` nodes total**, 12 of which are already
+reported, so the new key is tens of entries and ~1–2 KB.
+
 > **The `allEffects` shape change is not confined to recalculation.** The solve
 > path builds the same key from `model.sources_tracking` (`optimizer.py:3263`),
 > and `Summary.svelte:91` regex-parses the strings back apart in
@@ -264,6 +273,15 @@ slot or item:
 - empty-string filigree entries (skipped silently — corrupted data, not user error)
 - an augment in a colour the item does not offer
 - a name that resolves to nothing in the catalog
+
+> **This is net-new code, not a reporting tweak** (§7 review item 2). These
+> constraints currently exist only as ILP rows in `create_model`; bypassing the
+> model means writing the checks. They are cheap — each is a loop over resolved
+> gear, and `_item_from_node` already extracts the augment-slot colours the
+> colour check needs — but they must be written and tested, not assumed.
+>
+> One constraint drops out for free: **"one item per slot" cannot be violated**,
+> because `pre_equipped` is a slot→name map. Do not write a check for it.
 
 ### 3.6 Layering
 
@@ -372,12 +390,16 @@ recorded.
    it". Text-prescan the `.item` files and XML-parse only those containing a
    wanted name (proposal §6: 285 ms vs 1824 ms).
 2. Extend contributions to carry source names (§2.3).
-3. Build the §3.3 response assembler: `realizedStats` (priorities), `otherStats`
+3. **`validate_physical_rules(resolved_gearset) -> [warning]`** — pure Python,
+   its own module in `python/rules/`, its own unit tests. Net-new code (§3.5):
+   the checks exist today only as ILP rows. Write it before the assembler so
+   `warnings` is a real input to it, not an afterthought.
+4. Build the §3.3 response assembler: `realizedStats` (priorities), `otherStats`
    (everything else, `"<item> <type>"` lowercased), structured `allEffects`,
    deduplicated `activeSets`, `slots`, `warnings`.
-4. **Convert the solve path's `allEffects` to the same structured shape**
+5. **Convert the solve path's `allEffects` to the same structured shape**
    (`optimizer.py:3263`). One shape, both paths, same release.
-5. `recalculate()` wiring in `solver.py`, restriction keys rejected, GLPK gate
+6. `recalculate()` wiring in `solver.py`, restriction keys rejected, GLPK gate
    skipped.
 
 **Gate:** the fixtures resolve; totals are produced for every fixture; a solve
@@ -417,8 +439,26 @@ In this order:
 `build-mac.sh`, `build-windows.ps1`, `build-linux.sh`, `package_release.sh`,
 `install.sh` and the `embed_*.go` bundle roots updated.
 
-**Gate:** warm solver start ≤ 0.25 s measured on macOS and Windows · a full
-solve still succeeds end to end · release artifacts build on all three
+**Extraction must become cached and version-stamped** (§7 review item 4).
+Measured: the onedir bundle is **55 files / 20 MB**, against the current 2 files
+/ 7.9 MB. `extractSolver` today writes to a fresh `os.MkdirTemp` on every app
+start, so shipping onedir unchanged trades a 3.8 s-per-*call* CPU cost for a
+20 MB-per-*launch* disk cost — better, but needlessly so, and unpredictable
+under antivirus or on slow drives.
+
+- Extract to a stable per-version path (`<cache>/ddo-solver/<AppVersion>-<hash>/`),
+  not a random temp dir.
+- Write a `.stamp` file **last**; on startup, if the stamp matches, skip
+  extraction entirely and reuse the directory.
+- Extraction then happens once per install, not once per launch.
+- Note the embedded-bundle size: 20 MB uncompressed inside the Go binary versus
+  7.9 MB today. If the binary growth matters, embed a zip and expand it during
+  the one-time extraction — the decompression cost is paid per install, not per
+  run, which is the whole point of the change.
+
+**Gate:** warm solver start ≤ 0.25 s measured on macOS and Windows · second and
+subsequent app launches perform **zero** extraction I/O (assert on the stamp) ·
+a full solve still succeeds end to end · release artifacts build on all three
 platforms.
 
 Expected result: Calculate goes from ~4.1 s (3.8 startup + 0.3 parse) to
@@ -443,14 +483,20 @@ Expected result: Calculate goes from ~4.1 s (3.8 startup + 0.3 parse) to
 - `PYTHONUNBUFFERED=1` added to `runSolver`'s env (`app.go:656`).
 - Save format → `2.0`; the pre-2.0 refusal + **Export item list** (§3.7).
 - `Summary.svelte` minimal update only: consume structured `allEffects`, delete
-  `parseEffectSource`, surface `warnings`. Layout stays as it is until 0.5.1.
+  `parseEffectSource`, surface `warnings`. **`warnings` renders as a plain
+  bulleted list or a toast — no layout work** (§7 review item 5). That layout is
+  being replaced in 0.5.1; do not invest in fitting anything into it.
+  `otherStats` is returned and saved but **not displayed** until 0.5.1.
 
 **Gate:** §15 boundary tests (response schema; Go unmarshals a *captured Python*
 response; payload round-trip) · e2e: fresh gearset → Calculate → non-zero
 priority panel; load → Calculate; solve → edit → Calculate; **the same cycle 6+
 times consecutively**; every action settles within a hard timeout · a pre-2.0
 file is refused with no store written, and Export item list produces the right
-names.
+names · **`e2e_bridge_payload_ceiling`: record the actual recalculate and solve
+response sizes and fail if either exceeds 32 KB** — half the measured cliff.
+Today's are 10–18 KB (§3.3); this turns "the payload is fine" from an argument
+into an assertion.
 
 ### Phase 7 — Latent-bug fixes · *parallelizable except where noted*
 
@@ -462,9 +508,17 @@ Safe at any time:
   `wails generate module` is never run bare (START_HERE §4.3).
 - `XMLBuff.Item` / `XMLEffect.Item` → `[]string` (`models.go:42,60`). Go
   currently keeps the **last** `<Item>` where Python keeps the **first**, so the
-  item-detail panel shows `Untyped` where the maths used `Force`. This aligns Go
-  to Python's existing behaviour — a display fix that moves no number, and
-  independent of the pending multi-target question below.
+  item-detail panel labels a buff `Untyped` while the maths credits `Force`
+  (`ItemDetail.svelte:100`, `:764`). This aligns Go to Python's existing
+  behaviour — a display fix that moves no number.
+
+  > **Bind the display to `Item[0]`, and only `Item[0]`** (§7 review item 3).
+  > The slice exists so Go can know which target is *first*; it is not a licence
+  > to render "Force, Physical, Untyped". Showing all three while the maths
+  > credits one would be a new lie, and a worse one than today's — so the change
+  > is safe **only** with this constraint. Revisit the display when the
+  > multi-target investigation (decision 8) concludes; until then display and
+  > arithmetic move in lockstep because they read the same element.
 - **Minimal CI** (`.github/workflows/`): `go build`/`vet`/`test`, the Python
   suite, `svelte-check`, and the Phase 9 grep. No GLPK, no DDOBuilderV2
   checkout, no solver — fast enough to run on every push. The slow differential
@@ -493,7 +547,14 @@ unconditionally) · the two-node model with `hydrateConfigFromSlots` **deleted**
 · Accept / Accept All · the Optimize-is-a-no-op and Save-refuses-empty guards ·
 Check Inventory (exact, case-sensitive) · `progressLog.ts` + `AddLog` +
 `isLoadingFile` lockout · `wailsCall.ts` `withTimeout` · a surface for
-`otherStats`, which 0.5.0 returns but does not display.
+`otherStats`, which 0.5.0 returns but does not display · a proper home for
+`warnings`, which 0.5.0 renders as a bare list.
+
+**`withTimeout`'s error must be actionable** (§7 review item 6). A timeout fires
+because the bridge dropped a message, and a bridge that has dropped one may keep
+dropping them — so "Request timed out" leaves the user stuck in a state that
+will recur. The message must name the recovery: *"The calculation timed out and
+the app's connection may be unstable. Save your gearset and restart the app."*
 
 **§7's Upgrade button is cancelled**, not deferred — §3.7 makes 0.5.0 a clean
 break with no migration to perform. Its refuse-don't-migrate rule ships in
@@ -548,11 +609,56 @@ Recorded so a later reader knows these were chosen, not defaulted into.
 - The Upgrade button — cancelled outright (decision 5).
 - The UI rebuild — 0.5.1 (decision 4).
 - Tank / Bow / THF oracle fixtures — known blind spot, Phase 0.
+- A Wails v2 → v3 migration — rejected on measurement (§7 review item 1).
 - Any stat arithmetic moving to Go or Svelte, in any form.
 
 ---
 
-## 7. Standing constraints
+## 7. Review — [`critic.md`](critic.md) adjudicated
+
+Six objections were raised against this plan. Four are adopted, one is adopted
+with its conclusion reversed, one is rejected on measurement. Recorded in full
+so the rejections are auditable rather than silent.
+
+| # | Objection | Verdict | Where it landed |
+|---|---|---|---|
+| 1 | Structured `allEffects` inflates the payload toward the 64 KB bridge cliff; upgrade to Wails v3 | **Rejected on measurement** | §3.3, Phase 6 gate |
+| 2 | Physical-rule warnings are net-new code, not a reporting change | **Adopted** | §3.5, Phase 3 step 3 |
+| 3 | Go `[]string` display + Python first-wins maths = a UI that claims uncredited stats | **Adopted, conclusion reversed** | Phase 7 |
+| 4 | `--onedir` trades CPU unpack for per-launch disk I/O | **Adopted** | Phase 5 |
+| 5 | Sending `otherStats` a release before anything displays it is waste; warnings in the old layout is a time-sink | **Split: rejected / adopted** | Phase 6 |
+| 6 | A `withTimeout` error must tell the user how to recover | **Adopted** | Phase 8 |
+
+**On #1 — rejected.** Measured across all 13 real gearsets carrying results: the
+whole response is **10–18 KB**, `allEffects` is 1.9–3.4 KB of it, and the
+structured form adds **~2 KB to the response**. Real gearsets carry 36–57
+effects, not "hundreds". The measured cliff is 64 KB *arguments* at concurrency
+40 (retrospective §2.3), and this is a ~20 KB return value. The objection is
+directionally sound discipline applied to a number that isn't there — and
+migrating Wails v2.10 → v3 is a whole-app binding and runtime rewrite, which is
+a disproportionate remedy for a 2 KB delta. What is adopted instead is the
+*discipline*: `e2e_bridge_payload_ceiling` asserts a 32 KB budget, so the claim
+stays true by measurement rather than by argument.
+
+**On #3 — adopted, conclusion reversed.** The trap is real: rendering "Force,
+Physical, Untyped" while crediting only Force would be a new lie. But the
+proposed remedy — leave Go alone until Python's crediting changes — preserves a
+*worse* state, because Go today keeps the **last** `<Item>` and labels the buff
+`Untyped` while the maths credits `Force`. Display and arithmetic already
+disagree; the fix is to bind the display to `Item[0]` so they agree again. The
+constraint is adopted verbatim, the deferral is not.
+
+**On #5 — split.** Withholding `otherStats` from the wire for a release is
+rejected: it costs ~1–2 KB (the 14 items of a full caster gearset expose 34
+`<Buff>` nodes total, 12 already reported), Phase 4's differential asserts on
+it, and omitting it means changing the wire contract **twice** — which is the
+save-format churn the retrospective §2.4 exists to warn about. The second half
+is adopted outright: `warnings` renders as a plain list or toast in 0.5.0, with
+no attempt to fit it into a layout that 0.5.1 replaces.
+
+---
+
+## 8. Standing constraints
 
 - Commit nothing until explicitly told. Standing instruction on this project.
 - Never let an empty or failed result overwrite a gearset's saved stats.
