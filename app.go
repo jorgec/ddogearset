@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,58 +248,204 @@ func (a *App) loadCaches(verb string) {
 	}
 }
 
-// extractSolver writes every file embedded in bundleFS (the Python solver,
-// glpsol, and glpsol's own shared-library dependencies — see
-// embed_<GOOS>_<GOARCH>.go) into one flat temp directory, so glpsol and its
-// libraries end up siblings on disk exactly as they were staged by
-// build_releases.sh. That co-location is what makes the platform's dynamic
-// linker able to find them: on macOS the bundled glpsol has its library
-// references rewritten to @executable_path (see build_releases.sh's
-// install_name_tool step) and needs no extra help; on Linux/Windows,
-// runSolver additionally points LD_LIBRARY_PATH/the process's own directory
-// at this same tmpDir as a fallback (harmless no-op on platforms that don't
-// use it).
+// solverCacheDirName is the per-app subdirectory under the OS cache directory
+// that holds extracted solver bundles. A CACHE, not user data (that's
+// catalog_seed.go's userDataDir): every byte in it is reproducible from the
+// app binary, so the OS is free to evict it and the next launch just
+// re-extracts.
+const solverCacheDirName = "ddo-solver"
+
+// extractionStampName marks a solver cache directory as COMPLETE. Written
+// last, inside the staging directory, before that directory is renamed into
+// place — so a directory that exists but lacks the stamp can only be debris
+// from a build that pre-dates this scheme, never a half-extracted bundle from
+// this one.
+const extractionStampName = ".extraction-complete"
+
+// userCacheDir is a var, not a direct os.UserCacheDir call, purely so tests
+// can point extraction at a temp directory. os.UserCacheDir reads a different
+// environment variable on each platform (HOME, XDG_CACHE_HOME, LocalAppData),
+// so overriding it via the environment would mean per-GOOS test setup for a
+// behaviour that has nothing to do with the platform.
+var userCacheDir = os.UserCacheDir
+
+// bundleFingerprint hashes every embedded file's path and contents into the
+// cache directory's name, alongside AppVersion.
+//
+// AppVersion alone is not enough, and the failure it misses is a nasty one:
+// during development the version does not change between builds, so a cached
+// extraction from an earlier build would keep being reused and the app would
+// silently keep running a stale solver — behaviour that looks like the edit
+// simply had no effect. Hashing the contents makes a changed bundle a changed
+// directory, always. Measured cost is a few milliseconds over ~21 MB; see the
+// timing note on extractSolver.
+func bundleFingerprint() (string, error) {
+	h := sha256.New()
+	err := fs.WalkDir(bundleFS, bundleRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || path == bundleRoot+"/"+catalogFileName {
+			return nil
+		}
+		data, err := bundleFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		h.Write([]byte(path))
+		h.Write(data)
+		return nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("fingerprinting embedded solver bundle: %w", err)
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16], nil
+}
+
+// extractSolver makes the embedded solver bundle available on disk and points
+// a.solverPath/glpsolPath/solverDir at it.
+//
+// What gets extracted: everything in bundleFS (the PyInstaller solver tree,
+// glpsol, and glpsol's own shared libraries — see embed_<GOOS>_<GOARCH>.go),
+// with its directory structure PRESERVED. The structure matters twice over.
+// The solver is a PyInstaller --onedir build, which finds its ~55-file
+// _internal/ tree as a sibling of the executable and will not start without
+// it. And glpsol needs its libraries beside it: on macOS its references are
+// rewritten to @executable_path (build-mac.sh's install_name_tool step), and
+// on Linux/Windows runSolver points LD_LIBRARY_PATH at this same directory.
+//
+// Where, and how often: ONCE per (AppVersion, bundle contents) pair, into
+// <user cache>/ddo-solver/<version>-<hash>/. Re-extracting 21 MB across 57
+// files on every launch would cost more than the --onedir switch saves —
+// docs/0.5.0/00_ETL_START_HERE.md Phase 7 asks for zero extraction I/O on a
+// second launch, and the stamp check below is what delivers it.
 func (a *App) extractSolver() error {
-	tmpDir, err := os.MkdirTemp("", "ddo-solver-*")
+	fingerprint, err := bundleFingerprint()
+	if err != nil {
+		return err
+	}
+	cacheRoot, err := userCacheDir()
+	if err != nil {
+		return fmt.Errorf("resolving user cache directory: %w", err)
+	}
+	parent := filepath.Join(cacheRoot, solverCacheDirName)
+	targetDir := filepath.Join(parent, AppVersion+"-"+fingerprint)
+
+	if _, err := os.Stat(filepath.Join(targetDir, extractionStampName)); err == nil {
+		a.addLog("Solver already extracted at " + targetDir)
+		return a.useSolverDir(targetDir)
+	}
+
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		return fmt.Errorf("creating solver cache directory: %w", err)
+	}
+	// Staged elsewhere and renamed in, so two instances launching at once can
+	// never read a partially-written solver: the loser of the race finds
+	// targetDir already there (rename onto an existing directory fails on both
+	// POSIX and Windows) and simply uses it.
+	stagingDir, err := os.MkdirTemp(parent, "staging-*")
+	if err != nil {
+		return fmt.Errorf("creating staging directory: %w", err)
+	}
+	defer os.RemoveAll(stagingDir) // no-op once the rename below succeeds
+
+	err = fs.WalkDir(bundleFS, bundleRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(bundleRoot, path)
+		if err != nil {
+			return err
+		}
+		if relative == "." {
+			return nil
+		}
+		if d.IsDir() {
+			return os.MkdirAll(filepath.Join(stagingDir, relative), 0755)
+		}
+		// catalog.db rides in the same bundle but has its own destination —
+		// ensureCatalogSeeded (catalog_seed.go) puts it in the persistent user
+		// data directory. A 58 MB copy in an evictable cache would be waste on
+		// top of waste.
+		if relative == catalogFileName {
+			return nil
+		}
+		data, err := bundleFS.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading embedded %s: %w", relative, err)
+		}
+		if err := os.WriteFile(filepath.Join(stagingDir, relative), data, 0755); err != nil {
+			return fmt.Errorf("extracting %s: %w", relative, err)
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
 
-	entries, err := bundleFS.ReadDir(bundleRoot)
-	if err != nil {
-		return fmt.Errorf("reading embedded solver bundle: %w", err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		// catalog.db lives in the same bundleRoot but has its own dedicated
-		// seed path (ensureCatalogSeeded, catalog_seed.go) into the
-		// persistent user data directory — extracting a 60 MB copy into this
-		// throwaway temp dir on every launch would be pure waste.
-		if entry.Name() == catalogFileName {
-			continue
-		}
-		data, err := bundleFS.ReadFile(bundleRoot + "/" + entry.Name())
-		if err != nil {
-			return fmt.Errorf("reading embedded %s: %w", entry.Name(), err)
-		}
-		if err := os.WriteFile(filepath.Join(tmpDir, entry.Name()), data, 0755); err != nil {
-			return fmt.Errorf("extracting %s: %w", entry.Name(), err)
-		}
+	// Stamp last: until this exists the directory is not a valid cache entry.
+	if err := os.WriteFile(filepath.Join(stagingDir, extractionStampName),
+		[]byte(AppVersion+"-"+fingerprint+"\n"), 0644); err != nil {
+		return fmt.Errorf("writing extraction stamp: %w", err)
 	}
 
-	a.solverDir = tmpDir
-	a.solverPath = filepath.Join(tmpDir, solverBinaryName)
-	a.glpsolPath = filepath.Join(tmpDir, glpsolBinaryName)
+	if err := os.Rename(stagingDir, targetDir); err != nil {
+		// Something is already at targetDir. Either another instance won the
+		// race — in which case its extraction is as good as ours and we use it
+		// — or it is unstamped debris, which nothing can be using (no launch
+		// ever returns a directory without a stamp) and which must be cleared
+		// rather than left to block every future launch. The stamp is
+		// re-checked HERE, not earlier, so the window between "decided it is
+		// debris" and "deleted it" is as small as it can be.
+		stamp := filepath.Join(targetDir, extractionStampName)
+		if _, statErr := os.Stat(stamp); statErr != nil {
+			os.RemoveAll(targetDir)
+			if retryErr := os.Rename(stagingDir, targetDir); retryErr != nil {
+				return fmt.Errorf("installing extracted solver at %s: %w", targetDir, retryErr)
+			}
+		}
+	}
+	a.addLog(fmt.Sprintf("Solver and GLPK extracted to %s", targetDir))
+	pruneStaleSolverCaches(parent, filepath.Base(targetDir))
+	return a.useSolverDir(targetDir)
+}
+
+// useSolverDir points the App at an extracted bundle and verifies it actually
+// contains the two executables — a cache directory that survived but lost
+// files (manual cleanup, an aggressive disk utility) must fail here rather
+// than at solve time.
+func (a *App) useSolverDir(dir string) error {
+	a.solverDir = dir
+	a.solverPath = filepath.Join(dir, solverBinaryName)
+	a.glpsolPath = filepath.Join(dir, glpsolBinaryName)
 	if _, err := os.Stat(a.solverPath); err != nil {
 		return fmt.Errorf("bundle did not contain %s: %w", solverBinaryName, err)
 	}
 	if _, err := os.Stat(a.glpsolPath); err != nil {
 		return fmt.Errorf("bundle did not contain %s: %w", glpsolBinaryName, err)
 	}
-	a.addLog(fmt.Sprintf("Solver and GLPK extracted to %s", tmpDir))
 	return nil
+}
+
+// pruneStaleSolverCaches deletes extractions from other versions/builds. Every
+// app update, and every dev rebuild, produces a new 21 MB directory; without
+// this they accumulate forever in a directory no user will ever think to look
+// in.
+//
+// Best-effort by design: a directory another running instance is using may
+// refuse to delete (Windows locks running executables), and that is fine —
+// the next launch tries again.
+func pruneStaleSolverCaches(parent, keep string) {
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.Name() == keep {
+			continue
+		}
+		os.RemoveAll(filepath.Join(parent, entry.Name()))
+	}
 }
 
 // StatPriorityEntry is one user priority (Phase 10, docs/PHASE10_PLAN.md §2.2).

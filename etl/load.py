@@ -194,21 +194,73 @@ CREATE TABLE quest (
 ) WITHOUT ROWID;
 """
 
+# (table, TransformResult attribute, columns) for every table Load populates.
+#
+# One list, two consumers: the INSERT loop and `_content_hash`. They have to
+# agree on what "the catalog's content" is — a table written but not hashed
+# would let real data change without `catalog_version` moving, and a list
+# hashed but not written would make the hash describe something the file does
+# not contain. Sharing the definition means adding a table is one edit here
+# and cannot leave the two out of step.
+#
+# Column ORDER must match the INSERT's placeholder order; `_insert_many` reads
+# each dict by these keys, so it is order-independent per row but not per
+# column list.
+#
+# catalog_meta is deliberately absent: it is written after this loop, and it
+# carries `content_hash` itself.
+#
+# item_upgrade is likewise absent — Transform does not populate it yet (see
+# transform()'s KNOWN GAP docstring). Load still CREATEs the table so the
+# schema is complete; adding the rows later needs no migration.
+TABLES = [
+    ("source", "sources", ["uuid", "kind", "name"]),
+    ("item_family", "item_families", ["uuid", "name"]),
+    ("item", "items", [
+        "uuid", "family_uuid", "tier", "name", "source_file", "min_level",
+        "weapon_type", "damage_type", "armor_type", "is_minor_artifact",
+        "is_raid", "craftable_family", "drop_location", "adventure_pack",
+        "raw_xml"]),
+    ("item_slot", "item_slots", ["item_uuid", "slot"]),
+    ("item_augment_slot", "item_augment_slots", ["item_uuid", "position", "colour"]),
+    ("augment", "augments", ["uuid", "name", "colour", "min_level", "raw_xml"]),
+    ("gear_set", "gear_sets", ["uuid", "name", "raw_xml"]),
+    ("item_set", "item_sets", ["item_uuid", "set_uuid"]),
+    ("filigree_base", "filigree_bases", ["uuid", "name"]),
+    ("filigree", "filigrees", ["uuid", "name", "base_uuid", "variant_label", "raw_xml"]),
+    ("filigree_set", "filigree_sets", ["filigree_uuid", "set_uuid", "position"]),
+    ("set_tier", "set_tiers", ["uuid", "set_uuid", "piece_count", "origin_hint"]),
+    ("stat", "stats", [
+        "uuid", "raw_type", "raw_target", "match_text", "is_skill",
+        "is_hireling", "is_save", "is_weapon_base"]),
+    ("effect", "effects", [
+        "uuid", "source_uuid", "ordinal", "bonus_type", "value", "is_proc"]),
+    ("effect_target", "effect_targets", ["effect_uuid", "position", "stat_uuid"]),
+    ("quest", "quests", ["uuid", "name", "adventure_pack", "is_raid"]),
+]
+
 
 def _content_hash(result: TransformResult) -> str:
     """Hash of the LOGICAL content, not the file — SQLite files are not
     byte-reproducible (page ordering, freelist), so a file hash cannot answer
     "did the data change?" (schema doc §5.1.1). Every row list is sorted
     canonically before hashing so row ORDER — an artefact of dict/set
-    iteration, not a property of the data — can never affect the hash."""
+    iteration, not a property of the data — can never affect the hash.
+
+    Hashes exactly what Load WRITES, via the same TABLES list the inserts run
+    off. It used to walk every list attribute on the result instead, which
+    quietly swept in `validation_errors` (and would now sweep in
+    `data_ambiguities`) — diagnostics that never reach the database. Rewording
+    a warning message would have changed the "did the data change?" answer,
+    and `cli._resolve_catalog_version` bumps `catalog_version` off exactly that
+    answer.
+    """
     h = hashlib.sha256()
-    for name in sorted(vars(result).keys()):
-        val = getattr(result, name)
-        if not isinstance(val, list):
-            continue
-        rows = [json.dumps(row, sort_keys=True, default=str) for row in val]
+    for table, attr, _columns in TABLES:
+        rows = [json.dumps(row, sort_keys=True, default=str)
+                for row in getattr(result, attr)]
         rows.sort()
-        h.update(name.encode())
+        h.update(table.encode())
         for row in rows:
             h.update(row.encode())
     return h.hexdigest()
@@ -256,37 +308,8 @@ def build_catalog(result: TransformResult, out_path: Path, *, registry_path: Pat
         try:
             conn.executescript(DDL)
 
-            _insert_many(conn, "source", result.sources, ["uuid", "kind", "name"])
-            _insert_many(conn, "item_family", result.item_families, ["uuid", "name"])
-            _insert_many(conn, "item", result.items, [
-                "uuid", "family_uuid", "tier", "name", "source_file", "min_level",
-                "weapon_type", "damage_type", "armor_type", "is_minor_artifact",
-                "is_raid", "craftable_family", "drop_location", "adventure_pack",
-                "raw_xml"])
-            _insert_many(conn, "item_slot", result.item_slots, ["item_uuid", "slot"])
-            _insert_many(conn, "item_augment_slot", result.item_augment_slots,
-                        ["item_uuid", "position", "colour"])
-            _insert_many(conn, "augment", result.augments,
-                        ["uuid", "name", "colour", "min_level", "raw_xml"])
-            _insert_many(conn, "gear_set", result.gear_sets, ["uuid", "name", "raw_xml"])
-            _insert_many(conn, "item_set", result.item_sets, ["item_uuid", "set_uuid"])
-            _insert_many(conn, "filigree_base", result.filigree_bases, ["uuid", "name"])
-            _insert_many(conn, "filigree", result.filigrees,
-                        ["uuid", "name", "base_uuid", "variant_label", "raw_xml"])
-            _insert_many(conn, "filigree_set", result.filigree_sets,
-                        ["filigree_uuid", "set_uuid", "position"])
-            _insert_many(conn, "set_tier", result.set_tiers,
-                        ["uuid", "set_uuid", "piece_count", "origin_hint"])
-            _insert_many(conn, "stat", result.stats, [
-                "uuid", "raw_type", "raw_target", "match_text", "is_skill",
-                "is_hireling", "is_save", "is_weapon_base"])
-            _insert_many(conn, "effect", result.effects, [
-                "uuid", "source_uuid", "ordinal", "bonus_type", "value",
-                "is_proc"])
-            _insert_many(conn, "effect_target", result.effect_targets,
-                        ["effect_uuid", "position", "stat_uuid"])
-            _insert_many(conn, "quest", result.quests,
-                        ["uuid", "name", "adventure_pack", "is_raid"])
+            for table, attr, columns in TABLES:
+                _insert_many(conn, table, getattr(result, attr), columns)
 
             fk_violations = conn.execute("PRAGMA foreign_key_check").fetchall()
             if fk_violations:

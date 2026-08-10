@@ -18,6 +18,11 @@
 # Version is read from wails.json. Output goes to releases/v<version>/ and is
 # NOT committed automatically — review the archives, then `git add` them
 # yourself when you're ready.
+#
+# The ETL is NOT run here. It runs inside each build script (they are the only
+# things that produce a binary for it to be embedded into); this script only
+# refuses to archive a dist/ that is older than its bundle — see the staleness
+# guard below.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -66,6 +71,47 @@ mkdir -p "$OUTDIR"
 
 echo "=== Packaging release v${VERSION} from dist/ ==="
 echo "Found ${#PLATFORM_DIRS[@]} platform folder(s): ${PLATFORM_DIRS[*]}"
+
+# ── Staleness guard ─────────────────────────────────────────────────────────
+# This script does not build anything — it archives whatever the build scripts
+# left in dist/. Since 0.5.0 the app carries catalog.db compiled into it
+# (go:embed), so "the ETL ran" and "the shipped binary contains that catalog"
+# are two different facts. If anything in bundled/<platform>/ is NEWER than the
+# dist artifact, the artifact predates the current bundle and would ship stale
+# game data with a fresh version number on it — the exact mistake nobody would
+# catch by looking at the archive.
+newest_mtime() {
+    find "$1" -type f -exec stat -f '%m' {} + 2>/dev/null \
+        || find "$1" -type f -printf '%T@\n' 2>/dev/null | cut -d. -f1
+}
+
+for platform_dir in "${PLATFORM_DIRS[@]}"; do
+    platform="$(basename "$platform_dir")"
+    bundle_dir="bundled/${platform}"
+    [ -d "$bundle_dir" ] || continue
+
+    bundle_newest="$(newest_mtime "$bundle_dir" | sort -n | tail -1)"
+    dist_newest="$(newest_mtime "$platform_dir" | sort -n | tail -1)"
+    if [ -n "$bundle_newest" ] && [ -n "$dist_newest" ] && \
+       [ "$bundle_newest" -gt "$dist_newest" ]; then
+        echo "error: ${bundle_dir}/ is newer than ${platform_dir}/ — the build in" >&2
+        echo "       dist/ predates the current bundle (solver, glpsol or catalog.db)" >&2
+        echo "       and would ship stale data. Re-run the build script for ${platform}." >&2
+        exit 1
+    fi
+
+    if [ -f "${bundle_dir}/catalog.db" ] && command -v python3 >/dev/null 2>&1; then
+        python3 - "$platform" "${bundle_dir}/catalog.db" <<'PY'
+import sqlite3, sys
+platform, path = sys.argv[1], sys.argv[2]
+conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+row = conn.execute("SELECT catalog_version, schema_version, built_at, "
+                   "ddobuilder_commit FROM catalog_meta WHERE id = 1").fetchone()
+conn.close()
+print(f"   {platform}: catalog v{row[0]} (schema {row[1]}), built {row[2]}, data {row[3]}")
+PY
+    fi
+done
 
 for platform_dir in "${PLATFORM_DIRS[@]}"; do
     platform="$(basename "$platform_dir")"

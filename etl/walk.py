@@ -116,6 +116,13 @@ class Corpus:
     set_bonus_raw_xml: Dict[str, str] = field(default_factory=dict)
 
 
+# Every corpus glob below is `sorted()`. `glob.glob` returns whatever order
+# os.scandir hands back, which differs by filesystem and by machine — and the
+# ETL has one place where file order is load-bearing: when two entries share a
+# natural key, the FIRST one wins and the second is reported as an ambiguity
+# (see transform.py's augment collision handling). Unsorted, which of the two
+# survives could differ between the machine that builds the macOS release and
+# the one that builds Windows. Sorting costs nothing and removes the question.
 def walk_items(base_dir: str, quests_lookup: dict) -> List[RawItem]:
     raid_names = frozenset(
         qname for qname, qinfo in quests_lookup.items() if qinfo.get('is_raid'))
@@ -123,7 +130,7 @@ def walk_items(base_dir: str, quests_lookup: dict) -> List[RawItem]:
     raid_memo: dict = {}
     out = []
 
-    for item_file in glob.glob(os.path.join(base_dir, 'Items', '*.item')):
+    for item_file in sorted(glob.glob(os.path.join(base_dir, 'Items', '*.item'))):
         try:
             tree = ET.parse(item_file)
         except Exception:
@@ -172,7 +179,7 @@ def walk_items(base_dir: str, quests_lookup: dict) -> List[RawItem]:
 
 def walk_augments(base_dir: str) -> List[RawAugment]:
     out = []
-    for aug_file in glob.glob(os.path.join(base_dir, 'Augments', '*.xml')):
+    for aug_file in sorted(glob.glob(os.path.join(base_dir, 'Augments', '*.xml'))):
         try:
             tree = ET.parse(aug_file)
         except Exception:
@@ -207,7 +214,7 @@ def walk_filigrees(base_dir: str):
     set_tiers: List[RawSetTier] = []
     set_bonus_raw_xml: Dict[str, str] = {}
 
-    for xml_file in glob.glob(os.path.join(base_dir, 'FiligreeSets', '*.xml')):
+    for xml_file in sorted(glob.glob(os.path.join(base_dir, 'FiligreeSets', '*.xml'))):
         try:
             tree = ET.parse(xml_file)
         except Exception:

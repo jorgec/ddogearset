@@ -24,25 +24,28 @@
 #      elevated command to run once instead).
 #   3. Creates a Python venv at python\.venv and installs pulp + pyinstaller.
 #   4. Installs the Wails CLI (go install, pinned to match go.mod).
-#   5. Rebuilds the Python solver (PyInstaller -> python\dist\solver.exe).
-#   6. Locates glpsol.exe + its DLLs from the Chocolatey glpk package and
-#      stages them, plus the solver, into bundled\windows-amd64\ - this is
-#      what embed_windows_amd64.go embeds into the Go binary at compile time.
-#      Unlike macOS, Windows needs no path-rewriting: the OS searches an
-#      exe's own directory for DLLs first, so co-locating them is enough.
-#   7. Runs `go mod download`, `npm install`, then `wails build` (plus an
-#      NSIS installer build, if makensis.exe is available).
-#   8. Copies the finished, self-contained build - and the NSIS installer,
+#   5. Builds catalog.db from the local DDOBuilderV2 checkout (the ETL).
+#   6. Rebuilds the Python solver (PyInstaller --onedir ->
+#      python\dist\solver\solver.exe plus its _internal\ tree).
+#   7. Locates glpsol.exe + its DLLs from the Chocolatey glpk package and
+#      stages them, plus the solver tree and catalog.db, into
+#      bundled\windows-amd64\ - this is what embed_windows_amd64.go embeds
+#      into the Go binary at compile time. Unlike macOS, Windows needs no
+#      path-rewriting: the OS searches an exe's own directory for DLLs first,
+#      so co-locating them is enough.
+#   8. Runs `wails build` (plus an NSIS installer build, if makensis.exe is
+#      available).
+#   9. Copies the finished, self-contained build - and the NSIS installer,
 #      if one was built - into dist\windows-amd64\, so that directory is
 #      immediately ready to hand to someone else: they copy it and run it,
 #      nothing else required on their end.
 #
-# DDOBuilderV2 (the game-data source) is NOT fetched by this script - the
-# built app clones/pulls it itself on first run (app.go's
-# ensureDDOBuilderData(), into a gitignored .\DDOBuilderV2), over plain
-# HTTPS - it's a public repo, so no credentials of any kind are needed. This
-# script just checks that github.com is reachable and warns (not fails) if
-# it can't confirm that.
+# DDOBuilderV2 (the game-data source) must already be present at
+# .\DDOBuilderV2 when this script runs - the ETL in step 5 reads it. NOTHING
+# fetches it any more: since 0.5.0 the shipped app carries catalog.db and never
+# touches DDOBuilderV2, the network, or Python XML parsing at runtime
+# (docs/0.5.0/00_ETL_START_HERE.md constraints 1 and 3). Clone or download it
+# yourself once: https://github.com/Maetrim/DDOBuilderV2
 
 $ErrorActionPreference = "Stop"
 
@@ -145,7 +148,7 @@ npm install --silent
 Pop-Location
 Write-Ok "Frontend dependencies ready."
 
-# == 5. Python venv + solver rebuild =========================================
+# == 4b. Python venv ==========================================================
 $VenvDir = "python\.venv"
 if (-not (Test-Path $VenvDir)) {
     Write-Step "Creating Python venv at $VenvDir..."
@@ -161,22 +164,59 @@ Write-Step "Installing Python dependencies (pulp, pyinstaller) into the venv..."
 & $VenvPip install --quiet -r python\requirements.txt pyinstaller
 Write-Ok "Python venv ready."
 
+# == 5. Build catalog.db from DDOBuilderV2 (the ETL) =========================
+# $env:RELEASE = "0" builds permissively for day-to-day dev; the default (1)
+# passes --strict, so an unexplained rename in DDOBuilderV2 fails the build
+# instead of quietly minting a new identity that orphans saved gearsets
+# (docs/0.5.0/00_ETL_START_HERE.md section 6.2).
+$Release = if ($env:RELEASE) { $env:RELEASE } else { "1" }
+if ($Release -eq "1") {
+    Write-Step "Building catalog.db (strict - unresolved identity drift fails the build)..."
+    python -m etl --out "bundled\windows-amd64\catalog.db" --strict
+} else {
+    Write-Step "Building catalog.db (permissive - RELEASE=0)..."
+    python -m etl --out "bundled\windows-amd64\catalog.db"
+}
+if ($LASTEXITCODE -eq 2) {
+    Write-Host ""
+    Fail ("DDOBuilderV2 renamed something the ETL will not guess at. Read the drift " + `
+          "report it just wrote under etl\drift\, record the answers in " + `
+          "etl\aliases.yaml, and re-run. To build anyway (dev only, new identities " + `
+          "get minted): `$env:RELEASE = '0'; .\build-windows.ps1")
+} elseif ($LASTEXITCODE -ne 0) {
+    Fail "The ETL failed (exit $LASTEXITCODE) - see output above."
+}
+Write-Ok "catalog.db built."
+
+# == 6. Solver rebuild ========================================================
 Write-Step "Rebuilding the Python solver with PyInstaller (this can take a minute)..."
 Push-Location "python"
 & "..\$VenvPyInstaller" --noconfirm solver.spec
 Pop-Location
-if (-not (Test-Path "python\dist\solver.exe")) {
-    Fail "Expected python\dist\solver.exe after PyInstaller build - check python\solver.spec's 'name='."
+# --onedir (python\solver.spec): an executable plus an _internal\ tree it
+# cannot start without. Both are staged; app.go's extractSolver recurses.
+if (-not (Test-Path "python\dist\solver\solver.exe")) {
+    Fail ("Expected python\dist\solver\solver.exe after PyInstaller build - check " + `
+          "python\solver.spec (it must have a COLLECT step; --onefile puts the binary " + `
+          "at python\dist\solver.exe instead).")
 }
-Write-Ok "Solver rebuilt at python\dist\solver.exe."
+Write-Ok "Solver rebuilt at python\dist\solver\solver.exe."
 
-# == 6. Stage bundled\windows-amd64\ (solver.exe + glpsol.exe + DLLs) =======
+# == 7. Stage bundled\windows-amd64\ (solver tree + glpsol.exe + DLLs) =====
 Write-Step "Staging bundled\windows-amd64\ (embedded into the Go binary at compile time)..."
 $BundleDir = "bundled\windows-amd64"
 New-Item -ItemType Directory -Force -Path $BundleDir | Out-Null
 
-Copy-Item "python\dist\solver.exe" "$BundleDir\solver.exe" -Force
-Write-Ok "staged $BundleDir\solver.exe"
+# Wipe the previous solver tree first: PyInstaller's output is authoritative,
+# and a file it no longer produces must not survive into the bundle. Explicitly
+# NOT the whole $BundleDir - glpsol.exe, its DLLs and catalog.db live there too
+# and are staged by other steps.
+Remove-Item "$BundleDir\_internal" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "$BundleDir\solver.exe" -Force -ErrorAction SilentlyContinue
+Copy-Item "python\dist\solver\_internal" "$BundleDir\_internal" -Recurse -Force
+Copy-Item "python\dist\solver\solver.exe" "$BundleDir\solver.exe" -Force
+$InternalCount = (Get-ChildItem "$BundleDir\_internal" -Recurse -File).Count
+Write-Ok "staged $BundleDir\solver.exe + _internal\ ($InternalCount files)"
 
 # The Chocolatey glpk package installs winglpk under
 # C:\ProgramData\chocolatey\lib\glpk\tools\ - search it rather than hardcode
@@ -204,26 +244,20 @@ Get-ChildItem -Path $GlpkDir -Filter "*.dll" | ForEach-Object {
     Write-Ok "staged $BundleDir\$($_.Name)"
 }
 
-# == 7. DDOBuilderV2 reachability check (not fetched here - see file header) ==
-# Deliberately NOT `git ls-remote` -- the whole point of ensureDDOBuilderData
-# fetching over plain HTTPS (app.go / ddobuilder_fetch.go, see
-# docs/DDOBUILDER_FETCH_WITHOUT_GIT_PLAN.md) is that git doesn't need to be
-# installed at all for this. Check the same way the app itself will: a plain
-# HTTPS request, via PowerShell's own Invoke-WebRequest, no git involved.
-Write-Step "Checking that DDOBuilderV2's archive is reachable over HTTPS (the built app fetches this itself, no credentials needed - it's public)..."
-try {
-    Invoke-WebRequest -Uri "https://codeload.github.com/Maetrim/DDOBuilderV2/zip/refs/heads/main" `
-        -Method Head -TimeoutSec 10 -UseBasicParsing | Out-Null
-    Write-Ok "codeload.github.com reachable over HTTPS."
-} catch {
-    Write-Warn ("Could not reach https://codeload.github.com/Maetrim/DDOBuilderV2/zip/refs/heads/main. " + `
-        "The app fetches this (public, no credentials needed) on first run (app.go's " + `
-        "ensureDDOBuilderData) - if this machine has no network access to github.com, " + `
-        "that fetch will fail and every solve will error until you fix that or manually " + `
-        "place the repo's contents at .\DDOBuilderV2 yourself.")
-}
+# == 8. Build =================================================================
+# go:embed reads the FILESYSTEM, not git - anything sitting in $BundleDir right
+# now is compiled into the shipped binary, tracked or not. SQLite's WAL
+# sidecars appear whenever something opens the bundled catalog read-write, and
+# the solver drops a progress log wherever it runs. Both are gitignored, so
+# without this they would ride into a release completely unnoticed.
+Write-Step "Clearing runtime debris out of $BundleDir before embedding..."
+# "$BundleDir\*", not "$BundleDir" - -Include is silently ignored on a plain
+# directory path (it only applies to a wildcarded path or with -Recurse), and
+# would quietly match nothing.
+Get-ChildItem "$BundleDir\*" -File -Include "*.db-wal", "*.db-shm", "*.log" -ErrorAction SilentlyContinue |
+    Remove-Item -Force
+Write-Ok "done."
 
-# == 8. Build ==================================================================
 Write-Step "Running wails build (this compiles the frontend and the Go binary)..."
 # Confirmed by an actual Windows run: wails does NOT append .exe to -o itself
 # on Windows (unlike the assumption this script started with) -- it writes

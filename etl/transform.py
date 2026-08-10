@@ -70,7 +70,17 @@ class TransformResult:
     effect_targets: List[dict] = field(default_factory=list)
     quests: List[dict] = field(default_factory=list)
 
+    # Referential integrity ONLY — every one of these means Transform cannot
+    # satisfy its own foreign keys, and Load refuses to write at all.
     validation_errors: List[str] = field(default_factory=list)
+    # Places where the SOURCE DATA is ambiguous and Transform had to pick.
+    # Deliberately not validation errors: an upstream ambiguity is a permanent
+    # property of DDOBuilderV2, not a bug in this pipeline, and treating it as
+    # fatal would mean no release could ever be built until Maetrim edits a
+    # file. They are reported loudly on every run and land in the drift report
+    # instead — the same "a human should know" channel as an unexplained
+    # rename, which is what they are a variety of.
+    data_ambiguities: List[str] = field(default_factory=list)
     registry: Optional[Registry] = None
 
 
@@ -149,9 +159,22 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
             })
 
     # --- items ---------------------------------------------------------
-    seen_item_names = set()
+    # Reconcile FIRST, resolve second — for every kind below. A rename is only
+    # honoured if the registry learns about it before Transform asks for the
+    # new name's UUID; see Registry.reconcile_disappeared, which enforces this
+    # ordering rather than trusting it.
+    #
+    # Four kinds are reconciled: item, augment, filigree, quest. The rest
+    # (item_family, filigree_base, gear_set, set_tier, stat) are DERIVED from
+    # those names — a family name is an item name with its tier prefix removed,
+    # a set_tier key is a set name plus a piece count — so renaming one item
+    # already surfaces as item drift. Reconciling the derived kinds too would
+    # report the same single upstream rename three times and ask a human to
+    # answer it three times.
+    seen_item_names = {it.node_name for it in corpus.items}
+    registry.reconcile_disappeared("item", seen_item_names, aliases.get("item", {}))
+
     for it in corpus.items:
-        seen_item_names.add(it.node_name)
         src = registry.resolve("item", it.node_name, built_at=built_at,
                                commit=commit, strict=strict)
         family_name, tier = _family_and_tier(it.node_name)
@@ -189,8 +212,6 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
                 "item_uuid": src.entity_uuid, "set_uuid": gear_set_id(set_name)})
         emit_effects(src.entity_uuid, it.buffs)
 
-    registry.reconcile_disappeared("item", seen_item_names, aliases.get("item", {}))
-
     # --- augments --------------------------------------------------------
     # Name alone is NOT a valid natural key: measured on the real corpus,
     # "Deathblock" names two DIFFERENT augments in different colour slots
@@ -200,18 +221,23 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
     # Enhancement) — no field distinguishes them. The key is `name + colour`;
     # a same-name-same-colour collision is a genuine data ambiguity and is
     # reported as a validation error rather than silently merged or dropped.
-    seen_augment_keys = set()
+    seen_augment_keys = {f"{aug.name}\x1f{aug.type}" for aug in corpus.augments}
+    registry.reconcile_disappeared("augment", seen_augment_keys, aliases.get("augment", {}))
+
     augment_key_seen_names: Dict[str, str] = {}
     for aug in corpus.augments:
         natural_key = f"{aug.name}\x1f{aug.type}"
         if natural_key in augment_key_seen_names:
-            r.validation_errors.append(
+            r.data_ambiguities.append(
                 f"augment identity collision: '{aug.name}' ({aug.type}) appears "
-                f"more than once with no field to disambiguate — not merged, "
-                f"not loaded. Needs a human decision (docs/0.5.0/00_ETL_START_HERE.md §6).")
+                "more than once with no field to disambiguate. The FIRST "
+                "occurrence in sorted file order is kept and this one is "
+                "DROPPED — it is not merged into the first, because their "
+                "bonus types differ and merging would invent an augment that "
+                "does not exist. Known and expected on the real corpus for "
+                "exactly one pair (docs/0.5.0/00_ETL_START_HERE.md §6).")
             continue
         augment_key_seen_names[natural_key] = aug.name
-        seen_augment_keys.add(natural_key)
 
         src = registry.resolve("augment", natural_key, built_at=built_at,
                                commit=commit, strict=strict)
@@ -220,13 +246,13 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
             "uuid": src.entity_uuid, "name": aug.name, "colour": aug.type,
             "min_level": aug.min_level, "raw_xml": aug.raw_xml})
         emit_effects(src.entity_uuid, aug.buffs)
-    registry.reconcile_disappeared("augment", seen_augment_keys, aliases.get("augment", {}))
 
     # --- filigrees ---------------------------------------------------------
-    seen_filigree_names = set()
+    seen_filigree_names = {f.name for f in corpus.filigrees}
+    registry.reconcile_disappeared("filigree", seen_filigree_names, aliases.get("filigree", {}))
+
     filigree_base_uuid: Dict[str, str] = {}
     for f in corpus.filigrees:
-        seen_filigree_names.add(f.name)
         src = registry.resolve("filigree", f.name, built_at=built_at,
                                commit=commit, strict=strict)
         if f.base_name not in filigree_base_uuid:
@@ -253,7 +279,6 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
                 "position": position,
             })
         emit_effects(src.entity_uuid, f.buffs)
-    registry.reconcile_disappeared("filigree", seen_filigree_names, aliases.get("filigree", {}))
 
     # --- set tiers ---------------------------------------------------------
     # DDOBuilderV2 genuinely repeats (set_name, piece_count): measured on the
@@ -296,9 +321,10 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
         emit_effects(src.entity_uuid, merged_buffs)
 
     # --- quests --------------------------------------------------------
-    seen_quest_names = set()
+    seen_quest_names = set(corpus.quests)
+    registry.reconcile_disappeared("quest", seen_quest_names, aliases.get("quest", {}))
+
     for name, info in corpus.quests.items():
-        seen_quest_names.add(name)
         quest_ent = registry.resolve("quest", name, built_at=built_at,
                                      commit=commit, strict=strict)
         r.quests.append({
@@ -306,7 +332,6 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
             "name": name, "adventure_pack": info.get("AdventurePack"),
             "is_raid": bool(info.get("is_raid")),
         })
-    registry.reconcile_disappeared("quest", seen_quest_names, aliases.get("quest", {}))
 
     # --- the stat dimension, now fully populated by every emit_effects() call
     for key, row in dim:

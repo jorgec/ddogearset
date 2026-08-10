@@ -103,31 +103,27 @@ else
 fi
 
 # ── DDOBuilderV2 data ────────────────────────────────────────────────────────
-# No longer this script's job, and no longer git's job either: the app fetches
-# it itself into ./DDOBuilderV2 (gitignored) on first run, via a plain HTTPS
-# GET of GitHub's generated zip archive (app.go's ensureDDOBuilderData /
-# ddobuilder_fetch.go — see docs/DDOBUILDER_FETCH_WITHOUT_GIT_PLAN.md). No git
-# binary, no credentials, nothing beyond network access to github.com. Check
-# that reachability now (via curl/wget directly, deliberately not `git
-# ls-remote` — the whole point here is that git doesn't need to be installed
-# at all) rather than finding out from a failed solve later.
+# A BUILD-TIME input now, not a runtime one. Since 0.5.0 the app ships
+# catalog.db (built by the ETL, embedded by go:embed) and never reads
+# DDOBuilderV2's XML, never fetches anything, and needs no network at all —
+# docs/0.5.0/00_ETL_START_HERE.md constraints 1 and 3. Nothing downloads it
+# any more; the checkout has to be here before ./build-mac.sh runs, because
+# that is what the ETL reads.
 echo ""
-if [ -d "DDOBuilderV2" ]; then
-    ok "DDOBuilderV2 already present at ./DDOBuilderV2 (the app will check it for updates)."
-elif command -v curl >/dev/null 2>&1; then
-    if curl -fsSL -o /dev/null "https://codeload.github.com/Maetrim/DDOBuilderV2/zip/refs/heads/main" --range 0-0; then
-        ok "codeload.github.com reachable over HTTPS — the app will fetch DDOBuilderV2 (public repo, no credentials needed) on first run."
-    else
-        warn "./DDOBuilderV2 doesn't exist yet, and https://codeload.github.com could not be" \
-             "reached. The app fetches it on first run (app.go's ensureDDOBuilderData) — if" \
-             "this machine has no network access to github.com, that fetch will fail and" \
-             "every solve will error until you either fix that or manually place the repo's" \
-             "contents at ./DDOBuilderV2 yourself."
-    fi
+if [ -d "DDOBuilderV2/Output/DataFiles/Items" ]; then
+    ok "DDOBuilderV2 present at ./DDOBuilderV2 — the ETL will build catalog.db from it."
+elif [ -d "DDOBuilderV2" ]; then
+    warn "./DDOBuilderV2 exists but has no Output/DataFiles/Items — that is not a full" \
+         "checkout, and the ETL will refuse to build. Re-clone it:" \
+         "git clone --depth 1 https://github.com/Maetrim/DDOBuilderV2"
+elif command -v git >/dev/null 2>&1; then
+    warn "./DDOBuilderV2 is missing. The build needs it (it is the ETL's only input" \
+         "— nothing fetches it for you). Get it once, from this directory:" \
+         "git clone --depth 1 https://github.com/Maetrim/DDOBuilderV2"
 else
-    warn "curl not found — can't pre-check network access to github.com. The app will" \
-         "attempt to fetch DDOBuilderV2 on first run regardless; watch its log output" \
-         "for a failure there if solves come back empty."
+    warn "./DDOBuilderV2 is missing and git is not installed. Download" \
+         "https://github.com/Maetrim/DDOBuilderV2 as a zip and extract it to" \
+         "./DDOBuilderV2 — the build needs it, and nothing fetches it for you."
 fi
 
 echo ""

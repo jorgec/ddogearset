@@ -117,6 +117,10 @@ class Registry:
     auto_resolved_count: int = 0
     auto_resolutions: List[AutoResolution] = field(default_factory=list)
     unresolved: List[DriftEntry] = field(default_factory=list)
+    # Aliases that could not be applied because their `now:` target already
+    # belongs to a different, established entity. Fatal in every mode — see
+    # reconcile_disappeared.
+    alias_conflicts: List[str] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: Path) -> "Registry":
@@ -163,19 +167,35 @@ class Registry:
 
     def reconcile_disappeared(self, kind: str, all_current_keys: set,
                               aliases: Dict[str, Optional[str]]) -> None:
-        """After every current-corpus key of `kind` has been through
-        `resolve`, find registry entries that were NOT seen this run and try to
-        explain them: an operator-confirmed alias, or a clean derivation onto a
-        key that WAS newly minted this run (i.e. looks like its replacement).
-        Anything left over is unresolved drift for a human.
+        """Given every natural key of `kind` in the current corpus, find
+        registry entries that are NOT among them and try to explain each: an
+        operator-confirmed alias, or a clean derivation onto a key that is new
+        to the registry (i.e. looks like its replacement). Anything left over
+        is unresolved drift for a human.
+
+        **Runs BEFORE any `resolve()` call for this kind**, which is what makes
+        a resolved rename actually keep its UUID. Reconciling afterwards would
+        be too late in a way that is easy to miss: `resolve` would already have
+        minted a fresh UUID for the new name and handed it to Transform, which
+        stamps it into every row it emits — folding the rename in here would
+        then repoint the NAME at the original UUID while the catalog kept the
+        fresh one. The build succeeds, every foreign key resolves, and the
+        registry's one promise ("once minted, a UUID never changes") is
+        quietly broken. The guard below makes that ordering an invariant
+        rather than a comment.
         """
-        seen = self._seen_this_run.get(kind, set())
-        newly_minted = {
-            info["canonical"] for eid, info in self.entities.items()
-            if info["kind"] == kind and info["canonical"] in seen
-            and info["first_seen"] == self.entities[eid]["first_seen"]
-            and len(info.get("aka", [])) == 0
-        }
+        if self._seen_this_run.get(kind):
+            raise RuntimeError(
+                f"reconcile_disappeared({kind!r}) called after {kind} keys were "
+                "already resolved — renames would be folded into the registry "
+                "but not into the rows Transform already emitted. Reconcile "
+                "first, then resolve.")
+
+        # A rename TARGET can only be a key the registry has never seen under
+        # any name. A key it already knows belongs to an established identity,
+        # and letting a disappeared entity claim it would hand that identity's
+        # UUID to data pointing somewhere else entirely.
+        unclaimed = {k for k in all_current_keys if (kind, k) not in self._by_name}
 
         for eid, info in list(self.entities.items()):
             if info["kind"] != kind:
@@ -197,13 +217,25 @@ class Registry:
                     # Operator confirmed: genuinely removed. Not drift.
                     continue
                 if new_key in all_current_keys:
-                    self._merge_alias(eid, new_key, kind)
+                    if self._merge_alias(eid, new_key, kind):
+                        continue
+                    # The operator pointed a rename at a name that is already
+                    # somebody else's. Applying it would delete a live identity;
+                    # reporting it lets them fix the typo instead.
+                    self.alias_conflicts.append(
+                        f"[{kind}] alias {old_key!r} -> {new_key!r}: {new_key!r} "
+                        "is already an established, still-present identity. "
+                        "Aliasing onto it would destroy that entity's UUID.")
                     continue
+                self.alias_conflicts.append(
+                    f"[{kind}] alias {old_key!r} -> {new_key!r}: {new_key!r} is "
+                    "not in the current corpus. Check the spelling, or use "
+                    "'now: null' if it is genuinely gone.")
+                continue
 
-            candidates = [k for k in all_current_keys if k not in seen or k in newly_minted]
             auto_target = None
             reason = None
-            for cand in sorted(candidates):
+            for cand in sorted(unclaimed):
                 r = _is_clean_derivation(old_key, cand)
                 if r:
                     auto_target, reason = cand, r
@@ -211,22 +243,27 @@ class Registry:
 
             if auto_target:
                 self._merge_alias(eid, auto_target, kind)
+                unclaimed.discard(auto_target)  # one replacement, one entity
                 self.auto_resolved_count += 1
                 self.auto_resolutions.append(AutoResolution(
                     kind=kind, old_key=old_key, new_key=auto_target, reason=reason))
                 continue
 
-            ranked = difflib.get_close_matches(old_key, all_current_keys, n=5, cutoff=0.4)
+            # Rank against the unclaimed keys only: a name that already belongs
+            # to a live entity is not a place this one can go, so offering it as
+            # a candidate would just invite the alias conflict above.
+            ranked = difflib.get_close_matches(old_key, unclaimed, n=5, cutoff=0.4)
             self.unresolved.append(DriftEntry(kind=kind, disappeared=old_key, candidates=ranked))
 
-    def _merge_alias(self, eid: str, new_key: str, kind: str) -> None:
-        """Fold a renamed key into an EXISTING uuid rather than the fresh one
-        `resolve` minted for it moments ago — the fresh mint is discarded."""
-        fresh_uuid = self._by_name.pop((kind, new_key), None)
-        if fresh_uuid and fresh_uuid in self.entities and fresh_uuid != eid:
-            del self.entities[fresh_uuid]
-            self.new_count -= 1
+    def _merge_alias(self, eid: str, new_key: str, kind: str) -> bool:
+        """Point `new_key` at the existing `eid` and record it as an `aka`, so
+        the rename resolves to the original UUID. Returns False, changing
+        nothing, if `new_key` already belongs to a different entity."""
+        owner = self._by_name.get((kind, new_key))
+        if owner is not None and owner != eid:
+            return False
         info = self.entities[eid]
         if new_key not in info.get("aka", []) and new_key != info["canonical"]:
             info.setdefault("aka", []).append(new_key)
         self._by_name[(kind, new_key)] = eid
+        return True

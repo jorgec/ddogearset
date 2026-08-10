@@ -2,11 +2,18 @@
 # build-mac.sh — Native, fully self-contained macOS build.
 #
 # "Self-contained" means the resulting .app needs NOTHING installed on the
-# machine that runs it — no system GLPK, no Python. Everything required
-# (the compiled Python solver, glpsol, and glpsol's own dylib dependencies)
-# is bundled under bundled/darwin-<arch>/, embedded into the Go binary at
-# compile time (see embed_darwin_arm64.go / embed_darwin_amd64.go), and
-# extracted to a temp directory at app startup (app.go's extractSolver()).
+# machine that runs it — no system GLPK, no Python, no game data, and no
+# network. Everything required (the compiled Python solver, glpsol, glpsol's
+# own dylib dependencies, and catalog.db) is bundled under
+# bundled/darwin-<arch>/, embedded into the Go binary at compile time (see
+# embed_darwin_arm64.go / embed_darwin_amd64.go), and unpacked at startup —
+# the solver into a version-stamped cache directory (app.go's
+# extractSolver()), catalog.db into the user data directory
+# (catalog_seed.go's ensureCatalogSeeded()).
+#
+# The ETL that produces catalog.db runs from step 1 below. It is DEV-ONLY: it
+# reads DDOBuilderV2's XML here, on this machine, and nothing in the shipped
+# app can invoke it (docs/0.5.0/00_ETL_START_HERE.md constraints 1 and 3).
 #
 # Neither PyInstaller nor a real glpsol binary can be cross-compiled — both
 # only ever produce a binary for the machine actually running this script.
@@ -35,6 +42,19 @@ else
     exit 1
 fi
 
+PYTHON="${PYTHON:-python3}"
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+    echo "error: '${PYTHON}' not found. The ETL needs a Python 3 interpreter" \
+         "(standard library only — it imports no third-party packages)." >&2
+    exit 1
+fi
+
+# RELEASE=1 (the default) passes --strict to the ETL: an unexplained rename in
+# DDOBuilderV2 fails the build instead of quietly minting a new identity that
+# orphans saved gearsets. RELEASE=0 is for day-to-day dev builds mid-week, when
+# a data bump should not block work — see START_HERE §6.2.
+RELEASE="${RELEASE:-1}"
+
 GOARCH="$(go env GOARCH)"
 PLATFORM="darwin-${GOARCH}"
 BUNDLE_DIR="bundled/${PLATFORM}"
@@ -43,20 +63,54 @@ DIST_DIR="dist/${PLATFORM}"
 echo "=== DDO Gearset Optimizer — native macOS build (${PLATFORM}) ==="
 mkdir -p "$BUNDLE_DIR"
 
-# ── 1. Rebuild the embedded Python solver ───────────────────────────────────
+# ── 1. Build catalog.db from DDOBuilderV2 (the ETL) ────────────────────────
+echo ""
+if [ "$RELEASE" = "1" ]; then
+    echo "-> Building catalog.db (strict — unresolved identity drift fails the build)..."
+    STRICT_FLAG="--strict"
+else
+    echo "-> Building catalog.db (permissive — RELEASE=0)..."
+    STRICT_FLAG=""
+fi
+# `|| status=$?`, not `if ! ...; then status=$?` — inside an `if !` body $? is
+# the status of the negation (always 0), not of the command that failed, and
+# the ETL's exit code is load-bearing here (2 == unresolved drift).
+status=0
+"$PYTHON" -m etl --out "${BUNDLE_DIR}/catalog.db" $STRICT_FLAG || status=$?
+if [ "$status" -ne 0 ]; then
+    if [ "$status" -eq 2 ]; then
+        echo "" >&2
+        echo "error: DDOBuilderV2 renamed something the ETL will not guess at." >&2
+        echo "       Read the drift report it just wrote under etl/drift/, record the" >&2
+        echo "       answers in etl/aliases.yaml, and re-run. To build anyway (dev only," \
+             "new identities get minted): RELEASE=0 ./build-mac.sh" >&2
+    fi
+    exit "$status"
+fi
+
+# ── 2. Rebuild the embedded Python solver ───────────────────────────────────
 echo ""
 echo "-> Rebuilding Python solver with ${PYINSTALLER}..."
 ( cd python && "$PYINSTALLER" --noconfirm solver.spec )
-if [ ! -f "python/dist/solver" ]; then
-    echo "error: expected PyInstaller output at 'python/dist/solver' — check" \
-         "python/solver.spec's 'name='." >&2
+# --onedir (python/solver.spec): an executable plus an _internal/ tree it
+# cannot start without. Both are staged; app.go's extractSolver recurses.
+if [ ! -x "python/dist/solver/solver" ]; then
+    echo "error: expected PyInstaller output at 'python/dist/solver/solver' — check" \
+         "python/solver.spec (it must have a COLLECT step; --onefile puts the" \
+         "binary at python/dist/solver instead)." >&2
     exit 1
 fi
-cp "python/dist/solver" "${BUNDLE_DIR}/solver"
+# Wipe the previous solver tree first: PyInstaller's output is authoritative,
+# and a file it no longer produces must not survive into the bundle. Explicitly
+# NOT `rm -rf "${BUNDLE_DIR}"` — glpsol, its dylibs and catalog.db live there
+# too and are staged by other steps.
+rm -rf "${BUNDLE_DIR}/_internal" "${BUNDLE_DIR}/solver"
+cp -R "python/dist/solver/_internal" "${BUNDLE_DIR}/_internal"
+cp "python/dist/solver/solver" "${BUNDLE_DIR}/solver"
 chmod +x "${BUNDLE_DIR}/solver"
-echo "   staged ${BUNDLE_DIR}/solver"
+echo "   staged ${BUNDLE_DIR}/solver + _internal/ ($(find "${BUNDLE_DIR}/_internal" -type f | wc -l | tr -d ' ') files)"
 
-# ── 2. Locate and stage GLPK (glpsol) + its shared-library dependencies ─────
+# ── 3. Locate and stage GLPK (glpsol) + its shared-library dependencies ─────
 echo ""
 echo "-> Staging GLPK (glpsol) and its dependencies..."
 GLPSOL_SRC="$(command -v glpsol || true)"
@@ -121,13 +175,30 @@ echo "   patched ${BUNDLE_DIR}/glpsol to load its libraries from @executable_pat
 # install_name_tool invalidates any existing signature on the files it
 # touches — re-sign them ad-hoc (no paid Apple Developer ID available) so
 # they're at least well-formed, valid Mach-O binaries.
+#
+# Top-level files only. _internal/ is skipped deliberately: PyInstaller already
+# ad-hoc signs everything it collects there, nothing in this script rewrites
+# those binaries, and `codesign` on a plain (non-bundle) directory fails
+# anyway — the error would just be swallowed by the `|| true` below.
 echo "-> Ad-hoc re-signing patched binaries in ${BUNDLE_DIR}..."
 for f in "${BUNDLE_DIR}"/*; do
+    [ -f "$f" ] || continue
     "$CODESIGN" --force --sign - "$f" >/dev/null 2>&1 || true
 done
 echo "   done."
 
-# ── 3. Build the app ─────────────────────────────────────────────────────────
+# ── 4. Build the app ─────────────────────────────────────────────────────────
+# go:embed reads the FILESYSTEM, not git — anything sitting in BUNDLE_DIR right
+# now is compiled into the shipped binary, tracked or not. SQLite's WAL
+# sidecars appear whenever something opens the bundled catalog read-write, and
+# the solver drops a progress log wherever it runs. Both are gitignored, so
+# without this they would ride into a release completely unnoticed.
+echo ""
+echo "-> Clearing runtime debris out of ${BUNDLE_DIR} before embedding..."
+rm -f "${BUNDLE_DIR}"/*.db-wal "${BUNDLE_DIR}"/*.db-shm "${BUNDLE_DIR}"/*.log
+find "${BUNDLE_DIR}" -name '.DS_Store' -delete
+echo "   done."
+
 echo ""
 echo "-> Running wails build for ${PLATFORM}..."
 wails build -o DDOGearsetOptimizer
@@ -139,7 +210,7 @@ if [ ! -e "$BUILT_PATH" ]; then
 fi
 echo "   wails build produced '${BUILT_PATH}'"
 
-# ── 4. Sign the app ──────────────────────────────────────────────────────────
+# ── 5. Sign the app ──────────────────────────────────────────────────────────
 # Wails does not sign the .app itself. An entirely unsigned app, especially
 # once quarantined (downloaded, extracted from a zip, etc.), is exactly what
 # produces "You can't open ... it may be damaged or incomplete" — not just
@@ -159,7 +230,7 @@ else
     echo "warning: codesign --verify reported an issue — see output above." >&2
 fi
 
-# ── 5. Copy into dist/<platform>/ — the "just copy and run" folder ─────────
+# ── 6. Copy into dist/<platform>/ — the "just copy and run" folder ─────────
 echo ""
 echo "-> Copying the finished build into ${DIST_DIR}/..."
 rm -rf "$DIST_DIR"
@@ -167,13 +238,13 @@ mkdir -p "$DIST_DIR"
 cp -R "$BUILT_PATH" "${DIST_DIR}/DDO Gearset Optimizer.app"
 echo "   copied ${DIST_DIR}/DDO Gearset Optimizer.app"
 
-# ── 6. Zip it for handoff ──────────────────────────────────────────────────
+# ── 7. Zip it for handoff ──────────────────────────────────────────────────
 # `ditto`, not `zip`: it preserves symlinks, resource forks and the ad-hoc
-# code signature applied in step 4. Plain `zip -r` flattens the symlinks
+# code signature applied in step 5. Plain `zip -r` flattens the symlinks
 # inside .app frameworks, and the extracted copy can then be reported as
-# damaged by Gatekeeper — the exact failure step 4's signing exists to avoid.
+# damaged by Gatekeeper — the exact failure step 5's signing exists to avoid.
 #
-# Step 5 wipes DIST_DIR wholesale, so any previous zip is already gone; the
+# Step 6 wipes DIST_DIR wholesale, so any previous zip is already gone; the
 # explicit rm keeps the overwrite guaranteed if these steps are ever reordered.
 ZIP_PATH="${DIST_DIR}/DDO Gearset Optimizer.zip"
 echo ""

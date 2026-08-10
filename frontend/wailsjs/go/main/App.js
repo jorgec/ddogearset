@@ -74,10 +74,6 @@ export function SearchItemsByStat(arg1, arg2) {
   return window['go']['main']['App']['SearchItemsByStat'](arg1, arg2);
 }
 
-export function UpdateExternalSources() {
-  return window['go']['main']['App']['UpdateExternalSources']();
-}
-
 export function VerifyGearsetChecksum(arg1) {
   return window['go']['main']['App']['VerifyGearsetChecksum'](arg1);
 }

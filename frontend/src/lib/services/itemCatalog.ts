@@ -56,8 +56,14 @@ export async function fetchFiligree(name: string): Promise<models.XMLFiligree | 
     return result;
 }
 
-// Call from the success path of UpdateExternalSources so a data refresh does not
-// leave the frontend serving items the Go caches have already replaced.
+// Call whenever the Go caches are reloaded, so the frontend does not keep
+// serving items those caches have already replaced.
+//
+// Nothing triggers that today: since 0.5.0 the catalog is a file shipped with
+// the app (catalog.db), loaded once at startup, and the "update external
+// sources" button that used to swap it out mid-session is gone. This stays for
+// the catalog-update feature sketched in the schema doc §5.1.2, which will
+// reload the caches for real.
 export function clearItemCatalogCache(): void {
     itemCache.clear();
     setBonusCache.clear();

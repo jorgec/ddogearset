@@ -39,6 +39,4 @@ export function SaveGearset(arg1:main.OptimizationPayload,arg2:main.ResultPayloa
 
 export function SearchItemsByStat(arg1:string,arg2:number):Promise<main.StatSearchResult>;
 
-export function UpdateExternalSources():Promise<string>;
-
 export function VerifyGearsetChecksum(arg1:string):Promise<main.GearsetChecksumResult>;

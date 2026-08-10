@@ -453,6 +453,60 @@ produces a drift report and, with `--strict`, fails the build · resolving it vi
 `aliases.yaml` unblocks the build and preserves the UUID · warm solver start
 ≤ 0.25 s on macOS and Windows.
 
+#### 8.7.1 What Phase 7 actually built — and what it found
+
+| Gate clause | Result |
+|---|---|
+| Release builds end to end | ✅ `./build-mac.sh` → signed `.app`, 56 s total (ETL 6.4 s of it) |
+| Synthetic rename → drift report + `--strict` fails | ✅ exit **2**, no catalog written, registry **not** modified |
+| `aliases.yaml` unblocks the build, UUID preserved | ✅ renamed item kept `b9075fd3-…`; the report's paste block parses as-is |
+| Warm solver start ≤ 0.25 s | ✅ **0.07 s** (was 3.83 s warm / 10.14 s cold) |
+| Zero extraction I/O on second launch | ✅ asserted by mtime snapshot in `app_extractsolver_test.go` |
+| Real solve against the shipped artefacts | ✅ full 14-slot gearset, solver + `catalog.db` from `bundled/` only |
+
+The CLI takes more than the four flags this section named — `--source`,
+`--registry`, `--aliases`, `--ddobuilder-commit`, `--min-app-version`,
+`--init-registry` — and `--catalog-version` defaults rather than being
+required: it carries the previous catalog's version forward and adds one only
+when `content_hash` moved. That works because the build scripts write straight
+into the committed `bundled/<platform>/catalog.db`, so even a clean checkout
+has the previous number to count from.
+
+Four things surfaced while building it that the plan had not anticipated:
+
+**Transform reconciled renames too late to matter.** `reconcile_disappeared`
+ran *after* the loop that resolved and emitted rows, so a rename resolved via
+`aliases.yaml` repointed the NAME at the original UUID while the catalog kept
+the fresh one `resolve()` had already minted and stamped into every row. The
+build succeeded, every foreign key resolved, and the registry's one promise
+was quietly broken. Every kind now reconciles *before* it resolves, and
+`reconcile_disappeared` raises if called the other way round.
+
+**Rename targets could steal an established identity.** Candidate targets are
+now only keys the registry has never seen, and an alias pointing at an
+occupied name is reported as a conflict — fatal in both modes — instead of
+deleting the entity that already owns it.
+
+**The augment collision made the catalog unbuildable.** Load refuses to write
+when `validation_errors` is non-empty, and the known `Twilight` / Cannith
+Armor Prefix ambiguity was one — so the committed catalogs had in fact been
+produced by an ad-hoc script that bypassed the guard. Source-data ambiguity is
+now its own channel (`TransformResult.data_ambiguities`), reported on every run
+and in the drift report; `validation_errors` means referential integrity only.
+An upstream ambiguity is permanent, and no release should wait on Maetrim
+editing a file.
+
+**`content_hash` hashed the diagnostics.** It walked every list attribute on
+the result, including `validation_errors`, so rewording a warning changed the
+"did the data change?" answer that `--catalog-version` now keys off. Load's
+inserts and the hash both run off one shared `TABLES` list.
+
+Also fixed in passing: corpus globs are `sorted()` (file order decides which
+duplicate survives, and `glob.glob` order varies by machine), and the build
+scripts now clear WAL sidecars and stray logs out of `bundled/<platform>/`
+before `wails build` — `go:embed` reads the filesystem, not git, so gitignored
+debris was riding into the binary unnoticed.
+
 ---
 
 ## 9. Recalculation is 0.5.1 — decided

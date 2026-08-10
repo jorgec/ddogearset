@@ -1,7 +1,11 @@
 
 *.log
 /tmp/pyinstaller_build/
-# Python - ignore the venv and pyinstaller temp files, but KEEP python/dist/solver (needed for go:embed)
+# Python - ignore the venv and PyInstaller's build/dist output entirely.
+# python/dist/solver used to be tracked; it no longer is. go:embed reads
+# bundled/<platform>/, and the build scripts COPY PyInstaller's output there,
+# so python/dist/ is intermediate output with a tracked destination. It is
+# also a 57-file --onedir tree now, not one binary.
 build/bin
 build/bin/
 frontend/dist
@@ -10,12 +14,16 @@ node_modules
 python/__pycache__/
 python/.venv/
 python/*.pyc
-# solver.spec is checked in on purpose — build-windows.ps1/build_releases.sh
-# both need it (pyinstaller --noconfirm solver.spec) and it must exist for a
-# fresh clone to build at all, same reasoning as keeping python/dist/solver.
+# solver.spec is checked in on purpose — build-mac.sh/build-linux.sh/
+# build-windows.ps1 all run `pyinstaller --noconfirm solver.spec`, and it must
+# exist for a fresh clone to build at all. It lives under python/, which the
+# rules here do not ignore wholesale, so no exception is needed — this note is
+# just so nobody "tidies" it into python/dist/.
 python/build/
 python/dist/
-# Fetched by ensureDDOBuilderData() (app.go) on first run — data, not source.
+# The ETL's input, and only the ETL's input — a build-time dependency you
+# clone yourself (see install.sh). Nothing fetches it any more, and the
+# shipped app never reads it: it carries catalog.db instead.
 /DDOBuilderV2/
 /DDOBuilderV2.download/
 /.ddobuilderv2_commit
@@ -53,3 +61,12 @@ dist/darwin-arm64/DDO Gearset Optimizer.zip
 # Full canonical parser output written by scripts/parser_snapshot.py.
 # Only the digests file is tracked; this is the local diffing aid.
 python/tests/fixtures/.snapshot_full/
+
+# Runtime debris that must never reach a build: go:embed reads the FILESYSTEM,
+# not git, so anything sitting in bundled/<platform>/ is compiled into the
+# shipped binary whether or not it is tracked. SQLite's WAL sidecars appear
+# any time something opens the bundled catalog read-write, and the solver
+# writes its progress log into its working directory.
+bundled/*/*.db-wal
+bundled/*/*.db-shm
+bundled/*/solver_progress.log

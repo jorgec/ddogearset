@@ -1,0 +1,29 @@
+# etl/aliases.yaml — operator answers to identity drift.
+#
+# When DDOBuilderV2 renames something and the ETL cannot CLEANLY derive the new
+# name (see docs/0.5.0/00_ETL_START_HERE.md §6.1), it refuses to guess: it
+# writes etl/drift/<commit>.md and, under --strict, fails the build. You resolve
+# it here, and the next run folds the answer into etl/identity_registry.json —
+# the entity keeps its original UUID, so anything saved against it still
+# resolves.
+#
+# Format (parsed by etl/aliases.py — a deliberately narrow YAML subset; read
+# that file's docstring before adding anything unusual):
+#
+#   - was: "Old Name"          # required, MUST be quoted
+#     now: "New Name"          # required — a quoted name, or the bare word null
+#     kind: item               # optional; applies to every kind when omitted
+#
+#   - was: "Gem of Many Facets"
+#     now: null                # confirmed removed from the game
+#
+# `now:` is never optional. "Removed" has to be typed out, because the whole
+# point of this file is that no identity decision is made by omission.
+#
+# The drift report prints a block ready to paste in here, with the closest
+# current names as a comment. Confirm one against DropLocation and the effect
+# list before recording it — a wrong answer silently rewrites what a saved
+# gearset's item reference means, and unlike a missed rename, nothing later
+# catches it.
+
+# (no drift resolved yet)
