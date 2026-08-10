@@ -709,7 +709,7 @@ export namespace models {
 	export class XMLEffect {
 	    Types: string[];
 	    Bonus: string;
-	    Item: string;
+	    Item: string[];
 	    AType: string;
 	    Amount: string;
 	    Requirements: XMLRequirement[];

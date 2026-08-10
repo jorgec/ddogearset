@@ -761,7 +761,7 @@
               <span class="font-medium">{eff.Types?.join(' + ') || '(effect)'}</span>
               {#if eff.Amount}<span class="font-mono ml-1">{eff.Amount}</span>{/if}
               {#if eff.Bonus}<span class="text-xs text-muted-foreground ml-1">({eff.Bonus})</span>{/if}
-              {#if eff.Item}<div class="text-xs text-muted-foreground">Applies to: {eff.Item}</div>{/if}
+              {#if eff.Item?.[0]}<div class="text-xs text-muted-foreground">Applies to: {eff.Item[0]}</div>{/if}
               {#each eff.Requirements ?? [] as req}
                 <div class="text-xs text-muted-foreground">Requires: {req.Type} {req.Item}</div>
               {/each}

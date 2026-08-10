@@ -1,148 +1,58 @@
-package services_test
+package models_test
 
 import (
 	"encoding/xml"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"goGearset/internal/models"
-	"goGearset/internal/services"
 )
 
-// AC-1/AC-2/EC-10: one malformed file must never empty the cache. Returning a
-// non-nil error from a filepath.WalkFunc aborts the whole walk, which is exactly
-// what the old parsers did — a single bad file among thousands produced zero
-// cached entries and a silently empty UI.
+// These test xml.Unmarshal directly against the model structs — not file
+// walking (that lived in internal/services/parser.go, deleted in Phase 5;
+// see docs/0.5.0/00_ETL_START_HERE.md). They matter MORE now than before:
+// internal/catalog reads raw_xml out of catalog.db and unmarshals it through
+// these exact same structs, so their correctness is load-bearing for the
+// whole catalog-backed read path, not just the old file walk.
 
-func writeFile(t *testing.T, dir, name, contents string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(contents), 0644); err != nil {
-		t.Fatalf("write %s: %v", name, err)
-	}
-}
+func TestXMLItemData_Unmarshal(t *testing.T) {
+	mockXML := []byte(`
+		<Items>
+			<Item>
+				<Name>Crown of Snow</Name>
+				<Description>A crown of ice...</Description>
+				<MinLevel>5</MinLevel>
+				<EquipmentSlot>
+					<Helmet/>
+				</EquipmentSlot>
+				<DropLocation>Fables of the Feywild</DropLocation>
+				<DropLocation>Some other location</DropLocation>
+			</Item>
+		</Items>
+	`)
 
-const validItem = `<Items><Item><Name>%s</Name><MinLevel>10</MinLevel></Item></Items>`
+	var data models.XMLItemData
+	if err := xml.Unmarshal(mockXML, &data); err != nil {
+		t.Fatalf("Failed to unmarshal XML: %v", err)
+	}
 
-func TestParseItems_SkipsMalformedFileWithoutEmptyingCache(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"a", "b", "c", "d", "e"} {
-		writeFile(t, dir, name+".item", "<Items><Item><Name>"+name+"</Name></Item></Items>")
+	if len(data.Items) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(data.Items))
 	}
-	// Truncated mid-element: xml.Unmarshal fails outright for this file.
-	writeFile(t, dir, "broken.item", "<Items><Item><Name>Broken</Na")
-
-	items, skipped, err := services.ParseItems(dir)
-	if err != nil {
-		t.Fatalf("walk-level error should be nil for an XML content failure, got %v", err)
+	item := data.Items[0]
+	if item.Name != "Crown of Snow" {
+		t.Errorf("Expected Name 'Crown of Snow', got '%s'", item.Name)
 	}
-	if len(items) != 5 {
-		t.Fatalf("want 5 parsed items, got %d", len(items))
+	if item.Description != "A crown of ice..." {
+		t.Errorf("Expected Description 'A crown of ice...', got '%s'", item.Description)
 	}
-	if len(skipped) != 1 || filepath.Base(skipped[0]) != "broken.item" {
-		t.Errorf("want broken.item reported as skipped, got %v", skipped)
+	if item.MinLevel != 5 {
+		t.Errorf("Expected MinLevel 5, got %d", item.MinLevel)
 	}
-}
-
-func TestParseAugments_SkipsMalformedFile(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "ok.xml", `<Augments><Augment><Name>Ruby of Power</Name><Type>Red</Type><MinLevel>4</MinLevel></Augment></Augments>`)
-	writeFile(t, dir, "bad.xml", `<Augments><Augment><Name>Nope`)
-
-	augs, skipped, err := services.ParseAugments(dir)
-	if err != nil {
-		t.Fatalf("unexpected walk error: %v", err)
+	if len(item.EquipmentSlot.Slots) != 1 || item.EquipmentSlot.Slots[0].Local != "Helmet" {
+		t.Fatalf("Expected 1 slot 'Helmet', got %v", item.EquipmentSlot.Slots)
 	}
-	if len(augs) != 1 || augs[0].Name != "Ruby of Power" {
-		t.Fatalf("want the one valid augment, got %+v", augs)
-	}
-	if len(skipped) != 1 {
-		t.Errorf("want 1 skipped file, got %v", skipped)
-	}
-}
-
-func TestParseFiligrees_SkipsMalformedFile(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "ok.xml", `<Filigrees><SetBonus><Type>Angelic Wings</Type></SetBonus>`+
-		`<Filigree><Name>Angelic Wings: +1 Charisma</Name></Filigree></Filigrees>`)
-	writeFile(t, dir, "bad.xml", `<Filigrees><Filigree><Name>`)
-
-	fils, skipped, err := services.ParseFiligrees(dir)
-	if err != nil {
-		t.Fatalf("unexpected walk error: %v", err)
-	}
-	if len(fils) != 1 || fils[0].SetName != "Angelic Wings" {
-		t.Fatalf("want one filigree carrying its set name, got %+v", fils)
-	}
-	if len(skipped) != 1 {
-		t.Errorf("want 1 skipped file, got %v", skipped)
-	}
-}
-
-// AC-2/AC-6: ParseSetBonuses is fault tolerant from the start and reads the real
-// <SetBonuses><SetBonus><Type> shape (the deleted ParseSets targeted
-// <Sets><Set><Name>, which does not exist in the data files).
-func TestParseSetBonuses_ParsesTiersAndSkipsMalformedFile(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "SetBonuses.xml", `<SetBonuses>
-	  <SetBonus>
-	    <Type>Inevitable Balance</Type>
-	    <Icon>InevitableBalance</Icon>
-	    <Buff>
-	      <EquippedCount>2</EquippedCount>
-	      <Description>+5 Melee Power</Description>
-	      <Effect><Type>MeleePower</Type><Type>Doublestrike</Type><Bonus>Stacking</Bonus><Amount size="1">5</Amount></Effect>
-	    </Buff>
-	    <Buff>
-	      <EquippedCount>4</EquippedCount>
-	      <Description>Description-only tier</Description>
-	    </Buff>
-	  </SetBonus>
-	</SetBonuses>`)
-	writeFile(t, dir, "bad.xml", `<SetBonuses><SetBonus><Type>`)
-
-	sets, skipped, err := services.ParseSetBonuses(dir)
-	if err != nil {
-		t.Fatalf("unexpected walk error: %v", err)
-	}
-	if len(skipped) != 1 {
-		t.Errorf("want 1 skipped file, got %v", skipped)
-	}
-	if len(sets) != 1 {
-		t.Fatalf("want 1 set, got %d", len(sets))
-	}
-	set := sets[0]
-	if set.Type != "Inevitable Balance" || set.Icon != "InevitableBalance" {
-		t.Errorf("set header: %+v", set)
-	}
-	if len(set.Tiers) != 2 {
-		t.Fatalf("want 2 tiers, got %d", len(set.Tiers))
-	}
-	if set.Tiers[0].EquippedCount != "2" || len(set.Tiers[0].Effects) != 1 {
-		t.Errorf("tier 0: %+v", set.Tiers[0])
-	}
-	// A single <Effect> may repeat <Type>, hence Types is a slice.
-	if len(set.Tiers[0].Effects[0].Types) != 2 || set.Tiers[0].Effects[0].Amount != "5" {
-		t.Errorf("tier 0 effect: %+v", set.Tiers[0].Effects[0])
-	}
-	// EC-6: a description-only tier is legal and carries no effects.
-	if len(set.Tiers[1].Effects) != 0 || set.Tiers[1].Description != "Description-only tier" {
-		t.Errorf("tier 1: %+v", set.Tiers[1])
-	}
-}
-
-// ParseSetBonuses accepts a single file as well as a directory, because
-// SetBonuses.xml is a lone file sitting among many unrelated .xml files.
-func TestParseSetBonuses_AcceptsASingleFilePath(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "SetBonuses.xml", `<SetBonuses><SetBonus><Type>Arcane Mind</Type></SetBonus></SetBonuses>`)
-
-	sets, _, err := services.ParseSetBonuses(filepath.Join(dir, "SetBonuses.xml"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(sets) != 1 || sets[0].Type != "Arcane Mind" {
-		t.Fatalf("got %+v", sets)
+	if len(item.DropLocations) != 2 || item.DropLocations[0] != "Fables of the Feywild" {
+		t.Fatalf("Expected 2 drop locations, got %v", item.DropLocations)
 	}
 }
 
@@ -235,8 +145,6 @@ func TestXMLItemAugment_ParsesSelectedAndEmbeddedAugments(t *testing.T) {
 	if augs[0].Augments[1].SetBonus != "Epic Elemental Evil Set" {
 		t.Errorf("conditional set bonus not captured: %+v", augs[0].Augments[1])
 	}
-	// A conditional set bonus lives ONLY on the embedded augment — it must not
-	// leak into the item's top-level, unconditional SetBonuses list.
 	if len(data.Items[0].SetBonuses) != 0 {
 		t.Errorf("augment-nested SetBonus leaked into top-level SetBonuses: %v", data.Items[0].SetBonuses)
 	}
@@ -258,6 +166,11 @@ func TestXMLFiligree_KeepsRareTaggedEffects(t *testing.T) {
 	}
 	if len(data.Filigrees[0].Effects) != 2 {
 		t.Errorf("want both the base and the Rare effect retained, got %d", len(data.Filigrees[0].Effects))
+	}
+	// Item repeats on <Effect> now: [0]'s single <Item>Charisma</Item> still
+	// round-trips as a one-element slice.
+	if len(data.Filigrees[0].Effects[0].Item) != 1 || data.Filigrees[0].Effects[0].Item[0] != "Charisma" {
+		t.Errorf("effect 0 Item: %+v", data.Filigrees[0].Effects[0].Item)
 	}
 }
 
@@ -297,7 +210,39 @@ func TestXMLItem_EffectsAndTopLevelSetBonuses(t *testing.T) {
 	if len(item.Effects) != 1 {
 		t.Fatalf("want 1 effect, got %d", len(item.Effects))
 	}
+	if len(item.Effects[0].Item) != 1 || item.Effects[0].Item[0] != "Fireball" {
+		t.Errorf("effect Item: %+v", item.Effects[0].Item)
+	}
 	if len(item.Effects[0].Requirements) != 1 || item.Effects[0].Requirements[0].Item != "Wizard" {
 		t.Errorf("requirements: %+v", item.Effects[0].Requirements)
+	}
+}
+
+// The bug this phase fixes, proven directly: a repeating <Item> on one
+// <Effect> now round-trips as ALL targets, in XML order, instead of Go's old
+// last-wins single-string behaviour.
+func TestXMLEffect_ItemRepeatsInOrder(t *testing.T) {
+	var data models.XMLAugmentsData
+	if err := xml.Unmarshal([]byte(`<Augments><Augment><Name>Miserable Arcana: Force</Name>
+	  <Effect><Type>SpellPower</Type><Bonus>Equipment</Bonus>
+	    <Item>Force</Item><Item>Physical</Item><Item>Untyped</Item>
+	    <Amount size="1">159</Amount></Effect>
+	</Augment></Augments>`), &data); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	eff := data.Augments[0].Effects[0]
+	want := []string{"Force", "Physical", "Untyped"}
+	if len(eff.Item) != len(want) {
+		t.Fatalf("want %d targets, got %d: %v", len(want), len(eff.Item), eff.Item)
+	}
+	for i, w := range want {
+		if eff.Item[i] != w {
+			t.Errorf("Item[%d]: want %q, got %q", i, w, eff.Item[i])
+		}
+	}
+	// Display convention (this phase, §8): bind to Item[0] only, matching
+	// Python's findtext (first-wins) — never join or show additional targets.
+	if eff.Item[0] != "Force" {
+		t.Errorf("display target Item[0]: want %q, got %q", "Force", eff.Item[0])
 	}
 }

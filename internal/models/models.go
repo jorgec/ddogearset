@@ -55,9 +55,17 @@ type XMLRequirement struct {
 // XMLEffect mirrors <Effect>. Types is a slice because a single <Effect> may
 // repeat <Type> (e.g. MeleePower + Doublestrike sharing one Amount).
 type XMLEffect struct {
-	Types        []string         `xml:"Type"`
-	Bonus        string           `xml:"Bonus"`
-	Item         string           `xml:"Item"`
+	Types []string `xml:"Type"`
+	Bonus string   `xml:"Bonus"`
+	// Item repeats: one effect can grant its amount to several targets (e.g.
+	// Force + Physical + Untyped spell power on one Miserable Arcana effect —
+	// 4261 such effects in the corpus). This used to be a single `string`,
+	// which Go's xml.Unmarshal fills with the LAST element on a repeat —
+	// display then disagreed with the arithmetic, which reads the FIRST
+	// (Python's findtext, the established behaviour; see rules/extract.py).
+	// Display is bound to Item[0] ONLY (see ItemDetail.svelte) — never joined
+	// or otherwise showing more than the arithmetic actually credits.
+	Item         []string         `xml:"Item"`
 	AType        string           `xml:"AType"`
 	Amount       string           `xml:"Amount"`
 	Requirements []XMLRequirement `xml:"Requirements>Requirement"`

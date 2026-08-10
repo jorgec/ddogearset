@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"goGearset/internal/catalog"
 	"goGearset/internal/models"
 	"goGearset/internal/services"
 )
@@ -202,8 +203,13 @@ func (a *App) fetchDDOBuilderData(logMsg string, knownSHA string) (string, error
 	return msg, nil
 }
 
-// DDOBuilder data-file locations. Previously repeated inline at both cache-load
-// sites; centralized here so startup() and UpdateExternalSources() cannot drift.
+// ddoRepoDir/ddoDataRoot locate DDOBuilderV2's checkout. Go's OWN caches no
+// longer read from here — see loadCaches, which reads catalog.db instead
+// (docs/0.5.0/00_ETL_START_HERE.md Phase 5). This still exists because the
+// Python subprocess does: DDO_DATA_PATH (runSolver) still points solver.py at
+// this same checkout, since its own switch to the catalog is a later phase.
+// Cutting this entirely — deleting the fetch, shipping catalog.db as the only
+// data source — is Phase 6.
 //
 // ddoRepoDir is project-relative (resolved against the process's working
 // directory, exactly like packMappingsPath below already was) rather than a
@@ -217,22 +223,23 @@ const (
 	ddoRepoDir  = "DDOBuilderV2"
 	ddoDataRoot = ddoRepoDir + "/Output/DataFiles"
 
-	ddoItemsPath        = ddoDataRoot + "/Items"
-	ddoAugmentsPath     = ddoDataRoot + "/Augments"
-	ddoFiligreeSetsPath = ddoDataRoot + "/FiligreeSets"
-	// Single files, not directories. ParseSetBonuses/ParseQuests accept
-	// either, and pointing them at the file avoids walking (and reporting as
-	// "skipped") every unrelated .xml in DataFiles.
-	ddoSetBonusesPath = ddoDataRoot + "/SetBonuses.xml"
-	// docs/RAID_DETECTION_SPEC.md — the raid list source. DDOBuilderV2 keeps
-	// this current as new raids ship (verified 41/41 exact match against DDO
-	// wiki's "Raids" page), and this app already re-fetches DDOBuilderV2 on
-	// its existing update schedule, so raid detection stays current with
-	// zero separately-maintained data file.
-	ddoQuestsPath = ddoDataRoot + "/Quests.xml"
-
 	packMappingsPath = "data/PackMappings.json"
 )
+
+// catalogEnvVar / defaultCatalogPath mirror python/catalog_source.py's
+// DDO_CATALOG_DB convention exactly, so both processes resolve the same file
+// from the same override with no separate configuration surface.
+const (
+	catalogEnvVar      = "DDO_CATALOG_DB"
+	defaultCatalogPath = "catalog.db"
+)
+
+func catalogPath() string {
+	if p := os.Getenv(catalogEnvVar); p != "" {
+		return p
+	}
+	return defaultCatalogPath
+}
 
 // loadCaches parses every data source, rebuilds all four name indexes, and runs
 // the one-time acquisition-enrichment pass over the items.
@@ -246,34 +253,37 @@ const (
 func (a *App) loadCaches(verb string) {
 	logSkipped := func(kind string, skipped []string) {
 		if len(skipped) > 0 {
-			a.addLog(fmt.Sprintf("Skipped %d unparseable %s file(s); the rest loaded normally.", len(skipped), kind))
+			a.addLog(fmt.Sprintf("Skipped %d unparseable %s row(s); the rest loaded normally.", len(skipped), kind))
 		}
 	}
 
-	// docs/RAID_DETECTION_SPEC.md — parsed before InitEnrichment, which needs
-	// the quest list to build its raid-name set.
-	quests, skippedQuests, errQuests := services.ParseQuests(ddoQuestsPath)
-	logSkipped("quest", skippedQuests)
-	if errQuests != nil {
-		a.addLog("Failed to load Quests.xml, raid detection unavailable: " + errQuests.Error())
-	}
-
-	raidCount, err := services.InitEnrichment(packMappingsPath, quests)
-	if err != nil {
+	if err := services.InitEnrichment(packMappingsPath); err != nil {
 		// Fatal for enrichment only: items still load, they just carry no pack
 		// attribution. Everything else in the app is unaffected.
 		a.addLog("Failed to load pack mappings, item pack attribution unavailable: " + err.Error())
 	}
-	if errQuests == nil {
-		a.addLog(fmt.Sprintf("Raid detection: %d raids recognized from Quests.xml.", raidCount))
+
+	// docs/0.5.0/00_ETL_START_HERE.md Phase 5 — every cache below reads
+	// catalog.db instead of walking DDOBuilderV2 XML. Raid detection is no
+	// longer computed here: catalog.LoadItems sets IsRaid straight from the
+	// catalog's own precomputed column (verified against Python's identical
+	// walk in Phase 4), so there is no quest list to parse and no
+	// upgrade-chain to walk on this path.
+	path := catalogPath()
+	db, err := catalog.Open(path)
+	if err != nil {
+		a.addLog(fmt.Sprintf("Failed to open catalog at %s: %s", path, err.Error()))
+		return
+	}
+	defer db.Close()
+
+	if meta, err := catalog.ReadMeta(db); err == nil {
+		a.addLog(fmt.Sprintf("Catalog v%d (schema %d, built %s)", meta.CatalogVersion, meta.SchemaVersion, meta.BuiltAt))
 	}
 
-	items, skippedItems, errItems := services.ParseItems(ddoItemsPath)
+	items, skippedItems, errItems := catalog.LoadItems(db)
 	logSkipped("item", skippedItems)
 	if errItems == nil {
-		// docs/RAID_DETECTION_SPEC.md — batch enrichment (not per-item
-		// EnrichItemInPlace) so upgrade-chain raid resolution can see the
-		// whole corpus, not just each item in isolation.
 		services.EnrichItemsInPlace(items)
 		a.itemsCache = items
 		a.itemsByName = buildNameIndex(items, func(it models.XMLItem) string { return it.Name })
@@ -282,7 +292,7 @@ func (a *App) loadCaches(verb string) {
 		a.addLog("Failed to cache items: " + errItems.Error())
 	}
 
-	augments, skippedAugs, errAugs := services.ParseAugments(ddoAugmentsPath)
+	augments, skippedAugs, errAugs := catalog.LoadAugments(db)
 	logSkipped("augment", skippedAugs)
 	if errAugs == nil {
 		a.augmentsCache = augments
@@ -292,7 +302,7 @@ func (a *App) loadCaches(verb string) {
 		a.addLog("Failed to cache augments: " + errAugs.Error())
 	}
 
-	filigrees, skippedFils, errFils := services.ParseFiligrees(ddoFiligreeSetsPath)
+	filigrees, skippedFils, errFils := catalog.LoadFiligrees(db)
 	logSkipped("filigree", skippedFils)
 	if errFils == nil {
 		a.filigreesCache = filigrees
@@ -302,18 +312,14 @@ func (a *App) loadCaches(verb string) {
 		a.addLog("Failed to cache filigrees: " + errFils.Error())
 	}
 
-	// Item/armor set bonuses and filigree set bonuses share one cache and one
-	// index so the panel resolves any set name through a single lookup.
-	sets, skippedSets, errSets := services.ParseSetBonuses(ddoSetBonusesPath)
+	// Item/armor set bonuses and filigree set bonuses now come from one table
+	// (set_tier + origin_hint at ETL time), so one query replaces the two
+	// separate XML reads plus their append.
+	sets, skippedSets, errSets := catalog.LoadSetBonuses(db)
 	logSkipped("set bonus", skippedSets)
 	if errSets != nil {
 		a.addLog("Failed to cache set bonuses: " + errSets.Error())
 	} else {
-		filigreeSets, skippedFilSets, errFilSets := services.ParseFiligreeSetBonuses(ddoFiligreeSetsPath)
-		logSkipped("filigree set bonus", skippedFilSets)
-		if errFilSets == nil {
-			sets = append(sets, filigreeSets...)
-		}
 		a.setBonusCache = sets
 		a.setsByName = buildNameIndex(sets, func(s models.XMLSetBonus) string { return s.Type })
 		a.addLog(fmt.Sprintf("%s %d set bonuses", verb, len(sets)))
