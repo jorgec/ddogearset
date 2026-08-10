@@ -37,7 +37,16 @@ from .load import _content_hash, build_catalog
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-DEFAULT_SOURCE = REPO_ROOT / "DDOBuilderV2" / "Output" / "DataFiles"
+# The `data/ddobuilder` SUBMODULE, not the gitignored DDOBuilderV2/ directory
+# the (now deleted) runtime fetch used to drop beside it. Both hold the same
+# bytes — verified identical, 9070 files, same digest — but only the submodule
+# is pinned: `git clone --recurse-submodules` puts the exact revision a given
+# catalog was built from on disk, and `_source_fingerprint` can read a real
+# upstream SHA out of it instead of falling back to a content digest.
+#
+# A gitignored working copy cannot promise either. It is whatever someone last
+# downloaded.
+DEFAULT_SOURCE = REPO_ROOT / "data" / "ddobuilder" / "Output" / "DataFiles"
 DEFAULT_REGISTRY = REPO_ROOT / "etl" / "identity_registry.json"
 DEFAULT_ALIASES = REPO_ROOT / "etl" / "aliases.yaml"
 DEFAULT_DRIFT_DIR = REPO_ROOT / "etl" / "drift"
@@ -200,12 +209,14 @@ def main(argv=None) -> int:
         _log(f"error: no game data at {source} — expected DDOBuilderV2's\n"
              "       DataFiles directory, which has an Items/ subdirectory.\n"
              "\n"
-             "       Nothing fetches DDOBuilderV2 any more: since 0.5.0 the app\n"
-             "       ships catalog.db and never reads the XML at runtime, so the\n"
-             "       checkout is a BUILD input you provide once. Clone or download\n"
-             "       it into the repo root:\n"
-             "           git clone --depth 1 https://github.com/Maetrim/DDOBuilderV2\n"
-             "       ...or point --source at an existing copy's Output/DataFiles.")
+             "       This is the data/ddobuilder submodule, and it is almost\n"
+             "       certainly just not checked out:\n"
+             "           git submodule update --init --depth 1\n"
+             "\n"
+             "       It is a BUILD input only. Since 0.5.0 the app ships\n"
+             "       catalog.db and never reads this XML at runtime, so nothing\n"
+             "       fetches it and it is not needed to RUN anything — only to\n"
+             "       build a catalog. Point --source elsewhere to use another copy.")
         return EXIT_FAILURE
 
     if not args.registry.exists() and not args.init_registry:

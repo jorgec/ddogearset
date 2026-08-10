@@ -110,20 +110,12 @@ fi
 # any more; the checkout has to be here before ./build-mac.sh runs, because
 # that is what the ETL reads.
 echo ""
-if [ -d "DDOBuilderV2/Output/DataFiles/Items" ]; then
-    ok "DDOBuilderV2 present at ./DDOBuilderV2 — the ETL will build catalog.db from it."
-elif [ -d "DDOBuilderV2" ]; then
-    warn "./DDOBuilderV2 exists but has no Output/DataFiles/Items — that is not a full" \
-         "checkout, and the ETL will refuse to build. Re-clone it:" \
-         "git clone --depth 1 https://github.com/Maetrim/DDOBuilderV2"
-elif command -v git >/dev/null 2>&1; then
-    warn "./DDOBuilderV2 is missing. The build needs it (it is the ETL's only input" \
-         "— nothing fetches it for you). Get it once, from this directory:" \
-         "git clone --depth 1 https://github.com/Maetrim/DDOBuilderV2"
+if [ -d "data/ddobuilder/Output/DataFiles/Items" ]; then
+    ok "data/ddobuilder submodule checked out at $(git -C data/ddobuilder describe --tags 2>/dev/null || echo 'unknown revision') — the ETL builds catalog.db from it."
 else
-    warn "./DDOBuilderV2 is missing and git is not installed. Download" \
-         "https://github.com/Maetrim/DDOBuilderV2 as a zip and extract it to" \
-         "./DDOBuilderV2 — the build needs it, and nothing fetches it for you."
+    warn "The data/ddobuilder submodule is not checked out. The build needs it —" \
+         "it is the ETL's only input — but nothing else does. Run:" \
+         "git submodule update --init --depth 1"
 fi
 
 echo ""

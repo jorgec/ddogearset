@@ -40,12 +40,13 @@
 #      immediately ready to hand to someone else: they copy it and run it,
 #      nothing else required on their end.
 #
-# DDOBuilderV2 (the game-data source) must already be present at
-# .\DDOBuilderV2 when this script runs - the ETL in step 5 reads it. NOTHING
-# fetches it any more: since 0.5.0 the shipped app carries catalog.db and never
-# touches DDOBuilderV2, the network, or Python XML parsing at runtime
-# (docs/0.5.0/00_ETL_START_HERE.md constraints 1 and 3). Clone or download it
-# yourself once: https://github.com/Maetrim/DDOBuilderV2
+# The game data the ETL in step 5 reads is the data\ddobuilder SUBMODULE, so
+# a fresh clone needs `git submodule update --init --depth 1` once (or
+# `git clone --recurse-submodules` up front). Being a pinned submodule is the
+# point: the catalog records the exact upstream revision it was built from.
+# NOTHING fetches it at runtime any more - since 0.5.0 the shipped app carries
+# catalog.db and never touches DDOBuilderV2, the network, or Python XML parsing
+# (docs/0.5.0/00_ETL_START_HERE.md constraints 1 and 3).
 
 $ErrorActionPreference = "Stop"
 
