@@ -122,21 +122,89 @@ does not link it.
 
 ### 5.2 How `catalog.db` ships
 
-As a **resource file next to the binary**, not `go:embed`.
+**A separate file on disk. Never `go:embed`, never inside the app bundle at
+runtime.**
 
 `go:embed` would force an extract-to-disk step on every launch before SQLite
-could open it (the same pattern as `extractSolver`, and the same I/O cost). A
-plain file is opened directly by both Go and the Python subprocess, read-only:
+could open it (the same pattern as `extractSolver`, and the same I/O cost) — and
+it would make a future "update catalog" feature impossible without shipping a
+whole new binary.
+
+#### 5.2.1 Where the files live
+
+`catalog.db` and `app.db` sit **side by side in the user data directory**:
+
+| Platform | Directory |
+|---|---|
+| macOS | `~/Library/Application Support/DDOGearsetOptimizer/` |
+| Windows | `%APPDATA%\DDOGearsetOptimizer\` |
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/DDOGearsetOptimizer/` |
 
 ```
-file:catalog.db?mode=ro&immutable=1
+DDOGearsetOptimizer/
+    catalog.db      # replaceable, versioned (§5.1.1 of the schema doc)
+    app.db          # user data — builds, gearsets, runs (0.5.1)
 ```
 
-`immutable=1` is honest — nothing writes it after the build — and it lets SQLite
-skip locking entirely. Go passes the resolved path to the solver as
-`DDO_CATALOG_DB`, replacing `DDO_DATA_PATH`.
+**Not** `Contents/Resources/` inside the macOS `.app`. That directory is
+**code-signed**: modifying anything in it invalidates the signature, and under
+the hardened runtime and notarization the app then refuses to launch. A catalog
+that can never be replaced without re-signing the whole application is not a
+catalog that can be updated.
 
-**The catalog carries its own version.** `catalog_meta` records a monotonic
+Putting both databases in the same user-writable directory also means
+reinstalling or updating the *app* never touches either one.
+
+#### 5.2.2 First run: seed, then read only from the data directory
+
+The release **also** carries `catalog.db` inside the app bundle
+(`Contents/Resources/` on macOS, alongside the `.exe` on Windows, in the
+AppDir on Linux) — purely as **installation media**, never as the file the app
+reads.
+
+On launch:
+
+```
+if data_dir/catalog.db is absent
+   or bundled.catalog_version > installed.catalog_version:
+        copy bundled -> data_dir/catalog.db   (temp file, then atomic rename)
+open data_dir/catalog.db  read-only
+```
+
+Why seed rather than require a sibling file: on macOS people drag **only** the
+`.app` to /Applications. A catalog shipped merely next to it is left behind, and
+the best the app could then do is show an error. Seeding makes a single `.app`
+self-sufficient.
+
+The cost, stated plainly: **the catalog exists twice on disk after first run**
+(~20 MB), because a signed bundle cannot delete its own contents. That is the
+price of the bundle staying signed and verifiable.
+
+The version comparison is what makes an app update also deliver a newer catalog
+without a separate download — and because the copy is guarded by
+`catalog_version`, it will never overwrite a *newer* catalog the user obtained
+through a future update feature.
+
+#### 5.2.3 Access modes differ
+
+The two files are opened differently, and the difference is load-bearing:
+
+```
+catalog.db   file:…/catalog.db?mode=ro&immutable=1     Go and Python
+app.db       read/write                                Go only (§5 writer discipline)
+```
+
+`immutable=1` on the catalog is honest — nothing writes it while the app runs —
+and it lets SQLite skip locking entirely. Go passes the resolved catalog path to
+the solver as `DDO_CATALOG_DB`, replacing `DDO_DATA_PATH`.
+
+> A catalog *update* is not a write to an open database. It is: download to a
+> temp file, verify, close, atomically rename, reopen. `immutable=1` stays
+> correct.
+
+#### 5.2.4 The catalog carries its own version
+
+`catalog_meta` records a monotonic
 `catalog_version` alongside `schema_version`, `min_app_version`, a content hash
 and the identity-registry hash — see
 [`01_CATALOG_AND_APP_SCHEMA.md`](01_CATALOG_AND_APP_SCHEMA.md) §5.1.1. 0.5.0
@@ -351,7 +419,10 @@ pass `DDO_CATALOG_DB`.
 
 **Gate:** the app runs with **no `DDOBuilderV2/` directory present at all** —
 the definitive test of constraint 2 · no network access on first run · release
-artefacts build on macOS, Windows and Linux.
+artefacts build on macOS, Windows and Linux · **first run seeds
+`catalog.db` into the user data directory and reads it from there**, verified by
+deleting the data directory and relaunching · the macOS bundle still passes
+`codesign --verify` after first run, proving nothing wrote inside it.
 
 ### Phase 7 — Build integration and drift workflow
 
