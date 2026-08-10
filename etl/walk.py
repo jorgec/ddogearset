@@ -51,6 +51,7 @@ _ALL_WEAPON_STATS = {s: s for s in WEAPON_BASE_STATS}
 class RawItem:
     node_name: str
     file: str
+    raw_xml: str
     slots: List[str]
     buffs: list
     sets: List[str]
@@ -70,6 +71,7 @@ class RawItem:
 class RawAugment:
     name: str
     type: str
+    raw_xml: str
     buffs: list
     min_level: int
 
@@ -78,6 +80,7 @@ class RawAugment:
 class RawFiligree:
     name: str
     base_name: str
+    raw_xml: str
     sets: List[str]        # ALL <SetBonus> values — see note below
     buffs: list
 
@@ -105,6 +108,12 @@ class Corpus:
     filigrees: List[RawFiligree] = field(default_factory=list)
     set_tiers: List[RawSetTier] = field(default_factory=list)
     quests: Dict[str, dict] = field(default_factory=dict)
+    # One <SetBonus> element's raw XML per set NAME (not per tier — the XML
+    # element wraps every tier of a set together, which is what GetSetBonus
+    # needs to display). Measured zero name overlap between SetBonuses.xml
+    # and FiligreeSets/*.xml (same corpus check as origin_hint's), so one
+    # entry per name is never ambiguous about which file it came from.
+    set_bonus_raw_xml: Dict[str, str] = field(default_factory=dict)
 
 
 def walk_items(base_dir: str, quests_lookup: dict) -> List[RawItem]:
@@ -134,6 +143,7 @@ def walk_items(base_dir: str, quests_lookup: dict) -> List[RawItem]:
                 out.append(RawItem(
                     node_name=granted['name'],
                     file=granted['file'],
+                    raw_xml=ET.tostring(item_node, encoding='unicode'),
                     slots=granted['slots'],
                     buffs=granted['buffs'],
                     sets=granted['sets'],
@@ -177,6 +187,7 @@ def walk_augments(base_dir: str) -> List[RawAugment]:
                 ml = int(ml_node.text) if ml_node is not None and ml_node.text else 0
                 out.append(RawAugment(
                     name=granted['name'], type=granted['type'],
+                    raw_xml=ET.tostring(aug_node, encoding='unicode'),
                     buffs=granted['buffs'], min_level=ml))
             except Exception:
                 continue
@@ -184,15 +195,17 @@ def walk_augments(base_dir: str) -> List[RawAugment]:
 
 
 def walk_filigrees(base_dir: str):
-    """Returns (filigrees, set_tiers_from_filigree_files).
+    """Returns (filigrees, set_tiers_from_filigree_files, set_bonus_raw_xml).
 
     Filigree files (`FiligreeSets/*.xml`) carry BOTH `<Filigree>` nodes and
     their own `<SetBonus>` tier definitions — parse_filigrees folds the latter
     into the same `sets` dict the top-level SetBonuses.xml populates, so this
-    mirrors that.
+    mirrors that. `set_bonus_raw_xml` is one raw-XML capture per set NAME
+    (the whole `<SetBonus>` element, every tier) — see Corpus.set_bonus_raw_xml.
     """
     filigrees: List[RawFiligree] = []
     set_tiers: List[RawSetTier] = []
+    set_bonus_raw_xml: Dict[str, str] = {}
 
     for xml_file in glob.glob(os.path.join(base_dir, 'FiligreeSets', '*.xml')):
         try:
@@ -206,6 +219,7 @@ def walk_filigrees(base_dir: str):
                 if name_node is None or not name_node.text:
                     continue
                 set_name = name_node.text
+                set_bonus_raw_xml[set_name] = ET.tostring(set_node, encoding='unicode')
                 for buff_node in set_node.findall('Buff'):
                     count = buff_node.findtext('EquippedCount')
                     if not count:
@@ -233,22 +247,24 @@ def walk_filigrees(base_dir: str):
                            if s.text and s.text.strip()]
                 filigrees.append(RawFiligree(
                     name=granted['name'], base_name=granted['base_name'],
+                    raw_xml=ET.tostring(f_node, encoding='unicode'),
                     sets=all_sets, buffs=granted['buffs']))
             except Exception:
                 continue
 
-    return filigrees, set_tiers
+    return filigrees, set_tiers, set_bonus_raw_xml
 
 
-def walk_set_bonuses(base_dir: str) -> List[RawSetTier]:
+def walk_set_bonuses(base_dir: str):
     """The top-level SetBonuses.xml — same shape as the filigree-file set tiers
     above, kept as a separate function because it is a separate file with a
-    flat (non-repeating) structure."""
+    flat (non-repeating) structure. Returns (set_tiers, set_bonus_raw_xml)."""
     out = []
+    raw_xml: Dict[str, str] = {}
     try:
         tree = ET.parse(os.path.join(base_dir, 'SetBonuses.xml'))
     except Exception:
-        return out
+        return out, raw_xml
 
     for set_node in tree.findall('.//SetBonus'):
         try:
@@ -256,6 +272,7 @@ def walk_set_bonuses(base_dir: str) -> List[RawSetTier]:
             if name_node is None or not name_node.text:
                 continue
             set_name = name_node.text
+            raw_xml[set_name] = ET.tostring(set_node, encoding='unicode')
             for buff_node in set_node.findall('Buff'):
                 count = buff_node.findtext('EquippedCount')
                 if not count:
@@ -268,16 +285,20 @@ def walk_set_bonuses(base_dir: str) -> List[RawSetTier]:
                     set_name=set_name, piece_count=int(count), buffs=buffs))
         except Exception:
             continue
-    return out
+    return out, raw_xml
 
 
 def walk_corpus(base_dir: str) -> Corpus:
     quests = ddo_parser.parse_quests(base_dir)
-    filigrees, filigree_set_tiers = walk_filigrees(base_dir)
+    filigrees, filigree_set_tiers, filigree_set_raw_xml = walk_filigrees(base_dir)
+    top_set_tiers, top_set_raw_xml = walk_set_bonuses(base_dir)
+    # Zero name overlap measured between the two files (see
+    # Corpus.set_bonus_raw_xml's docstring) — union is never ambiguous.
     return Corpus(
         items=walk_items(base_dir, quests),
         augments=walk_augments(base_dir),
         filigrees=filigrees,
-        set_tiers=walk_set_bonuses(base_dir) + filigree_set_tiers,
+        set_tiers=top_set_tiers + filigree_set_tiers,
         quests=quests,
+        set_bonus_raw_xml={**top_set_raw_xml, **filigree_set_raw_xml},
     )

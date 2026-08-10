@@ -96,7 +96,10 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
             ent = registry.resolve("gear_set", name, built_at=built_at,
                                    commit=commit, strict=strict)
             gear_set_uuid[name] = ent.entity_uuid
-            r.gear_sets.append({"uuid": ent.entity_uuid, "name": name})
+            r.gear_sets.append({
+                "uuid": ent.entity_uuid, "name": name,
+                "raw_xml": corpus.set_bonus_raw_xml.get(name),
+            })
         return gear_set_uuid[name]
 
     def stat_id(raw_type: str, raw_target: Optional[str]) -> str:
@@ -173,6 +176,7 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
             "is_raid": it.is_raid,
             "craftable_family": it.craftable_family,
             "drop_location": it.drop_location,
+            "raw_xml": it.raw_xml,
             "adventure_pack": it.pack,
         })
         for slot in it.slots:
@@ -214,7 +218,7 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
         r.sources.append({"uuid": src.entity_uuid, "kind": "augment", "name": aug.name})
         r.augments.append({
             "uuid": src.entity_uuid, "name": aug.name, "colour": aug.type,
-            "min_level": aug.min_level})
+            "min_level": aug.min_level, "raw_xml": aug.raw_xml})
         emit_effects(src.entity_uuid, aug.buffs)
     registry.reconcile_disappeared("augment", seen_augment_keys, aliases.get("augment", {}))
 
@@ -237,6 +241,7 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
             "uuid": src.entity_uuid, "name": f.name,
             "base_uuid": filigree_base_uuid[f.base_name],
             "variant_label": variant_label,
+            "raw_xml": f.raw_xml,
         })
         # THE dual-set fix (schema doc §2.3): walk.py already re-derives ALL
         # <SetBonus> memberships, not just findtext's first — this is where

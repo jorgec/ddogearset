@@ -68,7 +68,12 @@ CREATE TABLE item (
     is_raid           INTEGER NOT NULL DEFAULT 0,
     craftable_family  INTEGER NOT NULL DEFAULT 0,
     drop_location     TEXT,
-    adventure_pack    TEXT
+    adventure_pack    TEXT,
+    -- The node's own serialized XML, verbatim. Go unmarshals this directly
+    -- into models.XMLItem (same struct, same xml: tags) — no field here is a
+    -- substitute for it, this is how Go's item-detail panel and full-text
+    -- search stay possible without ever reading DDOBuilderV2 XML at runtime.
+    raw_xml           TEXT NOT NULL
 ) WITHOUT ROWID;
 
 -- Known gap: not populated in 0.5.0 (etl/transform.py's `transform()`
@@ -96,7 +101,8 @@ CREATE TABLE augment (
     uuid      TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
     name      TEXT NOT NULL,
     colour    TEXT NOT NULL,
-    min_level INTEGER NOT NULL DEFAULT 0
+    min_level INTEGER NOT NULL DEFAULT 0,
+    raw_xml   TEXT NOT NULL
 ) WITHOUT ROWID;
 CREATE INDEX augment_name_idx ON augment(name);
 
@@ -109,12 +115,18 @@ CREATE TABLE filigree (
     uuid          TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
     name          TEXT NOT NULL UNIQUE,
     base_uuid     TEXT REFERENCES filigree_base(uuid),
-    variant_label TEXT
+    variant_label TEXT,
+    raw_xml       TEXT NOT NULL
 ) WITHOUT ROWID;
 
+-- raw_xml is NULLABLE here (unlike item/augment/filigree): a set can be
+-- referenced by an item's/filigree's own <SetBonus> membership tag without
+-- ever having its own <SetBonus> DEFINITION element anywhere in the corpus
+-- (a removed or never-fully-authored set). No tiers, nothing to display.
 CREATE TABLE gear_set (
-    uuid TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE
+    uuid    TEXT PRIMARY KEY,
+    name    TEXT NOT NULL UNIQUE,
+    raw_xml TEXT
 ) WITHOUT ROWID;
 
 CREATE TABLE filigree_set (
@@ -249,17 +261,18 @@ def build_catalog(result: TransformResult, out_path: Path, *, registry_path: Pat
             _insert_many(conn, "item", result.items, [
                 "uuid", "family_uuid", "tier", "name", "source_file", "min_level",
                 "weapon_type", "damage_type", "armor_type", "is_minor_artifact",
-                "is_raid", "craftable_family", "drop_location", "adventure_pack"])
+                "is_raid", "craftable_family", "drop_location", "adventure_pack",
+                "raw_xml"])
             _insert_many(conn, "item_slot", result.item_slots, ["item_uuid", "slot"])
             _insert_many(conn, "item_augment_slot", result.item_augment_slots,
                         ["item_uuid", "position", "colour"])
             _insert_many(conn, "augment", result.augments,
-                        ["uuid", "name", "colour", "min_level"])
-            _insert_many(conn, "gear_set", result.gear_sets, ["uuid", "name"])
+                        ["uuid", "name", "colour", "min_level", "raw_xml"])
+            _insert_many(conn, "gear_set", result.gear_sets, ["uuid", "name", "raw_xml"])
             _insert_many(conn, "item_set", result.item_sets, ["item_uuid", "set_uuid"])
             _insert_many(conn, "filigree_base", result.filigree_bases, ["uuid", "name"])
             _insert_many(conn, "filigree", result.filigrees,
-                        ["uuid", "name", "base_uuid", "variant_label"])
+                        ["uuid", "name", "base_uuid", "variant_label", "raw_xml"])
             _insert_many(conn, "filigree_set", result.filigree_sets,
                         ["filigree_uuid", "set_uuid", "position"])
             _insert_many(conn, "set_tier", result.set_tiers,

@@ -274,7 +274,8 @@ CREATE TABLE item (
     is_raid           INTEGER NOT NULL DEFAULT 0,
     craftable_family  INTEGER NOT NULL DEFAULT 0,
     drop_location     TEXT,
-    adventure_pack    TEXT
+    adventure_pack    TEXT,
+    raw_xml           TEXT NOT NULL   -- see §5.1.3
 ) WITHOUT ROWID;
 
 -- Upgrade edges, from _RAID_VERSION_OF_RE and the tier prefixes.
@@ -309,7 +310,8 @@ CREATE TABLE augment (
     uuid      TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
     name      TEXT NOT NULL,
     colour    TEXT NOT NULL,
-    min_level INTEGER NOT NULL DEFAULT 0
+    min_level INTEGER NOT NULL DEFAULT 0,
+    raw_xml   TEXT NOT NULL   -- see §5.1.3
 ) WITHOUT ROWID;
 CREATE INDEX augment_name_idx ON augment(name);
 
@@ -317,7 +319,8 @@ CREATE TABLE filigree (
     uuid          TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
     name          TEXT NOT NULL UNIQUE,
     base_uuid     TEXT REFERENCES filigree_base(uuid),
-    variant_label TEXT                 -- '+1 Intelligence'
+    variant_label TEXT,                -- '+1 Intelligence'
+    raw_xml       TEXT NOT NULL        -- see §5.1.3
 ) WITHOUT ROWID;
 
 CREATE TABLE filigree_base (
@@ -333,9 +336,14 @@ CREATE TABLE filigree_set (
     PRIMARY KEY (filigree_uuid, set_uuid)
 ) WITHOUT ROWID;
 
+-- raw_xml is NULLABLE here uniquely: a set can be referenced by an item's or
+-- filigree's own <SetBonus> MEMBERSHIP tag without ever having its own
+-- <SetBonus> DEFINITION element anywhere in the corpus (removed / never fully
+-- authored). No tiers, nothing to display, no XML to capture.
 CREATE TABLE gear_set (
-    uuid TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE
+    uuid    TEXT PRIMARY KEY,
+    name    TEXT NOT NULL UNIQUE,
+    raw_xml TEXT   -- see §5.1.3
 ) WITHOUT ROWID;
 
 CREATE TABLE item_set (
@@ -485,6 +493,31 @@ Sketched only far enough to keep the fields above aligned with it.
 
 None of this is 0.5.0 work. It is written down so that the four `catalog_meta`
 fields it depends on are present in the very first catalog that ships.
+
+### 5.1.3 `raw_xml` — why display data is NOT modelled column-by-column
+
+Phase 5 implementation finding: Go's picker/detail/search bindings need
+`Description`, `Icon`, `Material`, weapon/armor descriptive strings
+(`AttackModifier`, `ArmorBonus`, ...), `DRBypass`, and full-text search over
+the item's raw XML (`GetAvailableItems` falls back to a RawXML substring
+search when the name doesn't match). None of that is solver-relevant, so
+none of it was modelled when this schema was designed around
+`parse_items`/`parse_augments`/`parse_filigrees`' needs.
+
+Rather than adding ~15 more display-only columns (and a parallel decision for
+every future DDOBuilderV2 field nobody has needed yet), `item`, `augment`,
+`filigree` and `gear_set` each carry one `raw_xml` column: the source node's
+own serialization, verbatim (`ET.tostring(node, encoding='unicode')`).
+
+Go unmarshals it directly into the **existing** `models.XMLItem` /
+`XMLAugment` / `XMLFiligree` / `XMLSetBonus` structs — same `xml:"..."` tags
+that already parse the DDOBuilderV2 files today, so this is zero new Go model
+code and zero frontend change. Full-text search becomes a SQL predicate over
+`raw_xml` instead of an in-memory substring scan, same semantics.
+
+This is the ONE exception to "Load does no interpretation" (§6): raw_xml is
+captured verbatim in Extract, carried unmodified through Transform, and never
+parsed by Load — it is data, not a decision, so the principle holds.
 
 ### 5.2 `app.db`
 
