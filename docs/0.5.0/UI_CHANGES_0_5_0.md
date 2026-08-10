@@ -1,5 +1,13 @@
 # UI spec — the 0.5.0 interface work, to be rebuilt
 
+> [!CAUTION]
+> **DEPRECATED — superseded by [`00_ETL_START_HERE.md`](00_ETL_START_HERE.md).**
+> The project pivoted on 2026-08-10 to a dev-only, build-time ETL producing a
+> normalized SQLite catalog. **0.5.0 is the ETL, 0.5.1 is `app.db`, 0.5.2 is
+> UI/UX.** The plan below is not the plan.
+>
+> **Input to 0.5.2, not 0.5.0.** Note that §2's two-node model is superseded in kind: `gearset_slot(origin)` in `app.db` makes it a schema constraint rather than frontend state, so do not build `solvedEquipmentStore`.
+
 > [!IMPORTANT]
 > **None of this exists on `main`.** It was built on a branch that has been
 > discarded, and only this document survives. Read every "**After**" below as

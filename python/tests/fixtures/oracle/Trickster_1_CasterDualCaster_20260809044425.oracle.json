@@ -1,0 +1,1153 @@
+{
+  "capture_mode": "calculate",
+  "capture_seconds": 2.8,
+  "captured_with_app_version": "0.4.4",
+  "notes": [],
+  "payload": {
+    "armor_restriction": "Light",
+    "build_type": "Caster",
+    "caster_restrict_weapon_families": false,
+    "caster_schools": [],
+    "caster_spellpowers": [],
+    "exclude_gem_of_many_facets": true,
+    "excluded_packs": [
+      "Terror of Demogorgon"
+    ],
+    "gearset_name": "Trickster_1",
+    "is_dino_artifact": false,
+    "max_level": 34,
+    "max_search_time": 60,
+    "minor_artifact_filigree_slots": 5,
+    "mode": "calculate",
+    "offhand_style": "None",
+    "output_filename": "",
+    "pre_equipped": {
+      "Armor": "Legendary Downcast Vest",
+      "Belt": "Ophael's Cincture",
+      "Boots": "Death's Deferral",
+      "Bracers": "Legendary Wintery Wrappings",
+      "Cloak": "Legendary Gravekeeper's Mystic Cloak",
+      "Gloves": "Legendary Hands of Waste",
+      "Goggles": "Legendary Agony's Eyes",
+      "Helmet": "Legendary Crown of Evening's Rise",
+      "Necklace": "Legendary Torc of Prince Raiyum-de II",
+      "Ring_1": "Legendary Argonnessen Eye Band",
+      "Ring_2": "Legendary Ring of Spell Storing",
+      "Trinket": "Legendary Periapt of Dexterity",
+      "Weapon1": "Legendary Calamitous Scimitar",
+      "Weapon2": "Dinosaur Bone Heavy Mace"
+    },
+    "pre_filled_augments": {
+      "Armor": {
+        "Dolorous Slot (Armor)": "Dolorous Silencer (Legendary)",
+        "Miserable Slot (Accessory)": "Miserable Physical Resistance Rating (Legendary)",
+        "Sun": "Solar Gem of Intelligence (Legendary)",
+        "Woeful Slot (Accessory)": "Woeful Force Spell Crit Chance (Legendary)"
+      },
+      "Belt": {
+        "Moon": "Lunar Gem of Illusion (Legendary)",
+        "Sealed in Undeath": "Insightful Intelligence +7"
+      },
+      "Boots": {
+        "Green": "Weaverwisp Melody",
+        "Moon": "Lunar Gem of Intelligence (Legendary)",
+        "Sealed in Undeath": "Insightful Constitution +7"
+      },
+      "Bracers": {
+        "Dolorous Slot (Accessory)": "Dolorous Quality Constitution (Legendary)",
+        "Melancholic Slot (Accessory)": "Melancholic Intelligence (Legendary)",
+        "Miserable Slot (Accessory)": "Miserable Magical Resistance Rating (Legendary)",
+        "Moon": "Lunar Gem of Constitution (Legendary)"
+      },
+      "Cloak": {
+        "Dolorous Slot (Accessory)": "Dolorous Quality Intelligence (Legendary)",
+        "Melancholic Slot (Accessory)": "Melancholic Force Spell Critical Damage (Legendary)",
+        "Sun": "Solar Gem of Sneak Attack Dice (Legendary)"
+      },
+      "Gloves": {
+        "Moon": "Lunar Gem of Physical Protection (Legendary)"
+      },
+      "Goggles": {
+        "Dolorous Slot (Accessory)": "Dolorous Force Spell Critical Damage (Legendary)",
+        "Melancholic Slot (Accessory)": "Melancholic Constitution (Legendary)",
+        "Miserable Slot (Accessory)": "Miserable Force Spell Critical Damage (Legendary)",
+        "Sun": "Solar Gem of Constitution (Legendary)"
+      },
+      "Helmet": {
+        "Sun": "Solar Gem of Illusion (Legendary)"
+      },
+      "Trinket": {
+        "Sun": "Solar Gem of Physical Resistance Rating (Legendary)"
+      },
+      "Weapon1": {
+        "Dolorous Slot (Weapon)": "Dolorous Arcana: Force (Legendary)",
+        "Miserable Slot (Weapon)": "Miserable Arcana: Force (Legendary)"
+      },
+      "Weapon2": {
+        "IoD: Weapon: Claw Slot": "Brightclaw: Intelligence"
+      }
+    },
+    "pre_filled_filigrees": {
+      "artifact": [
+        "Eye of the Beholder/The Inevitable Grave +2 Intelligence",
+        "Lunar Magic/Serpent +2 Intelligence",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "Lunar Magic: +9 Force Spell Power",
+        "Melony's Melody: +1 Intelligence"
+      ],
+      "weapon": [
+        "Eye of the Beholder/The Inevitable Grave +2 Intelligence",
+        "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence",
+        "Lunar Magic/Serpent +2 Intelligence",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "Technomage: +1 Intelligence",
+        "Zephyr: +1 Intelligence",
+        "Twilight's Cloak: +1 Intelligence",
+        "Lunar Magic: +9 Force Spell Power",
+        "Otto's Irrevocable Power: +1 Intelligence",
+        "Melony's Melody: +1 Intelligence"
+      ]
+    },
+    "raid_item_limit": -1,
+    "reserved_minor_artifact_slot": "",
+    "runearm_use": false,
+    "stat_priorities": [
+      {
+        "stat": "force spellpower",
+        "tier": 1
+      },
+      {
+        "stat": "illusion spelldc",
+        "tier": 1
+      },
+      {
+        "stat": "intelligence",
+        "tier": 1
+      },
+      {
+        "stat": "disable device",
+        "tier": 2
+      },
+      {
+        "stat": "sneak attack dice",
+        "tier": 2
+      },
+      {
+        "stat": "spellcraft",
+        "tier": 2
+      },
+      {
+        "stat": "force spelllore",
+        "tier": 2
+      },
+      {
+        "stat": "force spellcriticaldamage",
+        "tier": 3
+      },
+      {
+        "stat": "constitution",
+        "tier": 3
+      },
+      {
+        "stat": "prr",
+        "tier": 3
+      },
+      {
+        "stat": "mrr",
+        "tier": 3
+      },
+      {
+        "stat": "dodge",
+        "tier": 4
+      }
+    ],
+    "swashbuckling": false,
+    "weapon_style": "Dual Caster"
+  },
+  "result": {
+    "activeSets": [
+      "The Legendary Desert's Biting Sands (2-piece)",
+      "Eye of the Beholder (2-piece)",
+      "Zarigan's Arcane Enlightenment (2-piece)",
+      "Zarigan's Arcane Enlightenment (3-piece)",
+      "Lunar Magic (2-piece)",
+      "Lunar Magic (3-piece)",
+      "Lunar Magic (4-piece)",
+      "Melony's Melody (2-piece)"
+    ],
+    "allEffects": {
+      "constitution": [
+        "15.0 Enhancement (Melancholic Constitution (Legendary))",
+        "3.0 Quality (Dolorous Quality Constitution (Legendary))",
+        "7.0 Insightful (Insightful Constitution +7)",
+        "4.0 Artifact (Solar Gem of Constitution (Legendary))",
+        "4.0 Profane (Lunar Gem of Constitution (Legendary))"
+      ],
+      "dodge": [
+        "14.0 Enhancement (Legendary Crown of Evening's Rise)",
+        "6.0 Insightful (Legendary Crown of Evening's Rise)",
+        "3.0 Quality (Legendary Periapt of Dexterity)"
+      ],
+      "force spellcriticaldamage": [
+        "23.0 Enhancement (Melancholic Force Spell Critical Damage (Legendary))",
+        "12.0 Insightful (Dolorous Force Spell Critical Damage (Legendary))",
+        "6.0 Quality (Miserable Force Spell Critical Damage (Legendary))"
+      ],
+      "force spelllore": [
+        "23.0 Equipment (Woeful Force Spell Crit Chance (Legendary))",
+        "6.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))"
+      ],
+      "force spellpower": [
+        "159.0 Equipment (Miserable Arcana: Force (Legendary))",
+        "79.0 Insightful (Dolorous Arcana: Force (Legendary))",
+        "9.0 Stacking (Zarigan's Arcane Enlightenment: +9 Force Spell Power)",
+        "9.0 Stacking (Zarigan's Arcane Enlightenment: +9 Force Spell Power)",
+        "9.0 Stacking (Lunar Magic: +9 Force Spell Power)",
+        "9.0 Stacking (Lunar Magic: +9 Force Spell Power)",
+        "20.0 Stacking (Zarigan's Arcane Enlightenment (3 Piece))",
+        "30.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))"
+      ],
+      "illusion spelldc": [
+        "2.0 Quality (Legendary Gravekeeper's Mystic Cloak)",
+        "8.0 Equipment (Legendary Argonnessen Eye Band)",
+        "3.0 Sacred (Legendary Argonnessen Eye Band)",
+        "4.0 Insightful (Legendary Hands of Waste)",
+        "4.0 Profane (Lunar Gem of Illusion (Legendary))",
+        "4.0 Artifact (Solar Gem of Illusion (Legendary))"
+      ],
+      "intelligence": [
+        "3.0 Quality (Dolorous Quality Intelligence (Legendary))",
+        "7.0 Insightful (Insightful Intelligence +7)",
+        "15.0 Enhancement (Melancholic Intelligence (Legendary))",
+        "4.0 Artifact (Solar Gem of Intelligence (Legendary))",
+        "2.0 Exceptional (Brightclaw: Intelligence)",
+        "4.0 Profane (Lunar Gem of Intelligence (Legendary))",
+        "2.0 Stacking (Eye of the Beholder/The Inevitable Grave +2 Intelligence)",
+        "2.0 Stacking (Eye of the Beholder/The Inevitable Grave +2 Intelligence)",
+        "2.0 Stacking (Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence)",
+        "2.0 Stacking (Lunar Magic/Serpent +2 Intelligence)",
+        "2.0 Stacking (Lunar Magic/Serpent +2 Intelligence)",
+        "1.0 Stacking (Technomage: +1 Intelligence)",
+        "1.0 Stacking (Zephyr: +1 Intelligence)",
+        "1.0 Stacking (Twilight's Cloak: +1 Intelligence)",
+        "1.0 Stacking (Otto's Irrevocable Power: +1 Intelligence)",
+        "2.0 Stacking (Melony's Melody: +1 Intelligence)",
+        "2.0 Stacking (Melony's Melody: +1 Intelligence)"
+      ],
+      "mrr": [
+        "30.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))",
+        "38.0 Enhancement (Miserable Magical Resistance Rating (Legendary))"
+      ],
+      "prr": [
+        "3.0 Exceptional (Weaverwisp Melody)",
+        "30.0 Artifact (Solar Gem of Physical Resistance Rating (Legendary))",
+        "38.0 Enhancement (Miserable Physical Resistance Rating (Legendary))",
+        "30.0 Profane (Lunar Gem of Physical Protection (Legendary))"
+      ],
+      "sneak attack dice": [
+        "3.0 Artifact (Solar Gem of Sneak Attack Dice (Legendary))",
+        "2.0 Profane (Dolorous Silencer (Legendary))"
+      ]
+    },
+    "filigrees": {
+      "artifact": [
+        "Eye of the Beholder/The Inevitable Grave +2 Intelligence",
+        "Lunar Magic/Serpent +2 Intelligence",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "Lunar Magic: +9 Force Spell Power",
+        "Melony's Melody: +1 Intelligence"
+      ],
+      "weapon": [
+        "Eye of the Beholder/The Inevitable Grave +2 Intelligence",
+        "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence",
+        "Lunar Magic/Serpent +2 Intelligence",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "Technomage: +1 Intelligence",
+        "Zephyr: +1 Intelligence",
+        "Twilight's Cloak: +1 Intelligence",
+        "Lunar Magic: +9 Force Spell Power",
+        "Otto's Irrevocable Power: +1 Intelligence",
+        "Melony's Melody: +1 Intelligence"
+      ]
+    },
+    "gearSet": {
+      "Armor": "Legendary Downcast Vest",
+      "Belt": "Ophael's Cincture",
+      "Boots": "Death's Deferral",
+      "Bracers": "Legendary Wintery Wrappings",
+      "Cloak": "Legendary Gravekeeper's Mystic Cloak",
+      "Gloves": "Legendary Hands of Waste",
+      "Goggles": "Legendary Agony's Eyes",
+      "Helmet": "Legendary Crown of Evening's Rise",
+      "Necklace": "Legendary Torc of Prince Raiyum-de II",
+      "Ring_1": "Legendary Argonnessen Eye Band",
+      "Ring_2": "Legendary Ring of Spell Storing",
+      "Trinket": "Legendary Periapt of Dexterity",
+      "Weapon1": "Legendary Calamitous Scimitar",
+      "Weapon2": "Dinosaur Bone Heavy Mace"
+    },
+    "priorityTiers": {
+      "constitution": 3,
+      "disable device": 2,
+      "dodge": 4,
+      "force spellcriticaldamage": 3,
+      "force spelllore": 2,
+      "force spellpower": 1,
+      "illusion spelldc": 1,
+      "intelligence": 1,
+      "mrr": 3,
+      "prr": 3,
+      "sneak attack dice": 2,
+      "spellcraft": 2
+    },
+    "realizedStats": {
+      "constitution": 33.0,
+      "dodge": 23.0,
+      "force spellcriticaldamage": 41.0,
+      "force spelllore": 29.0,
+      "force spellpower": 324.0,
+      "illusion spelldc": 25.0,
+      "intelligence": 53.0,
+      "mrr": 68.0,
+      "prr": 101.0,
+      "sneak attack dice": 5.0
+    },
+    "slots": {
+      "Armor": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "sneak attack dice",
+                "value": 2.0
+              }
+            ],
+            "color": "Dolorous Slot (Armor)",
+            "name": "Dolorous Silencer (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "prr",
+                "value": 38.0
+              }
+            ],
+            "color": "Miserable Slot (Accessory)",
+            "name": "Miserable Physical Resistance Rating (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Equipment",
+                "stat": "force spelllore",
+                "value": 23.0
+              }
+            ],
+            "color": "Woeful Slot (Accessory)",
+            "name": "Woeful Force Spell Crit Chance (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "intelligence",
+                "value": 4.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Intelligence (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Downcast Vest.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Downcast Vest",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Armor",
+        "set_bonus_contributions": []
+      },
+      "Belt": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "intelligence",
+                "value": 7.0
+              }
+            ],
+            "color": "Sealed in Undeath",
+            "name": "Insightful Intelligence +7"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "illusion spelldc",
+                "value": 4.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Illusion (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Ophael's Cincture.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 33,
+          "name": "Ophael's Cincture",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Belt",
+        "set_bonus_contributions": []
+      },
+      "Boots": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "constitution",
+                "value": 7.0
+              }
+            ],
+            "color": "Sealed in Undeath",
+            "name": "Insightful Constitution +7"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Exceptional",
+                "stat": "prr",
+                "value": 3.0
+              }
+            ],
+            "color": "Green",
+            "name": "Weaverwisp Melody"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "intelligence",
+                "value": 4.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Intelligence (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Death's Deferral.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 33,
+          "name": "Death's Deferral",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Boots",
+        "set_bonus_contributions": []
+      },
+      "Bracers": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "intelligence",
+                "value": 15.0
+              }
+            ],
+            "color": "Melancholic Slot (Accessory)",
+            "name": "Melancholic Intelligence (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Quality",
+                "stat": "constitution",
+                "value": 3.0
+              }
+            ],
+            "color": "Dolorous Slot (Accessory)",
+            "name": "Dolorous Quality Constitution (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "mrr",
+                "value": 38.0
+              }
+            ],
+            "color": "Miserable Slot (Accessory)",
+            "name": "Miserable Magical Resistance Rating (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "constitution",
+                "value": 4.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Constitution (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Wintery Wrappings.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Wintery Wrappings",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Bracers",
+        "set_bonus_contributions": []
+      },
+      "Cloak": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "force spellcriticaldamage",
+                "value": 23.0
+              }
+            ],
+            "color": "Melancholic Slot (Accessory)",
+            "name": "Melancholic Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Quality",
+                "stat": "intelligence",
+                "value": 3.0
+              }
+            ],
+            "color": "Dolorous Slot (Accessory)",
+            "name": "Dolorous Quality Intelligence (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "sneak attack dice",
+                "value": 3.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Sneak Attack Dice (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Gravekeeper's Mystic Cloak.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Gravekeeper's Mystic Cloak",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Cloak",
+        "set_bonus_contributions": []
+      },
+      "Gloves": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "prr",
+                "value": 30.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Physical Protection (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Hands of Waste.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Hands of Waste",
+          "pack": "Tavern Tales"
+        },
+        "location": "Gloves",
+        "set_bonus_contributions": []
+      },
+      "Goggles": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "constitution",
+                "value": 15.0
+              }
+            ],
+            "color": "Melancholic Slot (Accessory)",
+            "name": "Melancholic Constitution (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "force spellcriticaldamage",
+                "value": 12.0
+              }
+            ],
+            "color": "Dolorous Slot (Accessory)",
+            "name": "Dolorous Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Quality",
+                "stat": "force spellcriticaldamage",
+                "value": 6.0
+              }
+            ],
+            "color": "Miserable Slot (Accessory)",
+            "name": "Miserable Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "constitution",
+                "value": 4.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Constitution (Legendary)"
+          }
+        ],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Eye of the Beholder/The Inevitable Grave +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Lunar Magic/Serpent +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Melony's Melody: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Legendary Agony's Eyes.item",
+          "is_raid": false,
+          "minor": true,
+          "ml": 34,
+          "name": "Legendary Agony's Eyes",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Goggles",
+        "set_bonus_contributions": []
+      },
+      "Helmet": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "illusion spelldc",
+                "value": 4.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Illusion (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Crown of Evening's Rise.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Crown of Evening's Rise",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Helmet",
+        "set_bonus_contributions": []
+      },
+      "Necklace": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Torc of Prince Raiyum-de II.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Torc of Prince Raiyum-de II",
+          "pack": null
+        },
+        "location": "Necklace",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "force spelllore",
+                "value": 6.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "force spellpower",
+                "value": 30.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "mrr",
+                "value": 30.0
+              }
+            ],
+            "pieces": 2,
+            "set": "The Legendary Desert's Biting Sands"
+          }
+        ]
+      },
+      "Ring_1": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Argonnessen Eye Band.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Argonnessen Eye Band",
+          "pack": "The Dragon's Hand"
+        },
+        "location": "Ring_1",
+        "set_bonus_contributions": []
+      },
+      "Ring_2": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Ring of Spell Storing.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Ring of Spell Storing",
+          "pack": null
+        },
+        "location": "Ring_2",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "force spelllore",
+                "value": 6.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "force spellpower",
+                "value": 30.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "mrr",
+                "value": 30.0
+              }
+            ],
+            "pieces": 2,
+            "set": "The Legendary Desert's Biting Sands"
+          }
+        ]
+      },
+      "Trinket": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "prr",
+                "value": 30.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Physical Resistance Rating (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Periapt of Dexterity.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Periapt of Dexterity",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Trinket",
+        "set_bonus_contributions": []
+      },
+      "Weapon1": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "force spellpower",
+                "value": 79.0
+              }
+            ],
+            "color": "Dolorous Slot (Weapon)",
+            "name": "Dolorous Arcana: Force (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Equipment",
+                "stat": "force spellpower",
+                "value": 159.0
+              }
+            ],
+            "color": "Miserable Slot (Weapon)",
+            "name": "Miserable Arcana: Force (Legendary)"
+          }
+        ],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Eye of the Beholder/The Inevitable Grave +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Lunar Magic/Serpent +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Technomage: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Zephyr: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Twilight's Cloak: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Otto's Irrevocable Power: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Melony's Melody: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Legendary Calamitous Scimitar.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Calamitous Scimitar",
+          "pack": null
+        },
+        "location": "Weapon1",
+        "set_bonus_contributions": []
+      },
+      "Weapon2": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Exceptional",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "color": "IoD: Weapon: Claw Slot",
+            "name": "Brightclaw: Intelligence"
+          }
+        ],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Eye of the Beholder/The Inevitable Grave +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Lunar Magic/Serpent +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Technomage: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Zephyr: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Twilight's Cloak: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Otto's Irrevocable Power: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Melony's Melody: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Dinosaur Bone Heavy Mace.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 31,
+          "name": "Dinosaur Bone Heavy Mace",
+          "pack": "Isle of Dread"
+        },
+        "location": "Weapon2",
+        "set_bonus_contributions": []
+      }
+    },
+    "tierReport": {
+      "consolidation": null,
+      "degraded": false,
+      "notes": [],
+      "reconciliation": {
+        "elapsedSeconds": 0.16,
+        "status": "optimal"
+      },
+      "stages": [],
+      "totalElapsedSeconds": 0.16
+    },
+    "tierScores": {},
+    "unmatchedPriorities": [],
+    "unmetTier4": [
+      "dodge"
+    ]
+  },
+  "source_app_version": "0.4.2",
+  "source_file": "Trickster_1_CasterDualCaster_20260809044425.ddogearset",
+  "source_version": "1.2",
+  "stored_reference": {
+    "activeSets": [
+      "The Legendary Desert's Biting Sands (2-piece)",
+      "Eye of the Beholder (2-piece)",
+      "Zarigan's Arcane Enlightenment (2-piece)",
+      "Zarigan's Arcane Enlightenment (3-piece)",
+      "Lunar Magic (2-piece)",
+      "Lunar Magic (3-piece)",
+      "Lunar Magic (4-piece)",
+      "Melony's Melody (2-piece)"
+    ],
+    "realizedStats": {
+      "constitution": 33,
+      "dodge": 23,
+      "force spellcriticaldamage": 41,
+      "force spelllore": 29,
+      "force spellpower": 324,
+      "illusion spelldc": 25,
+      "intelligence": 53,
+      "mrr": 68,
+      "prr": 101,
+      "sneak attack dice": 5
+    },
+    "trustworthy": true,
+    "why": "real solver output"
+  }
+}

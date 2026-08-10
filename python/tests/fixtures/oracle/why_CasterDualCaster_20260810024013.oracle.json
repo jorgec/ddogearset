@@ -1,0 +1,1107 @@
+{
+  "capture_mode": "calculate",
+  "capture_seconds": 2.8,
+  "captured_with_app_version": "0.4.4",
+  "notes": [],
+  "payload": {
+    "armor_restriction": "Light",
+    "build_type": "Caster",
+    "caster_restrict_weapon_families": false,
+    "caster_schools": [],
+    "caster_spellpowers": [],
+    "exclude_gem_of_many_facets": true,
+    "excluded_packs": [
+      "Terror of Demogorgon"
+    ],
+    "gearset_name": "why",
+    "is_dino_artifact": true,
+    "max_level": 34,
+    "max_search_time": 60,
+    "minor_artifact_filigree_slots": 5,
+    "mode": "calculate",
+    "offhand_style": "None",
+    "output_filename": "",
+    "pre_equipped": {
+      "Armor": "Legendary Downcast Vest",
+      "Belt": "Legendary Tunneler's Toolkit",
+      "Boots": "Dinosaur Bone Boots",
+      "Bracers": "Legendary Auspicious Bracers",
+      "Cloak": "Legendary Gravekeeper's Mystic Cloak",
+      "Gloves": "Legendary Darstil's Gloves",
+      "Goggles": "Legendary Kundarak Delving Goggles",
+      "Helmet": "Legendary Lamordian Bowler",
+      "Necklace": "Legendary Torc of Prince Raiyum-de II",
+      "Ring_1": "Legendary Ring of Spell Storing",
+      "Ring_2": "Legendary Argonnessen Eye Band",
+      "Trinket": "Bauble of Draconic Resistance",
+      "Weapon1": "Attuned Bone Dwarven Waraxe",
+      "Weapon2": "The Piercing Pain"
+    },
+    "pre_filled_augments": {
+      "Armor": {
+        "Dolorous Slot (Armor)": "Dolorous Silencer (Legendary)",
+        "Miserable Slot (Accessory)": "Miserable Force Spell Critical Damage (Legendary)",
+        "Sun": "Solar Gem of Intelligence (Legendary)",
+        "Woeful Slot (Accessory)": "Woeful Force Spell Crit Chance (Legendary)"
+      },
+      "Belt": {
+        "Moon": "Lunar Gem of Illusion (Legendary)"
+      },
+      "Boots": {
+        "IoD: Accessory: Artifact Claw Slot": "Claw: +38 Physical Resistance Rating",
+        "IoD: Accessory: Artifact Scale Slot": "Scale: +15 Intelligence"
+      },
+      "Bracers": {
+        "Dolorous Slot (Accessory)": "Dolorous Quality Intelligence (Legendary)",
+        "Melancholic Slot (Accessory)": "Melancholic Force Spell Critical Damage (Legendary)",
+        "Moon": "Lunar Gem of Disable Device and Open Lock (Legendary)"
+      },
+      "Cloak": {
+        "Dolorous Slot (Accessory)": "Dolorous Force Spell Critical Damage (Legendary)",
+        "Melancholic Slot (Accessory)": "Melancholic Constitution (Legendary)",
+        "Sun": "Solar Gem of Disable Device and Open Lock (Legendary)"
+      },
+      "Gloves": {
+        "Moon": "Lunar Gem of Intelligence (Legendary)"
+      },
+      "Helmet": {
+        "Dolorous Slot (Accessory)": "Dolorous Quality Constitution (Legendary)",
+        "Sun": "Solar Gem of Illusion (Legendary)"
+      },
+      "Necklace": {
+        "Green": "Weaverwisp Melody"
+      },
+      "Trinket": {
+        "Sealed in Undeath": "Insightful Constitution +7",
+        "Sun": "Solar Gem of Sneak Attack Dice (Legendary)"
+      },
+      "Weapon1": {
+        "IoD: Weapon: Claw Slot": "Brightclaw: Intelligence"
+      },
+      "Weapon2": {
+        "Dolorous Slot (Weapon)": "Dolorous Arcana: Force (Legendary)",
+        "Miserable Slot (Weapon)": "Miserable Arcana: Force (Legendary)"
+      }
+    },
+    "pre_filled_filigrees": {
+      "artifact": [
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "The Cry of Battle: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ],
+      "weapon": [
+        "Nystul's Mystical Defense: +1 Constitution",
+        "Nystul's Mystical Defense/Electrocution +6 MRR",
+        "The Blood Feast/Frozen Wanderer +6 PRR",
+        "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence",
+        "Technomage/Unbreakable +2 Constitution",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "The Blood Feast: +1 Constitution",
+        "The Cry of Battle: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ]
+    },
+    "raid_item_limit": -1,
+    "reserved_minor_artifact_slot": "",
+    "runearm_use": false,
+    "stat_priorities": [
+      {
+        "stat": "force spellpower",
+        "tier": 1
+      },
+      {
+        "stat": "Sneak attack dice",
+        "tier": 1
+      },
+      {
+        "stat": "illusion spelldc",
+        "tier": 1
+      },
+      {
+        "stat": "Intelligence",
+        "tier": 2
+      },
+      {
+        "stat": "disable device skill",
+        "tier": 2
+      },
+      {
+        "stat": "spellcraft skill",
+        "tier": 2
+      },
+      {
+        "stat": "force spelllore",
+        "tier": 2
+      },
+      {
+        "stat": "force spellcriticaldamage",
+        "tier": 2
+      },
+      {
+        "stat": "constitution",
+        "tier": 3
+      },
+      {
+        "stat": "prr",
+        "tier": 3
+      },
+      {
+        "stat": "mrr",
+        "tier": 3
+      },
+      {
+        "stat": "dodge",
+        "tier": 4
+      },
+      {
+        "stat": "astute skills",
+        "tier": 4
+      }
+    ],
+    "swashbuckling": false,
+    "weapon_style": "Dual Caster"
+  },
+  "result": {
+    "activeSets": [
+      "The Legendary Desert's Biting Sands (2-piece)",
+      "Nystul's Mystical Defense (2-piece)",
+      "Zarigan's Arcane Enlightenment (2-piece)",
+      "Zarigan's Arcane Enlightenment (3-piece)",
+      "The Blood Feast (2-piece)",
+      "The Cry of Battle (2-piece)",
+      "Lunar Magic (2-piece)",
+      "Trapper's Delight (2-piece)"
+    ],
+    "allEffects": {
+      "Intelligence": [
+        "7.0 Insightful (Legendary Lamordian Bowler)",
+        "15.0 Enhancement (Scale: +15 Intelligence)",
+        "3.0 Quality (Dolorous Quality Intelligence (Legendary))",
+        "4.0 Artifact (Solar Gem of Intelligence (Legendary))",
+        "2.0 Exceptional (Brightclaw: Intelligence)",
+        "4.0 Profane (Lunar Gem of Intelligence (Legendary))",
+        "2.0 Stacking (Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence)",
+        "1.0 Stacking (Trapper's Delight: +1 Intelligence)",
+        "1.0 Stacking (Trapper's Delight: +1 Intelligence)"
+      ],
+      "Sneak attack dice": [
+        "3.0 Artifact (Solar Gem of Sneak Attack Dice (Legendary))",
+        "2.0 Profane (Dolorous Silencer (Legendary))"
+      ],
+      "constitution": [
+        "15.0 Enhancement (Melancholic Constitution (Legendary))",
+        "3.0 Quality (Dolorous Quality Constitution (Legendary))",
+        "7.0 Insightful (Insightful Constitution +7)",
+        "1.0 Stacking (Nystul's Mystical Defense: +1 Constitution)",
+        "2.0 Stacking (Technomage/Unbreakable +2 Constitution)",
+        "1.0 Stacking (The Blood Feast: +1 Constitution)",
+        "1.0 Stacking (The Cry of Battle: +1 Constitution)",
+        "1.0 Stacking (The Cry of Battle: +1 Constitution)",
+        "1.0 Stacking (The Blood Feast (2 Piece))"
+      ],
+      "disable device skill": [
+        "21.0 Competence (Legendary Kundarak Delving Goggles)",
+        "5.0 Quality (Legendary Tunneler's Toolkit)",
+        "6.0 Artifact (Solar Gem of Disable Device and Open Lock (Legendary))",
+        "6.0 Profane (Lunar Gem of Disable Device and Open Lock (Legendary))",
+        "1.0 Stacking (Trapper's Delight (2 Piece))"
+      ],
+      "dodge": [
+        "15.0 Enhancement (Bauble of Draconic Resistance)"
+      ],
+      "force spellcriticaldamage": [
+        "23.0 Enhancement (Melancholic Force Spell Critical Damage (Legendary))",
+        "12.0 Insightful (Dolorous Force Spell Critical Damage (Legendary))",
+        "6.0 Quality (Miserable Force Spell Critical Damage (Legendary))"
+      ],
+      "force spelllore": [
+        "23.0 Equipment (Woeful Force Spell Crit Chance (Legendary))",
+        "6.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))"
+      ],
+      "force spellpower": [
+        "159.0 Equipment (Miserable Arcana: Force (Legendary))",
+        "79.0 Insightful (Dolorous Arcana: Force (Legendary))",
+        "9.0 Stacking (Zarigan's Arcane Enlightenment: +9 Force Spell Power)",
+        "9.0 Stacking (Zarigan's Arcane Enlightenment: +9 Force Spell Power)",
+        "9.0 Stacking (Lunar Magic: +9 Force Spell Power)",
+        "9.0 Stacking (Lunar Magic: +9 Force Spell Power)",
+        "20.0 Stacking (Zarigan's Arcane Enlightenment (3 Piece))",
+        "30.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))"
+      ],
+      "illusion spelldc": [
+        "2.0 Quality (Legendary Gravekeeper's Mystic Cloak)",
+        "8.0 Equipment (Legendary Argonnessen Eye Band)",
+        "3.0 Sacred (Legendary Argonnessen Eye Band)",
+        "4.0 Insightful (Legendary Darstil's Gloves)",
+        "4.0 Profane (Lunar Gem of Illusion (Legendary))",
+        "4.0 Artifact (Solar Gem of Illusion (Legendary))"
+      ],
+      "mrr": [
+        "30.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))",
+        "6.0 Stacking (Nystul's Mystical Defense/Electrocution +6 MRR)",
+        "5.0 Stacking (Nystul's Mystical Defense (2 Piece))"
+      ],
+      "prr": [
+        "3.0 Exceptional (Weaverwisp Melody)",
+        "38.0 Enhancement (Claw: +38 Physical Resistance Rating)",
+        "6.0 Stacking (The Blood Feast/Frozen Wanderer +6 PRR)"
+      ],
+      "spellcraft skill": [
+        "22.0 Competence (Legendary Auspicious Bracers)"
+      ]
+    },
+    "filigrees": {
+      "artifact": [
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "The Cry of Battle: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ],
+      "weapon": [
+        "Nystul's Mystical Defense: +1 Constitution",
+        "Nystul's Mystical Defense/Electrocution +6 MRR",
+        "The Blood Feast/Frozen Wanderer +6 PRR",
+        "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence",
+        "Technomage/Unbreakable +2 Constitution",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "The Blood Feast: +1 Constitution",
+        "The Cry of Battle: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ]
+    },
+    "gearSet": {
+      "Armor": "Legendary Downcast Vest",
+      "Belt": "Legendary Tunneler's Toolkit",
+      "Boots": "Dinosaur Bone Boots",
+      "Bracers": "Legendary Auspicious Bracers",
+      "Cloak": "Legendary Gravekeeper's Mystic Cloak",
+      "Gloves": "Legendary Darstil's Gloves",
+      "Goggles": "Legendary Kundarak Delving Goggles",
+      "Helmet": "Legendary Lamordian Bowler",
+      "Necklace": "Legendary Torc of Prince Raiyum-de II",
+      "Ring_1": "Legendary Ring of Spell Storing",
+      "Ring_2": "Legendary Argonnessen Eye Band",
+      "Trinket": "Bauble of Draconic Resistance",
+      "Weapon1": "Attuned Bone Dwarven Waraxe",
+      "Weapon2": "The Piercing Pain"
+    },
+    "priorityTiers": {
+      "Intelligence": 2,
+      "Sneak attack dice": 1,
+      "astute skills": 4,
+      "constitution": 3,
+      "disable device skill": 2,
+      "dodge": 4,
+      "force spellcriticaldamage": 2,
+      "force spelllore": 2,
+      "force spellpower": 1,
+      "illusion spelldc": 1,
+      "mrr": 3,
+      "prr": 3,
+      "spellcraft skill": 2
+    },
+    "realizedStats": {
+      "Intelligence": 39.0,
+      "Sneak attack dice": 5.0,
+      "constitution": 32.0,
+      "disable device skill": 39.0,
+      "dodge": 15.0,
+      "force spellcriticaldamage": 41.0,
+      "force spelllore": 29.0,
+      "force spellpower": 324.0,
+      "illusion spelldc": 25.0,
+      "mrr": 41.0,
+      "prr": 47.0,
+      "spellcraft skill": 22.0
+    },
+    "slots": {
+      "Armor": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "Sneak attack dice",
+                "value": 2.0
+              }
+            ],
+            "color": "Dolorous Slot (Armor)",
+            "name": "Dolorous Silencer (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Quality",
+                "stat": "force spellcriticaldamage",
+                "value": 6.0
+              }
+            ],
+            "color": "Miserable Slot (Accessory)",
+            "name": "Miserable Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Equipment",
+                "stat": "force spelllore",
+                "value": 23.0
+              }
+            ],
+            "color": "Woeful Slot (Accessory)",
+            "name": "Woeful Force Spell Crit Chance (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "Intelligence",
+                "value": 4.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Intelligence (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Downcast Vest.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Downcast Vest",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Armor",
+        "set_bonus_contributions": []
+      },
+      "Belt": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "illusion spelldc",
+                "value": 4.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Illusion (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Tunneler's Toolkit.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Tunneler's Toolkit",
+          "pack": "Fall of the Night Brigade"
+        },
+        "location": "Belt",
+        "set_bonus_contributions": []
+      },
+      "Boots": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "Intelligence",
+                "value": 15.0
+              }
+            ],
+            "color": "IoD: Accessory: Artifact Scale Slot",
+            "name": "Scale: +15 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "prr",
+                "value": 38.0
+              }
+            ],
+            "color": "IoD: Accessory: Artifact Claw Slot",
+            "name": "Claw: +38 Physical Resistance Rating"
+          }
+        ],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Cry of Battle: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "Intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Trapper's Delight: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Dinosaur Bone Boots.item",
+          "is_raid": false,
+          "minor": true,
+          "ml": 31,
+          "name": "Dinosaur Bone Boots",
+          "pack": "Isle of Dread"
+        },
+        "location": "Boots",
+        "set_bonus_contributions": []
+      },
+      "Bracers": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "force spellcriticaldamage",
+                "value": 23.0
+              }
+            ],
+            "color": "Melancholic Slot (Accessory)",
+            "name": "Melancholic Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Quality",
+                "stat": "Intelligence",
+                "value": 3.0
+              }
+            ],
+            "color": "Dolorous Slot (Accessory)",
+            "name": "Dolorous Quality Intelligence (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "disable device skill",
+                "value": 6.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Disable Device and Open Lock (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Auspicious Bracers.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Auspicious Bracers",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Bracers",
+        "set_bonus_contributions": []
+      },
+      "Cloak": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "constitution",
+                "value": 15.0
+              }
+            ],
+            "color": "Melancholic Slot (Accessory)",
+            "name": "Melancholic Constitution (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "force spellcriticaldamage",
+                "value": 12.0
+              }
+            ],
+            "color": "Dolorous Slot (Accessory)",
+            "name": "Dolorous Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "disable device skill",
+                "value": 6.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Disable Device and Open Lock (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Gravekeeper's Mystic Cloak.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Gravekeeper's Mystic Cloak",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Cloak",
+        "set_bonus_contributions": []
+      },
+      "Gloves": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "Intelligence",
+                "value": 4.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Intelligence (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Darstil's Gloves.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Darstil's Gloves",
+          "pack": "Fall of the Night Brigade"
+        },
+        "location": "Gloves",
+        "set_bonus_contributions": []
+      },
+      "Goggles": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Kundarak Delving Goggles.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Kundarak Delving Goggles",
+          "pack": null
+        },
+        "location": "Goggles",
+        "set_bonus_contributions": []
+      },
+      "Helmet": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Quality",
+                "stat": "constitution",
+                "value": 3.0
+              }
+            ],
+            "color": "Dolorous Slot (Accessory)",
+            "name": "Dolorous Quality Constitution (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "illusion spelldc",
+                "value": 4.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Illusion (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Lamordian Bowler.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Lamordian Bowler",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Helmet",
+        "set_bonus_contributions": []
+      },
+      "Necklace": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Exceptional",
+                "stat": "prr",
+                "value": 3.0
+              }
+            ],
+            "color": "Green",
+            "name": "Weaverwisp Melody"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Torc of Prince Raiyum-de II.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Torc of Prince Raiyum-de II",
+          "pack": null
+        },
+        "location": "Necklace",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "force spelllore",
+                "value": 6.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "force spellpower",
+                "value": 30.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "mrr",
+                "value": 30.0
+              }
+            ],
+            "pieces": 2,
+            "set": "The Legendary Desert's Biting Sands"
+          }
+        ]
+      },
+      "Ring_1": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Ring of Spell Storing.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Ring of Spell Storing",
+          "pack": null
+        },
+        "location": "Ring_1",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "force spelllore",
+                "value": 6.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "force spellpower",
+                "value": 30.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "mrr",
+                "value": 30.0
+              }
+            ],
+            "pieces": 2,
+            "set": "The Legendary Desert's Biting Sands"
+          }
+        ]
+      },
+      "Ring_2": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Argonnessen Eye Band.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Argonnessen Eye Band",
+          "pack": "The Dragon's Hand"
+        },
+        "location": "Ring_2",
+        "set_bonus_contributions": []
+      },
+      "Trinket": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "constitution",
+                "value": 7.0
+              }
+            ],
+            "color": "Sealed in Undeath",
+            "name": "Insightful Constitution +7"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "Sneak attack dice",
+                "value": 3.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Sneak Attack Dice (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Bauble of Draconic Resistance.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 33,
+          "name": "Bauble of Draconic Resistance",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Trinket",
+        "set_bonus_contributions": []
+      },
+      "Weapon1": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Exceptional",
+                "stat": "Intelligence",
+                "value": 2.0
+              }
+            ],
+            "color": "IoD: Weapon: Claw Slot",
+            "name": "Brightclaw: Intelligence"
+          }
+        ],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "mrr",
+                "value": 6.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense/Electrocution +6 MRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "prr",
+                "value": 6.0
+              }
+            ],
+            "name": "The Blood Feast/Frozen Wanderer +6 PRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "Intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 2.0
+              }
+            ],
+            "name": "Technomage/Unbreakable +2 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Blood Feast: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Cry of Battle: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "Intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Trapper's Delight: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Attuned Bone Dwarven Waraxe.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 31,
+          "name": "Attuned Bone Dwarven Waraxe",
+          "pack": "The Isle of Dread"
+        },
+        "location": "Weapon1",
+        "set_bonus_contributions": []
+      },
+      "Weapon2": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "force spellpower",
+                "value": 79.0
+              }
+            ],
+            "color": "Dolorous Slot (Weapon)",
+            "name": "Dolorous Arcana: Force (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Equipment",
+                "stat": "force spellpower",
+                "value": 159.0
+              }
+            ],
+            "color": "Miserable Slot (Weapon)",
+            "name": "Miserable Arcana: Force (Legendary)"
+          }
+        ],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "mrr",
+                "value": 6.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense/Electrocution +6 MRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "prr",
+                "value": 6.0
+              }
+            ],
+            "name": "The Blood Feast/Frozen Wanderer +6 PRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "Intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 2.0
+              }
+            ],
+            "name": "Technomage/Unbreakable +2 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Blood Feast: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Cry of Battle: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "Intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Trapper's Delight: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "The Piercing Pain.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 34,
+          "name": "The Piercing Pain",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Weapon2",
+        "set_bonus_contributions": []
+      }
+    },
+    "tierReport": {
+      "consolidation": null,
+      "degraded": false,
+      "notes": [],
+      "reconciliation": {
+        "elapsedSeconds": 0.15,
+        "status": "optimal"
+      },
+      "stages": [],
+      "totalElapsedSeconds": 0.15
+    },
+    "tierScores": {},
+    "unmatchedPriorities": [],
+    "unmetTier4": [
+      "astute skills",
+      "dodge"
+    ]
+  },
+  "source_app_version": "0.5.0",
+  "source_file": "why_CasterDualCaster_20260810024013.ddogearset",
+  "source_version": "1.3",
+  "stored_reference": {
+    "activeSets": [
+      "The Legendary Desert's Biting Sands (2-piece)",
+      "Nystul's Mystical Defense (2-piece)",
+      "Zarigan's Arcane Enlightenment (2-piece)",
+      "Zarigan's Arcane Enlightenment (3-piece)",
+      "The Blood Feast (2-piece)",
+      "The Cry of Battle (2-piece)",
+      "Lunar Magic (2-piece)",
+      "Trapper's Delight (2-piece)"
+    ],
+    "realizedStats": {
+      "Intelligence": 39,
+      "Sneak attack dice": 5,
+      "constitution": 32,
+      "disable device skill": 39,
+      "dodge": 15,
+      "force spellcriticaldamage": 41,
+      "force spelllore": 29,
+      "force spellpower": 324,
+      "illusion spelldc": 25,
+      "mrr": 61,
+      "prr": 67,
+      "spellcraft skill": 22
+    },
+    "trustworthy": false,
+    "why": "written by the discarded 0.5.0 Go implementation - gear names are real, stats are not"
+  }
+}

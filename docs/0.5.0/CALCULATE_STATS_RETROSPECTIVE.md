@@ -1,5 +1,13 @@
 # Retrospective — why "Calculate Stats in Go" failed, and what to do instead
 
+> [!CAUTION]
+> **DEPRECATED — superseded by [`00_ETL_START_HERE.md`](00_ETL_START_HERE.md).**
+> The project pivoted on 2026-08-10 to a dev-only, build-time ETL producing a
+> normalized SQLite catalog. **0.5.0 is the ETL, 0.5.1 is `app.db`, 0.5.2 is
+> UI/UX.** The plan below is not the plan.
+>
+> **Still the most important document here.** Why reimplementing domain rules outside Python failed. The ETL does not repeal a single lesson in it — notably "one layer owns priority matching".
+
 > [!IMPORTANT]
 > **The code discussed here no longer exists.** The branch it lived on was
 > discarded and only these documents were carried to `main`. File names below

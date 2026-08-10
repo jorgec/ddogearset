@@ -1,5 +1,13 @@
 # START HERE — recalculation phase
 
+> [!CAUTION]
+> **DEPRECATED — superseded by [`00_ETL_START_HERE.md`](00_ETL_START_HERE.md).**
+> The project pivoted on 2026-08-10 to a dev-only, build-time ETL producing a
+> normalized SQLite catalog. **0.5.0 is the ETL, 0.5.1 is `app.db`, 0.5.2 is
+> UI/UX.** The plan below is not the plan.
+>
+> **Keep for the findings, not the plan:** the XML shape traps (§4.1, §4.4, §4.5) are exactly what the Transform stage must handle, and the Wails bridge payload limits (§4.2) still bind.
+
 **Written:** 2026-08-10.
 **Audience:** an agent or developer picking this up **from `main`**, with no
 memory of the session that produced these documents.

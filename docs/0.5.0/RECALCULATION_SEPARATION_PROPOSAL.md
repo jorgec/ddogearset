@@ -1,5 +1,13 @@
 # Separating solving from recalculation — proposal
 
+> [!CAUTION]
+> **DEPRECATED — superseded by [`00_ETL_START_HERE.md`](00_ETL_START_HERE.md).**
+> The project pivoted on 2026-08-10 to a dev-only, build-time ETL producing a
+> normalized SQLite catalog. **0.5.0 is the ETL, 0.5.1 is `app.db`, 0.5.2 is
+> UI/UX.** The plan below is not the plan.
+>
+> **Keep for §2** — the search-vs-domain-rules distinction. The ETL enforces it structurally rather than by discipline.
+
 > [!IMPORTANT]
 > Read [`00_RECALC_PHASE_START_HERE.md`](00_RECALC_PHASE_START_HERE.md) first —
 > it records the exact state of `main`, and the hard-won findings (§4 there)

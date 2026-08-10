@@ -1,0 +1,857 @@
+{
+  "capture_mode": "calculate",
+  "capture_seconds": 3.1,
+  "captured_with_app_version": "0.4.4",
+  "notes": [],
+  "payload": {
+    "armor_restriction": "Light",
+    "build_type": "Caster",
+    "caster_restrict_weapon_families": true,
+    "caster_schools": [],
+    "caster_spellpowers": [],
+    "exclude_gem_of_many_facets": true,
+    "excluded_packs": [],
+    "gearset_name": "Atr",
+    "is_dino_artifact": false,
+    "max_level": 34,
+    "max_search_time": 60,
+    "minor_artifact_filigree_slots": 5,
+    "mode": "calculate",
+    "offhand_style": "None",
+    "output_filename": "",
+    "pre_equipped": {
+      "Armor": "Legendary Downcast Vest",
+      "Belt": "Legendary Tunneler's Toolkit",
+      "Boots": "Legendary Experimental Rocket Boots",
+      "Bracers": "Legendary Verminkeeper's Bangle",
+      "Cloak": "Legendary Gravekeeper's Mystic Cloak",
+      "Gloves": "Legendary Darstil's Gloves",
+      "Goggles": "Legendary Kundarak Delving Goggles",
+      "Helmet": "Legendary Lamordian Bowler",
+      "Necklace": "Legendary Torc of Prince Raiyum-de II",
+      "Ring_1": "Legendary Argonnessen Eye Band",
+      "Ring_2": "Legendary Ring of Spell Storing",
+      "Trinket": "Legendary Tiny Brain in a Tiny Jar",
+      "Weapon1": "Legendary Calamitous Morningstar",
+      "Weapon2": "Legendary Calamitous Heavy Mace"
+    },
+    "pre_filled_augments": {
+      "Trinket": {
+        "Dolorous Slot (Accessory)": "Dolorous Force Spell Critical Damage (Legendary)",
+        "Green": "Weaverwisp Melody",
+        "Melancholic Slot (Accessory)": "Melancholic Force Spell Critical Damage (Legendary)",
+        "Sun": "Solar Gem of Illusion (Legendary)"
+      }
+    },
+    "pre_filled_filigrees": {
+      "artifact": [
+        "Technomage/Unbreakable +2 Constitution",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "The Blood Feast: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ],
+      "weapon": [
+        "Nystul's Mystical Defense: +1 Constitution",
+        "Nystul's Mystical Defense/Electrocution +6 MRR",
+        "The Blood Feast/Frozen Wanderer +6 PRR",
+        "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence",
+        "Technomage/Unbreakable +2 Constitution",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "Technomage: +1 Intelligence",
+        "The Blood Feast: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ]
+    },
+    "raid_item_limit": 2,
+    "reserved_minor_artifact_slot": "",
+    "runearm_use": false,
+    "stat_priorities": [
+      {
+        "stat": "force spellpower",
+        "tier": 1
+      },
+      {
+        "stat": "force spellcriticaldamage",
+        "tier": 1
+      },
+      {
+        "stat": "force spelllore",
+        "tier": 1
+      },
+      {
+        "stat": "disable device",
+        "tier": 1
+      },
+      {
+        "stat": "illusion spelldc",
+        "tier": 2
+      },
+      {
+        "stat": "intelligence",
+        "tier": 2
+      },
+      {
+        "stat": "sneak attack dice",
+        "tier": 2
+      },
+      {
+        "stat": "transmutation spelldc",
+        "tier": 3
+      },
+      {
+        "stat": "constitution",
+        "tier": 3
+      },
+      {
+        "stat": "prr",
+        "tier": 3
+      },
+      {
+        "stat": "mrr",
+        "tier": 3
+      },
+      {
+        "stat": "dodge",
+        "tier": 4
+      },
+      {
+        "stat": "intelligence skills",
+        "tier": 5
+      }
+    ],
+    "swashbuckling": false,
+    "weapon_style": "Dual Caster"
+  },
+  "result": {
+    "activeSets": [
+      "The Legendary Desert's Biting Sands (2-piece)",
+      "Nystul's Mystical Defense (2-piece)",
+      "Zarigan's Arcane Enlightenment (2-piece)",
+      "Zarigan's Arcane Enlightenment (3-piece)",
+      "Technomage (2-piece)",
+      "Technomage (3-piece)",
+      "The Blood Feast (2-piece)",
+      "The Blood Feast (3-piece)",
+      "Lunar Magic (2-piece)",
+      "Trapper's Delight (2-piece)"
+    ],
+    "allEffects": {
+      "constitution": [
+        "6.0 Insightful (Legendary Verminkeeper's Bangle)",
+        "1.0 Stacking (Nystul's Mystical Defense: +1 Constitution)",
+        "2.0 Stacking (Technomage/Unbreakable +2 Constitution)",
+        "2.0 Stacking (Technomage/Unbreakable +2 Constitution)",
+        "1.0 Stacking (The Blood Feast: +1 Constitution)",
+        "1.0 Stacking (The Blood Feast: +1 Constitution)",
+        "1.0 Stacking (The Blood Feast (2 Piece))"
+      ],
+      "disable device": [
+        "21.0 Competence (Legendary Kundarak Delving Goggles)",
+        "5.0 Quality (Legendary Tunneler's Toolkit)",
+        "1.0 Stacking (Trapper's Delight (2 Piece))"
+      ],
+      "dodge": [
+        "15.0 Enhancement (Legendary Tiny Brain in a Tiny Jar)"
+      ],
+      "force spellcriticaldamage": [
+        "23.0 Enhancement (Melancholic Force Spell Critical Damage (Legendary))",
+        "12.0 Insightful (Dolorous Force Spell Critical Damage (Legendary))"
+      ],
+      "force spelllore": [
+        "6.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))"
+      ],
+      "force spellpower": [
+        "9.0 Stacking (Zarigan's Arcane Enlightenment: +9 Force Spell Power)",
+        "9.0 Stacking (Zarigan's Arcane Enlightenment: +9 Force Spell Power)",
+        "9.0 Stacking (Lunar Magic: +9 Force Spell Power)",
+        "9.0 Stacking (Lunar Magic: +9 Force Spell Power)",
+        "20.0 Stacking (Zarigan's Arcane Enlightenment (3 Piece))",
+        "30.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))"
+      ],
+      "illusion spelldc": [
+        "2.0 Quality (Legendary Gravekeeper's Mystic Cloak)",
+        "8.0 Equipment (Legendary Argonnessen Eye Band)",
+        "3.0 Sacred (Legendary Argonnessen Eye Band)",
+        "4.0 Insightful (Legendary Darstil's Gloves)",
+        "4.0 Artifact (Solar Gem of Illusion (Legendary))"
+      ],
+      "intelligence": [
+        "7.0 Insightful (Legendary Lamordian Bowler)",
+        "2.0 Stacking (Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence)",
+        "1.0 Stacking (Technomage: +1 Intelligence)",
+        "1.0 Stacking (Trapper's Delight: +1 Intelligence)",
+        "1.0 Stacking (Trapper's Delight: +1 Intelligence)"
+      ],
+      "intelligence skills": [
+        "6.0 Exceptional (Legendary Tiny Brain in a Tiny Jar)"
+      ],
+      "mrr": [
+        "30.0 Artifact (The Legendary Desert's Biting Sands (2 Piece))",
+        "6.0 Stacking (Nystul's Mystical Defense/Electrocution +6 MRR)",
+        "5.0 Stacking (Nystul's Mystical Defense (2 Piece))",
+        "10.0 Stacking (Technomage (3 Piece))"
+      ],
+      "prr": [
+        "3.0 Exceptional (Weaverwisp Melody)",
+        "6.0 Stacking (The Blood Feast/Frozen Wanderer +6 PRR)",
+        "10.0 Stacking (Technomage (3 Piece))",
+        "5.0 Stacking (The Blood Feast (3 Piece))"
+      ]
+    },
+    "filigrees": {
+      "artifact": [
+        "Technomage/Unbreakable +2 Constitution",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "The Blood Feast: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ],
+      "weapon": [
+        "Nystul's Mystical Defense: +1 Constitution",
+        "Nystul's Mystical Defense/Electrocution +6 MRR",
+        "The Blood Feast/Frozen Wanderer +6 PRR",
+        "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence",
+        "Technomage/Unbreakable +2 Constitution",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "Technomage: +1 Intelligence",
+        "The Blood Feast: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ]
+    },
+    "gearSet": {
+      "Armor": "Legendary Downcast Vest",
+      "Belt": "Legendary Tunneler's Toolkit",
+      "Boots": "Legendary Experimental Rocket Boots",
+      "Bracers": "Legendary Verminkeeper's Bangle",
+      "Cloak": "Legendary Gravekeeper's Mystic Cloak",
+      "Gloves": "Legendary Darstil's Gloves",
+      "Goggles": "Legendary Kundarak Delving Goggles",
+      "Helmet": "Legendary Lamordian Bowler",
+      "Necklace": "Legendary Torc of Prince Raiyum-de II",
+      "Ring_1": "Legendary Argonnessen Eye Band",
+      "Ring_2": "Legendary Ring of Spell Storing",
+      "Trinket": "Legendary Tiny Brain in a Tiny Jar",
+      "Weapon1": "Legendary Calamitous Morningstar",
+      "Weapon2": "Legendary Calamitous Heavy Mace"
+    },
+    "priorityTiers": {
+      "constitution": 3,
+      "disable device": 1,
+      "dodge": 4,
+      "force spellcriticaldamage": 1,
+      "force spelllore": 1,
+      "force spellpower": 1,
+      "illusion spelldc": 2,
+      "intelligence": 2,
+      "intelligence skills": 5,
+      "mrr": 3,
+      "prr": 3,
+      "sneak attack dice": 2,
+      "transmutation spelldc": 3
+    },
+    "realizedStats": {
+      "constitution": 14.0,
+      "disable device": 27.0,
+      "dodge": 15.0,
+      "force spellcriticaldamage": 35.0,
+      "force spelllore": 6.0,
+      "force spellpower": 86.0,
+      "illusion spelldc": 21.0,
+      "intelligence": 12.0,
+      "intelligence skills": 6.0,
+      "mrr": 51.0,
+      "prr": 24.0
+    },
+    "slots": {
+      "Armor": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Downcast Vest.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Downcast Vest",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Armor",
+        "set_bonus_contributions": []
+      },
+      "Belt": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Tunneler's Toolkit.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Tunneler's Toolkit",
+          "pack": "Fall of the Night Brigade"
+        },
+        "location": "Belt",
+        "set_bonus_contributions": []
+      },
+      "Boots": {
+        "augments": [],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 2.0
+              }
+            ],
+            "name": "Technomage/Unbreakable +2 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Blood Feast: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Trapper's Delight: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Legendary Experimental Rocket Boots.item",
+          "is_raid": false,
+          "minor": true,
+          "ml": 34,
+          "name": "Legendary Experimental Rocket Boots",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Boots",
+        "set_bonus_contributions": []
+      },
+      "Bracers": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Verminkeeper's Bangle.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Verminkeeper's Bangle",
+          "pack": "Tavern Tales"
+        },
+        "location": "Bracers",
+        "set_bonus_contributions": []
+      },
+      "Cloak": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Gravekeeper's Mystic Cloak.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Gravekeeper's Mystic Cloak",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Cloak",
+        "set_bonus_contributions": []
+      },
+      "Gloves": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Darstil's Gloves.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Darstil's Gloves",
+          "pack": "Fall of the Night Brigade"
+        },
+        "location": "Gloves",
+        "set_bonus_contributions": []
+      },
+      "Goggles": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Kundarak Delving Goggles.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Kundarak Delving Goggles",
+          "pack": null
+        },
+        "location": "Goggles",
+        "set_bonus_contributions": []
+      },
+      "Helmet": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Lamordian Bowler.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Lamordian Bowler",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Helmet",
+        "set_bonus_contributions": []
+      },
+      "Necklace": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Torc of Prince Raiyum-de II.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Torc of Prince Raiyum-de II",
+          "pack": null
+        },
+        "location": "Necklace",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "force spelllore",
+                "value": 6.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "force spellpower",
+                "value": 30.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "mrr",
+                "value": 30.0
+              }
+            ],
+            "pieces": 2,
+            "set": "The Legendary Desert's Biting Sands"
+          }
+        ]
+      },
+      "Ring_1": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Argonnessen Eye Band.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Argonnessen Eye Band",
+          "pack": "The Dragon's Hand"
+        },
+        "location": "Ring_1",
+        "set_bonus_contributions": []
+      },
+      "Ring_2": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Ring of Spell Storing.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 30,
+          "name": "Legendary Ring of Spell Storing",
+          "pack": null
+        },
+        "location": "Ring_2",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "force spelllore",
+                "value": 6.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "force spellpower",
+                "value": 30.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "mrr",
+                "value": 30.0
+              }
+            ],
+            "pieces": 2,
+            "set": "The Legendary Desert's Biting Sands"
+          }
+        ]
+      },
+      "Trinket": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "force spellcriticaldamage",
+                "value": 23.0
+              }
+            ],
+            "color": "Melancholic Slot (Accessory)",
+            "name": "Melancholic Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Insightful",
+                "stat": "force spellcriticaldamage",
+                "value": 12.0
+              }
+            ],
+            "color": "Dolorous Slot (Accessory)",
+            "name": "Dolorous Force Spell Critical Damage (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Exceptional",
+                "stat": "prr",
+                "value": 3.0
+              }
+            ],
+            "color": "Green",
+            "name": "Weaverwisp Melody"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "illusion spelldc",
+                "value": 4.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Illusion (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Tiny Brain in a Tiny Jar.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Tiny Brain in a Tiny Jar",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Trinket",
+        "set_bonus_contributions": []
+      },
+      "Weapon1": {
+        "augments": [],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "mrr",
+                "value": 6.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense/Electrocution +6 MRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "prr",
+                "value": 6.0
+              }
+            ],
+            "name": "The Blood Feast/Frozen Wanderer +6 PRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 2.0
+              }
+            ],
+            "name": "Technomage/Unbreakable +2 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Technomage: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Blood Feast: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Trapper's Delight: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Legendary Calamitous Morningstar.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Calamitous Morningstar",
+          "pack": null
+        },
+        "location": "Weapon1",
+        "set_bonus_contributions": []
+      },
+      "Weapon2": {
+        "augments": [],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "mrr",
+                "value": 6.0
+              }
+            ],
+            "name": "Nystul's Mystical Defense/Electrocution +6 MRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "prr",
+                "value": 6.0
+              }
+            ],
+            "name": "The Blood Feast/Frozen Wanderer +6 PRR"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 2.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 2.0
+              }
+            ],
+            "name": "Technomage/Unbreakable +2 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Zarigan's Arcane Enlightenment: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Technomage: +1 Intelligence"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "constitution",
+                "value": 1.0
+              }
+            ],
+            "name": "The Blood Feast: +1 Constitution"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "force spellpower",
+                "value": 9.0
+              }
+            ],
+            "name": "Lunar Magic: +9 Force Spell Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "intelligence",
+                "value": 1.0
+              }
+            ],
+            "name": "Trapper's Delight: +1 Intelligence"
+          }
+        ],
+        "item": {
+          "file": "Legendary Calamitous Heavy Mace.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Calamitous Heavy Mace",
+          "pack": null
+        },
+        "location": "Weapon2",
+        "set_bonus_contributions": []
+      }
+    },
+    "tierReport": {
+      "consolidation": null,
+      "degraded": false,
+      "notes": [],
+      "reconciliation": {
+        "elapsedSeconds": 0.19,
+        "status": "optimal"
+      },
+      "stages": [],
+      "totalElapsedSeconds": 0.19
+    },
+    "tierScores": {},
+    "unmatchedPriorities": [],
+    "unmetTier4": [
+      "dodge"
+    ]
+  },
+  "source_app_version": "0.5.0",
+  "source_file": "Atr_CasterDualCaster_20260810052244.ddogearset",
+  "source_version": "1.3",
+  "stored_reference": {
+    "activeSets": [
+      "The Legendary Desert's Biting Sands (2-piece)",
+      "Nystul's Mystical Defense (2-piece)",
+      "Zarigan's Arcane Enlightenment (2-piece)",
+      "Zarigan's Arcane Enlightenment (3-piece)",
+      "Technomage (2-piece)",
+      "Technomage (3-piece)",
+      "The Blood Feast (2-piece)",
+      "The Blood Feast (3-piece)",
+      "Lunar Magic (2-piece)",
+      "Trapper's Delight (2-piece)"
+    ],
+    "realizedStats": {
+      "constitution": 32,
+      "disable device": 39,
+      "force spellcriticaldamage": 41,
+      "force spelllore": 29,
+      "force spellpower": 324,
+      "illusion spelldc": 25,
+      "intelligence": 40,
+      "mrr": 89,
+      "prr": 62,
+      "sneak attack dice": 5,
+      "transmutation spelldc": 10
+    },
+    "trustworthy": false,
+    "why": "written by the discarded 0.5.0 Go implementation - gear names are real, stats are not"
+  }
+}

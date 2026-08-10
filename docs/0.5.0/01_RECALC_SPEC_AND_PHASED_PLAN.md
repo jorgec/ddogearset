@@ -1,5 +1,23 @@
 # 0.5.0 — recalculation spec and phased plan
 
+> [!CAUTION]
+> **DEPRECATED — superseded by [`00_ETL_START_HERE.md`](00_ETL_START_HERE.md).**
+> The project pivoted on 2026-08-10 to a dev-only, build-time ETL producing a
+> normalized SQLite catalog. **0.5.0 is the ETL, 0.5.1 is `app.db`, 0.5.2 is
+> UI/UX.** The plan below is not the plan.
+>
+> **The phase plan is void. The contract is not.** Recalculation is scheduled
+> for **0.5.1**, and START_HERE §9.2 lists precisely which of this document's
+> decisions it inherits (the restriction-free payload, `realizedStats` +
+> `otherStats`, structured `allEffects`, warn-never-refuse physical rules) and
+> which the ETL supersedes outright (§9.3: dual-`<SetBonus>`, multi-`<Item>`,
+> the pre-0.5.0 file refusal).
+>
+> **Also keep §2's measured findings**, which the pivot does not invalidate:
+> PyInstaller `--onefile` costing 3.8 s per invocation, the oracle survey, and
+> the `optimizer.py:1817` filigree base-name defect that makes a real saved
+> gearset unevaluatable.
+
 **Written:** 2026-08-10, from `main` at `fff94a9`.
 **Supersedes for planning purposes:** the "suggested order of work" in
 [`RECALCULATION_SEPARATION_PROPOSAL.md`](RECALCULATION_SEPARATION_PROPOSAL.md) §8
@@ -45,7 +63,8 @@ construction, not by coincidence.
 
 ## 2. What the earlier documents got wrong or never measured
 
-Six findings that change the plan. Each is measured, not argued.
+Seven findings that change the plan. Each is measured, not argued.
+§2.6 was found during implementation, not review.
 
 ### 2.1 The subprocess costs 3.8 seconds, not 300 ms — and it is fixable
 
@@ -164,7 +183,47 @@ it is out of scope for 0.5.0 unless explicitly chosen.** The Go-side `Item
 string` → `[]string` correction is different — Go only *displays* it, so fixing
 it changes no numbers.
 
-### 2.6 There is no CI
+### 2.6 A filigree base-name rule makes real gearsets unevaluatable
+
+*Found during Phase 0, by replaying every saved gearset through today's
+`calculate` mode.* One of the 14 — `Test_CasterDualCaster_20260809055408`, a
+v1.2/0.4.3 file — comes back as **"The supplied gearset could not be evaluated;
+some locked items may be incompatible with each other."**
+
+Bisected to `optimizer.py:1817`:
+
+```python
+for base_name, idx_list in base_name_groups.items():
+    if len(idx_list) > 1:
+        prob += pulp.lpSum([fw[idx] for idx in idx_list]) <= 1
+        prob += pulp.lpSum([fm[idx] for idx in idx_list]) <= 1
+```
+
+At most one filigree per `base_name` per bucket. This gearset equips **two
+"Lunar Magic" variants in both the weapon and the artifact bucket**, so the
+model is unsatisfiable before it solves anything. Confirmed by bisection:
+removing either bucket alone still fails (both collide independently); removing
+all filigrees succeeds; any artifact subset containing one Lunar Magic succeeds.
+
+The same file also carries **every other hazard the earlier documents predicted,
+simultaneously**: an empty-string filigree entry, a duplicated filigree name
+(9 non-empty weapon entries, 8 distinct), the `" (dino)"` fragment, and three
+live search restrictions. It is the single most valuable fixture in the corpus.
+
+Two things follow:
+
+- **For 0.5.0:** this is a search heuristic — a statement about what the solver
+  may *propose* — reaching into the evaluation of gear the user already owns. It
+  is exactly the defect class the phase exists to remove, and under
+  `recalculate` it disappears by construction. Phase 4 asserts this file returns
+  numbers plus warnings.
+- **Out of scope, but worth raising:** the rule may be wrong for the *search*
+  too. Two filigrees sharing a base name are two pieces of the same named set,
+  and set bonuses require several pieces — so `<= 1 per base_name` may be
+  suppressing legitimate solutions. Not touched here; recorded in
+  `known_deltas.yaml` under `out_of_scope_question`.
+
+### 2.7 There is no CI
 
 `.github/` has Dockerfiles and copilot instructions; there are no workflows. The
 proposal's "runs on every commit" and "full N nightly" describe automation that
@@ -326,34 +385,86 @@ recalculation contract forces — the `allEffects` shape, `otherStats`, the
 pre-2.0 refusal — ships in 0.5.0 even though it touches Svelte. The three-tab
 column, the two-node model and the Accept flow are layout, and wait.
 
-### Phase 0 — Preserve and manufacture the oracle · **blocking prerequisite**
+### Phase 0 — Preserve and manufacture the oracle · ✅ **DONE 2026-08-10**
 
-1. Copy `gearsets/*.ddogearset` outside the repo. They are gitignored
-   (`.gitignore:22`) and exist on exactly one machine.
-2. Track the **5 v1.2 files** as fixtures under `python/tests/fixtures/gearsets/`
-   with a `!` negation in `.gitignore`. Record each `app_version`.
-3. Write `python/tests/fixtures/known_deltas.yaml` for the four pre-0.4.4 files
-   (proposal §14.1 shape).
-4. **Manufacture fresh oracle.** With `mode: "calculate"` still present, feed
-   **all 14** files' gear back through it at 0.4.4 and check the results in as
-   `*.oracle.json`. The nine v1.3 files are rescued this way: their *stored*
-   stats are untrustworthy (discarded implementation) but their **gear names are
-   real**, so re-running them yields 14 trustworthy 0.4.4 references instead of
-   one. Automate it as `scripts/capture_oracle.sh`; budget 10–15 minutes.
-   This is the only chance to capture the outgoing implementation's answers.
-5. Record the baseline in this document's §1 table format: 171 Python, 0/0/15
-   svelte-check, go clean.
+1. ✅ All 14 `.ddogearset` files copied to
+   `~/ddo-gearset-oracle-backup-20260810/` (outside the repo; they are
+   gitignored by `.gitignore:22` and existed on exactly one machine).
+2. ✅ **Simpler than planned — no `.gitignore` negation was needed.** Each
+   fixture is a self-contained `*.oracle.json` carrying the replayable payload,
+   the fresh capture, *and* the file's own `stored_reference` with a
+   `trustworthy` flag derived from `source_version`. Nothing needs the
+   `.ddogearset` files at runtime, so no gitignored file type has to be
+   un-ignored.
+3. ✅ `python/tests/fixtures/known_deltas.yaml` written — `expected_deltas` left
+   empty on purpose, to be filled from the **first observed** divergence rather
+   than guessed in advance.
+4. ✅ `scripts/capture_oracle.py` replayed all 14 through `mode: "calculate"`.
+   **Far cheaper than budgeted: ~40 s total, not 10–15 minutes** — calculate mode
+   skips every tier stage, so each run is 2–5 s rather than a 40–60 s solve.
+5. ✅ Baseline re-verified after the change: **171 Python passing**, `go build` /
+   `vet` / `test` clean, working tree otherwise untouched.
+
+**Result: 12 usable 0.4.4 oracle results**, not the 14 hoped for. Two fixtures
+legitimately have no result and are more valuable for it:
+
+| Fixture | Why no result |
+|---|---|
+| `__1___MeleeTwoWeaponFighting_20260810021656` | Genuinely empty gearset — the §17 empty-gearset regression fixture |
+| `Test_CasterDualCaster_20260809055408` | **Today's implementation refuses it** — see §2.6 |
+
+The second is the find of the phase. It fails with the exact *"could not be
+evaluated"* error the project exists to eliminate, and it carries **every**
+hazard class the earlier documents predicted at once: base-name collision,
+duplicate filigree name, empty-string entry, the `" (dino)"` fragment, and three
+live search restrictions. Its diagnosis is recorded on the fixture and asserted
+by the gate.
 
 The corpus covers only `CasterDualCaster` and `MeleeTwoWeaponFighting`. **Known
 blind spot:** Tank, Bow/Ranged and Two-Handed Fighting exercise the weapon
 base-stat naming path (§15.2) that nothing here touches. Accepted for 0.5.0;
 worth authoring fixtures for if Phase 4 turns up anything weapon-shaped.
 
-**Gate:** `scripts/check_oracle.sh` lists 14 tracked oracle results plus the 5
-v1.2 saved-stat references, each tagged with its `app_version`, and the 9 v1.3
-files' *stored* stats excluded by rule (`version == "1.2"`).
+**Gate:** ✅ `scripts/check_oracle.sh` — 11 checks, all passing. It asserts the
+count, that every fixture is version-tagged and replayable, that exactly the two
+known result-less fixtures are result-less, that trustworthiness is derived from
+`source_version` rather than hand-picked filenames, and that the headline
+fixture keeps its diagnosis.
 
-### Phase 1 — Extract per-node extractors · **the whole risk**
+### Phase 1 — Extract per-node extractors · ✅ **DONE 2026-08-10**
+
+Extracted into `optimizer.py`, above their respective parsers:
+
+| Helper | Replaces inline code in |
+|---|---|
+| `wanted_weapon_stats_for` | `parse_items` |
+| `_item_slots_from_node` | `parse_items` |
+| `_item_provenance` | `parse_items` (shared by the pack-exclusion check **and** the emitted item) |
+| `_item_buffs_from_node` | `parse_items` |
+| `_item_from_node` | `parse_items` |
+| `_effect_buffs_from_node` | `parse_augments` **and both** `parse_filigrees` loops — three copies of one loop, now one |
+| `_augment_from_node` | `parse_augments` |
+| `_filigree_from_node` | `parse_filigrees` |
+| `_raw_stat_name` | new — the `keep_unmatched` fallback |
+
+**Gate: ✅ 30/30 snapshots byte-identical · ✅ 171/171 Python, no test edited.**
+
+Notes worth keeping:
+
+- **`slots` is passed *into* `_item_from_node`, not derived inside it.** Candidacy
+  here does not merely accept or reject — the search *narrows* an item's slot
+  list (a khopesh disallowed in Weapon2 keeps Weapon1). Recalculation will pass
+  the raw list from `_item_slots_from_node`.
+- **The snapshot was proved deterministic before it was trusted**, by re-running
+  under a different `PYTHONHASHSEED`. A snapshot that drifts on its own would
+  make the whole purity proof worthless.
+- **`keep_unmatched=True` is implemented and spot-checked** but unreachable until
+  Phase 3; every parser calls with the default `False`, which is what keeps the
+  snapshot honest (§2.4).
+- The `<SetBonus>` first-wins bug is now marked at its single site in
+  `_filigree_from_node`, deliberately unfixed until Phase 7.
+
+#### Phase 1 as originally specified
 
 Split `parse_items` / `parse_augments` / `parse_filigrees` into
 `_x_from_node(node, priorities, …, keep_unmatched=False)` plus a candidacy

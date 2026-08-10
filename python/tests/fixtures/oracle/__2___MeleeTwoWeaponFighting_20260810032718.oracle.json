@@ -1,0 +1,729 @@
+{
+  "capture_mode": "calculate",
+  "capture_seconds": 2.1,
+  "captured_with_app_version": "0.4.4",
+  "notes": [
+    "pre_filled_augments reconstructed from result.slots",
+    "pre_filled_filigrees reconstructed from result.filigrees"
+  ],
+  "payload": {
+    "armor_restriction": "Light",
+    "build_type": "Melee",
+    "caster_restrict_weapon_families": true,
+    "caster_schools": [],
+    "caster_spellpowers": [],
+    "exclude_gem_of_many_facets": false,
+    "excluded_packs": [],
+    "gearset_name": "__2__",
+    "is_dino_artifact": false,
+    "max_level": 34,
+    "max_search_time": 60,
+    "minor_artifact_filigree_slots": 4,
+    "mode": "calculate",
+    "offhand_style": "None",
+    "output_filename": "",
+    "pre_equipped": {
+      "Armor": "Dinosaur Bone Mail",
+      "Belt": "Ophael's Cincture",
+      "Cloak": "Legendary Lamordian Heavy Cloak",
+      "Helmet": "Legendary Helm of the Warblade",
+      "Ring_1": "The Autumn Equinox",
+      "Trinket": "Legendary Periapt of Strength",
+      "Weapon1": "Legendary Sunken Obscurity",
+      "Weapon2": "Legendary Sunken Virtue"
+    },
+    "pre_filled_augments": {
+      "Armor": {
+        "IoD: Armor: Scale Slot": "Fragment of Extra-planar Shadow"
+      },
+      "Belt": {
+        "Moon": "Lunar Gem of Melee Power (Legendary)"
+      },
+      "Cloak": {
+        "Melancholic Slot (Accessory)": "Melancholic Doublestrike (Legendary)",
+        "Sun": "Solar Gem of Doublestrike (Legendary)"
+      },
+      "Helmet": {
+        "Sun": "Solar Gem of Melee Power (Legendary)"
+      }
+    },
+    "pre_filled_filigrees": {
+      "artifact": [
+        "Treachery: +3 Melee Power",
+        "Sucker Punch: +3 Melee Power",
+        "One Against Many: +3 Melee Power",
+        "The Long Shadow: +3 Melee Power",
+        "Dreadbringer: +3 Melee Power"
+      ],
+      "weapon": [
+        "Treachery: +3 Melee Power",
+        "The City's Beacon: +3 Melee Power",
+        "Sanctified Fervor: +3 Melee Power",
+        "Sucker Punch: +3 Melee Power",
+        "One Against Many: +3 Melee Power",
+        "The Blood Feast: +3 Melee Power",
+        "The Beast's Mantle: +3 Melee Power",
+        "The Long Shadow: +3 Melee Power",
+        "The Wreath of Flame: +3 Melee Power",
+        "Dreadbringer: +3 Melee Power"
+      ]
+    },
+    "raid_item_limit": 2,
+    "reserved_minor_artifact_slot": "Ring",
+    "runearm_use": false,
+    "stat_priorities": [
+      {
+        "stat": "melee power",
+        "tier": 1
+      },
+      {
+        "stat": "doublestrike",
+        "tier": 1
+      },
+      {
+        "stat": "weapon base damage",
+        "tier": 2
+      },
+      {
+        "stat": "critical multiplier",
+        "tier": 3
+      },
+      {
+        "stat": "critical threat range",
+        "tier": 3
+      },
+      {
+        "stat": "seeker",
+        "tier": 4
+      }
+    ],
+    "swashbuckling": false,
+    "weapon_style": "Two Weapon Fighting"
+  },
+  "result": {
+    "activeSets": [
+      "Legendary Inevitable Balance (2-piece)",
+      "Treachery (2-piece)",
+      "Sucker Punch (2-piece)",
+      "One Against Many (2-piece)",
+      "The Long Shadow (2-piece)",
+      "Dreadbringer (2-piece)"
+    ],
+    "allEffects": {
+      "critical multiplier": [
+        "2.0 WeaponBase:Weapon1 (Legendary Sunken Obscurity)"
+      ],
+      "critical threat range": [
+        "2.0 WeaponBase:Weapon1 (Legendary Sunken Obscurity)"
+      ],
+      "doublestrike": [
+        "8.0 Insightful (The Autumn Equinox)",
+        "17.0 Enhancement (Melancholic Doublestrike (Legendary))",
+        "4.0 Quality (Legendary Lamordian Heavy Cloak)",
+        "15.0 Artifact (Solar Gem of Doublestrike (Legendary))",
+        "3.0 Profane (Fragment of Extra-planar Shadow)",
+        "10.0 Stacking (Legendary Inevitable Balance (2 Piece))"
+      ],
+      "melee power": [
+        "15.0 Artifact (Solar Gem of Melee Power (Legendary))",
+        "15.0 Profane (Lunar Gem of Melee Power (Legendary))",
+        "3.0 Stacking (Treachery: +3 Melee Power)",
+        "3.0 Stacking (Treachery: +3 Melee Power)",
+        "3.0 Stacking (The City's Beacon: +3 Melee Power)",
+        "3.0 Stacking (Sanctified Fervor: +3 Melee Power)",
+        "3.0 Stacking (Sucker Punch: +3 Melee Power)",
+        "3.0 Stacking (Sucker Punch: +3 Melee Power)",
+        "3.0 Stacking (One Against Many: +3 Melee Power)",
+        "3.0 Stacking (One Against Many: +3 Melee Power)",
+        "3.0 Stacking (The Blood Feast: +3 Melee Power)",
+        "3.0 Stacking (The Beast's Mantle: +3 Melee Power)",
+        "3.0 Stacking (The Long Shadow: +3 Melee Power)",
+        "3.0 Stacking (The Long Shadow: +3 Melee Power)",
+        "3.0 Stacking (The Wreath of Flame: +3 Melee Power)",
+        "3.0 Stacking (Dreadbringer: +3 Melee Power)",
+        "3.0 Stacking (Dreadbringer: +3 Melee Power)",
+        "10.0 Stacking (Legendary Inevitable Balance (2 Piece))",
+        "5.0 Stacking (Treachery (2 Piece))",
+        "5.0 Stacking (Sucker Punch (2 Piece))",
+        "5.0 Stacking (One Against Many (2 Piece))",
+        "5.0 Stacking (The Long Shadow (2 Piece))",
+        "5.0 Stacking (Dreadbringer (2 Piece))"
+      ],
+      "seeker": [
+        "15.0 Enhancement (Ophael's Cincture)",
+        "6.0 Insightful (Legendary Periapt of Strength)",
+        "3.0 Quality (Legendary Periapt of Strength)",
+        "5.0 Exceptional (Legendary Helm of the Warblade)"
+      ],
+      "weapon base damage": [
+        "16.8 WeaponBase:Weapon1 (Legendary Sunken Obscurity)"
+      ]
+    },
+    "filigrees": {
+      "artifact": [
+        "Treachery: +3 Melee Power",
+        "Sucker Punch: +3 Melee Power",
+        "One Against Many: +3 Melee Power",
+        "The Long Shadow: +3 Melee Power",
+        "Dreadbringer: +3 Melee Power"
+      ],
+      "weapon": [
+        "Treachery: +3 Melee Power",
+        "The City's Beacon: +3 Melee Power",
+        "Sanctified Fervor: +3 Melee Power",
+        "Sucker Punch: +3 Melee Power",
+        "One Against Many: +3 Melee Power",
+        "The Blood Feast: +3 Melee Power",
+        "The Beast's Mantle: +3 Melee Power",
+        "The Long Shadow: +3 Melee Power",
+        "The Wreath of Flame: +3 Melee Power",
+        "Dreadbringer: +3 Melee Power"
+      ]
+    },
+    "gearSet": {
+      "Armor": "Dinosaur Bone Mail",
+      "Belt": "Ophael's Cincture",
+      "Cloak": "Legendary Lamordian Heavy Cloak",
+      "Helmet": "Legendary Helm of the Warblade",
+      "Ring_1": "The Autumn Equinox",
+      "Trinket": "Legendary Periapt of Strength",
+      "Weapon1": "Legendary Sunken Obscurity",
+      "Weapon2": "Legendary Sunken Virtue"
+    },
+    "priorityTiers": {
+      "critical multiplier": 3,
+      "critical threat range": 3,
+      "doublestrike": 1,
+      "melee power": 1,
+      "seeker": 4,
+      "weapon base damage": 2
+    },
+    "realizedStats": {
+      "critical multiplier": 2.0,
+      "critical threat range": 2.0,
+      "doublestrike": 57.0,
+      "melee power": 110.0,
+      "seeker": 29.0,
+      "weapon base damage": 16.8
+    },
+    "slots": {
+      "Armor": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "doublestrike",
+                "value": 3.0
+              }
+            ],
+            "color": "IoD: Armor: Scale Slot",
+            "name": "Fragment of Extra-planar Shadow"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Dinosaur Bone Mail.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 31,
+          "name": "Dinosaur Bone Mail",
+          "pack": "The Isle of Dread"
+        },
+        "location": "Armor",
+        "set_bonus_contributions": []
+      },
+      "Belt": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Profane",
+                "stat": "melee power",
+                "value": 15.0
+              }
+            ],
+            "color": "Moon",
+            "name": "Lunar Gem of Melee Power (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Ophael's Cincture.item",
+          "is_raid": true,
+          "minor": false,
+          "ml": 33,
+          "name": "Ophael's Cincture",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Belt",
+        "set_bonus_contributions": []
+      },
+      "Cloak": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Enhancement",
+                "stat": "doublestrike",
+                "value": 17.0
+              }
+            ],
+            "color": "Melancholic Slot (Accessory)",
+            "name": "Melancholic Doublestrike (Legendary)"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "doublestrike",
+                "value": 15.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Doublestrike (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Lamordian Heavy Cloak.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 34,
+          "name": "Legendary Lamordian Heavy Cloak",
+          "pack": "Chill of Ravenloft"
+        },
+        "location": "Cloak",
+        "set_bonus_contributions": []
+      },
+      "Helmet": {
+        "augments": [
+          {
+            "buffs": [
+              {
+                "bonus": "Artifact",
+                "stat": "melee power",
+                "value": 15.0
+              }
+            ],
+            "color": "Sun",
+            "name": "Solar Gem of Melee Power (Legendary)"
+          }
+        ],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Helm of the Warblade.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Helm of the Warblade",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Helmet",
+        "set_bonus_contributions": []
+      },
+      "Ring_1": {
+        "augments": [],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Treachery: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Sucker Punch: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "One Against Many: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Long Shadow: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Dreadbringer: +3 Melee Power"
+          }
+        ],
+        "item": {
+          "file": "The Autumn Equinox.item",
+          "is_raid": false,
+          "minor": true,
+          "ml": 33,
+          "name": "The Autumn Equinox",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Ring_1",
+        "set_bonus_contributions": []
+      },
+      "Trinket": {
+        "augments": [],
+        "filigrees": [],
+        "item": {
+          "file": "Legendary Periapt of Strength.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 33,
+          "name": "Legendary Periapt of Strength",
+          "pack": "Magic of Myth Drannor"
+        },
+        "location": "Trinket",
+        "set_bonus_contributions": []
+      },
+      "Weapon1": {
+        "augments": [],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Treachery: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The City's Beacon: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Sanctified Fervor: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Sucker Punch: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "One Against Many: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Blood Feast: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Beast's Mantle: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Long Shadow: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Wreath of Flame: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Dreadbringer: +3 Melee Power"
+          }
+        ],
+        "item": {
+          "file": "Legendary Sunken Obscurity.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 29,
+          "name": "Legendary Sunken Obscurity",
+          "pack": "Free to Play"
+        },
+        "location": "Weapon1",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 10.0
+              },
+              {
+                "bonus": "Stacking",
+                "stat": "doublestrike",
+                "value": 10.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "melee power",
+                "value": 10.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "doublestrike",
+                "value": 10.0
+              }
+            ],
+            "pieces": 2,
+            "set": "Legendary Inevitable Balance"
+          }
+        ]
+      },
+      "Weapon2": {
+        "augments": [],
+        "filigrees": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Treachery: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The City's Beacon: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Sanctified Fervor: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Sucker Punch: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "One Against Many: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Blood Feast: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Beast's Mantle: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Long Shadow: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "The Wreath of Flame: +3 Melee Power"
+          },
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 3.0
+              }
+            ],
+            "name": "Dreadbringer: +3 Melee Power"
+          }
+        ],
+        "item": {
+          "file": "Legendary Sunken Virtue.item",
+          "is_raid": false,
+          "minor": false,
+          "ml": 29,
+          "name": "Legendary Sunken Virtue",
+          "pack": "Free to Play"
+        },
+        "location": "Weapon2",
+        "set_bonus_contributions": [
+          {
+            "buffs": [
+              {
+                "bonus": "Stacking",
+                "stat": "melee power",
+                "value": 10.0
+              },
+              {
+                "bonus": "Stacking",
+                "stat": "doublestrike",
+                "value": 10.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "melee power",
+                "value": 10.0
+              },
+              {
+                "bonus": "Artifact",
+                "stat": "doublestrike",
+                "value": 10.0
+              }
+            ],
+            "pieces": 2,
+            "set": "Legendary Inevitable Balance"
+          }
+        ]
+      }
+    },
+    "tierReport": {
+      "consolidation": null,
+      "degraded": false,
+      "notes": [],
+      "reconciliation": {
+        "elapsedSeconds": 0.09,
+        "status": "optimal"
+      },
+      "stages": [],
+      "totalElapsedSeconds": 0.09
+    },
+    "tierScores": {},
+    "unmatchedPriorities": [],
+    "unmetTier4": [
+      "seeker"
+    ]
+  },
+  "source_app_version": "0.5.0",
+  "source_file": "__2___MeleeTwoWeaponFighting_20260810032718.ddogearset",
+  "source_version": "1.3",
+  "stored_reference": {
+    "activeSets": [
+      "Legendary Inevitable Balance (2-piece)",
+      "Treachery (2-piece)",
+      "Sucker Punch (2-piece)",
+      "One Against Many (2-piece)",
+      "The Long Shadow (2-piece)",
+      "Dreadbringer (2-piece)"
+    ],
+    "realizedStats": {
+      "critical multiplier": 2,
+      "critical threat range": 2,
+      "doublestrike": 57,
+      "melee power": 110,
+      "seeker": 29,
+      "weapon base damage": 16.8
+    },
+    "trustworthy": false,
+    "why": "written by the discarded 0.5.0 Go implementation - gear names are real, stats are not"
+  }
+}

@@ -1,3 +1,11 @@
+
+> [!CAUTION]
+> **DEPRECATED — superseded by [`00_ETL_START_HERE.md`](00_ETL_START_HERE.md).**
+> The project pivoted on 2026-08-10 to a dev-only, build-time ETL producing a
+> normalized SQLite catalog. **0.5.0 is the ETL, 0.5.1 is `app.db`, 0.5.2 is
+> UI/UX.** The plan below is not the plan.
+>
+> **Keep for the adjudicated review.** Items 1 (payload size), 2 (physical validation is net-new code) and 4 (extraction I/O) still apply; item 3 (multi-target display) is resolved by `effect_target.position`.
 > **Responses added 2026-08-10.** Each objection is answered inline below under
 > a `#### RESPONSE` heading. Verdicts: **4 adopted**, **1 adopted with its
 > conclusion reversed**, **1 rejected on measurement**. The same adjudication is

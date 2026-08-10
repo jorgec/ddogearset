@@ -30,6 +30,78 @@ import functools
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple, Any
 
+# --- python/rules/ : the domain rules ---------------------------------------
+# XML -> effects, stat naming, bonus-type stacking, set counting. Split out in
+# Phase 2 (docs/0.5.0/01_RECALC_SPEC_AND_PHASED_PLAN.md) so recalculation can
+# reach them WITHOUT reaching the search. The dependency runs one way only:
+# optimizer imports rules, never the reverse.
+#
+# Re-exported here rather than referenced as `rules.x` so every existing
+# `optimizer.X` call site — including ~40 in the test suite — keeps working.
+# These names are re-exports, not definitions: change them in python/rules/.
+from rules.constants import (
+    MAX_ARTIFACT_FILIGREES,
+    MAX_WEAPON_FILIGREES,
+    PROC_BONUS_TYPE,
+    PROC_PRESENCE_FLAG_TYPES,
+    PROC_ZERO_EFFECT_AUGMENT_NAMES,
+    WEAPON_BASE_BONUS_TYPE,
+    WEAPON_BASE_SLOT,
+    WEAPON_BASE_STATS,
+    WEAPON_COMPOSITE_COMPONENTS,
+    WEAPON_STAT_COMPOSITE,
+    WEAPON_STAT_CRIT_MULT,
+    WEAPON_STAT_CRIT_RANGE,
+    WEAPON_STAT_DAMAGE,
+    WEAPON_STAT_DICE,
+)
+from rules.stacking import (
+    STACKING_TYPES,
+    _collect_contributions,
+    _is_stacking,
+    _resolve_totals,
+)
+from rules.naming import (
+    BONUS_TYPE_PREFIXES,
+    SKILL_NAMES,
+    _is_proc_presence_flag_type,
+    _priority_wants_skill,
+    _proc_priority_match,
+    _split_bonus_type_prefix,
+    normalize_stat_key,
+    normalize_stat_name,
+    strip_cap_suffix,
+)
+from rules.provenance import (
+    CRAFTABLE_FAMILY_DROPLOCATION_SUBSTRINGS,
+    CRAFTABLE_FAMILY_NAME_SUBSTRINGS,
+    ONE_HANDED_WEAPON_TYPES,
+    RAID_UPGRADE_TIER_PREFIXES,
+    WEAPON_DAMAGE_TYPES,
+    _all_item_name_drop_locations,
+    _is_craftable_family_weapon,
+    _raid_ingredient_names,
+    _resolve_is_raid,
+    weapon_types_for_damage_type,
+)
+from rules.extract import (
+    COLORLESS_AUGMENT_NAME_PATTERN,
+    ITEM_SLOT_TAGS,
+    _augment_from_node,
+    _effect_buffs_from_node,
+    _filigree_from_node,
+    _float_text,
+    _item_buffs_from_node,
+    _item_from_node,
+    _item_provenance,
+    _item_slots_from_node,
+    _raw_stat_name,
+    _weapon_base_buffs,
+    augment_fits_slot,
+    parse_sets,
+    wanted_weapon_stats_for,
+)
+
 # ---------------------------------------------------------------------------
 # Module-level tunable constants (docs/PHASE10_PLAN.md §3.6, §3.10, §4.5, §4.6)
 # ---------------------------------------------------------------------------
@@ -80,136 +152,10 @@ STAGE_FLOOR_SECONDS = 5.0
 # budget is fixed and NOT drawn from max_search_time.
 RECONCILE_TMLIM = 15
 
-# Bonus types whose sources genuinely add together. Everything else routes down
-# the d_var (max-of-sources) path.
-STACKING_TYPES = ('stacking', 'mythic', 'reaper')
-
-# docs/PROC_EFFECTS_EXPANSION_SPEC.md — the fixed bonus-type sentinel for
-# presence-flag proc buffs (Shape A/B below): these carry no real magnitude
-# in DDOBuilderV2 (bare `<Buff><Type>X</Type></Buff>` markers with no
-# Value1/BonusType at all, or an augment whose own description says
-# "(Undocumented: Grants X)" with zero <Effect> data), so they're credited as
-# a flat 1.0 "do you have this proc at all" signal. Deliberately NOT a
-# STACKING_TYPES member: two items granting the *same* named proc should
-# still read as 1.0, not 2.0 — max-per-bonus-type is the correct DDO-ish
-# semantics here ("you either have it or you don't"), not sum-of-sources.
-PROC_BONUS_TYPE = 'Proc'
-
-# Shape A (docs/PROC_EFFECTS_EXPANSION_SPEC.md): named procs confirmed to be
-# real `<Buff><Type>` markers on real items whose own occurrences never carry
-# a full (Value1 AND BonusType) pair — most have neither at all; a few (e.g.
-# "Tendon Slice") carry a lone Value1 with no BonusType (10, likely a proc-
-# chance percent, not a comparable magnitude) that the existing valued-buff
-# path can't credit either way. Deliberately a whitelist, not "any buff
-# missing BonusType": ~47 OTHER distinct buff Types in the corpus (Shield,
-# Fortification, Elemental Absorption, etc. — legitimate stats, not procs)
-# also lack a BonusType and must keep today's behavior untouched. Matched by
-# substring against the buff's own Type text (lowercased) since real
-# instances carry suffixes this whitelist doesn't (e.g. "Legendary Vile Grip
-# of the Hidden Hand", "Revel in Blood (Piercing)", "Burning Glory 1").
-PROC_PRESENCE_FLAG_TYPES = frozenset({
-    'antimagic spike', 'bitter frostbite', 'blunt trauma', 'brazen brilliance',
-    'brilliance of the shattered sun', 'burning glory', 'cerulean wave',
-    'coalesced flame', 'coronach', 'dripping with magma', 'eternal fire',
-    'eternal holy burst', 'freezing ice', 'grip of venom', 'inflict blight',
-    'legendary negation', 'lightning lash', 'lingering acidic burn',
-    'memory of binding', 'memory of butchery', 'mind tear', 'nightsinger',
-    'noxious venom spike', 'overwhelming despair', 'quenched', 'revel in blood',
-    'rippling energy', "royalty's frigid response", 'rupturing echo',
-    'shadow spike', 'sinister chill', 'sound and silence', 'sounding',
-    'spell resonance', 'spell turmoil', 'stone prison', 'tendon slice',
-    "the artblade's gift", "the mummy's gift", "titania's warmth",
-    'vile grip of the hidden hand', "vulkoor's bite",
-    'alchemical fire attunement', 'alchemical water attunement',
-    'alchemical air attunement', 'alchemical earth attunement',
-})
-
-# Shape B (docs/PROC_EFFECTS_EXPANSION_SPEC.md): augments confirmed to be
-# real DDOBuilderV2 entries (verified against the corpus) whose own effect
-# data is entirely empty — the augment's Name IS the only signal
-# (DDOBuilderV2 itself marks these "(Undocumented: Grants <Name>)"). Without
-# this whitelist, parse_augments' `if buffs or is_pre_filled:` gate drops
-# them before they ever reach the candidate pool. Deliberately a whitelist,
-# not "any augment with zero effects" — an augment with genuinely no data
-# and no recognized name is far more likely a placeholder/WIP catalog entry
-# than a real proc grant.
-PROC_ZERO_EFFECT_AUGMENT_NAMES = frozenset({
-    'legendary affirmation', 'legendary ash', 'legendary dust', 'legendary ice',
-    'legendary ooze', 'legendary salt', 'legendary vacuum',
-    'alchemical fire attunement', 'alchemical water attunement',
-    'alchemical air attunement', 'alchemical earth attunement', 'paranoia',
-})
 
 
-def _is_proc_presence_flag_type(b_type):
-    """Shape A whitelist membership, tolerant of the real corpus's
-    inconsistent spacing (e.g. 'AlchemicalFireAttunement' with no spaces at
-    all on some items, vs the normal spaced form elsewhere) — compares both
-    sides with whitespace stripped out entirely."""
-    norm = re.sub(r'\s+', '', (b_type or '')).lower()
-    return any(re.sub(r'\s+', '', n) in norm for n in PROC_PRESENCE_FLAG_TYPES)
 
 
-def _proc_priority_match(candidate_text, priorities):
-    """Plain substring match against user priorities for proc presence-flag
-    buffs (Shapes A/B) — deliberately does NOT go through
-    normalize_stat_name's bonus-type-prefix splitting
-    (docs/CASTER_BONUS_TYPE_STATS_SPEC.md's BONUS_TYPE_PREFIXES). Several
-    real proc names (Legendary Affirmation, Legendary Ash, Legendary
-    Negation, ...) literally start with "Legendary", one of the recognized
-    Spell DC/Focus Mastery bonus-type prefix words — routing them through the
-    shared matcher would silently strip that word, require a matching
-    bonus_type that a proc buff never carries, and never match at all.
-    Whitespace-insensitive, same as _is_proc_presence_flag_type."""
-    candidate = re.sub(r'\s+', '', (candidate_text or '')).lower()
-    if not candidate:
-        return None
-    for p in priorities:
-        p_base = re.sub(r'\[\d+\]', '', p).strip()
-        p_norm = re.sub(r'\s+', '', p_base).lower()
-        if p_norm and p_norm in candidate:
-            return p_base
-    return None
-
-# §3.4 — capacity constants used by the upper-bound computation.
-MAX_WEAPON_FILIGREES = 10
-MAX_ARTIFACT_FILIGREES = 5
-
-# ---------------------------------------------------------------------------
-# §15 — weapon combat properties as optimizable priority stats
-# ---------------------------------------------------------------------------
-
-# §15.1/§15.4: weapon-base sources are built ONLY from x[(i, 'Weapon1')]. The
-# off-hand is assumed to duplicate the main hand (TWF) and is structurally
-# absent for THF styles, so Weapon2 never contributes a weapon-base source.
-# The bonus type is slot-qualified so that assumption is visible in the data and
-# a future Weapon2 leak cannot silently max-collapse across hands. It must not
-# appear in STACKING_TYPES — that is what makes "one weapon's value counts"
-# work with zero new solver primitives.
-WEAPON_BASE_SLOT = 'Weapon1'
-WEAPON_BASE_BONUS_TYPE = 'WeaponBase:Weapon1'
-
-WEAPON_STAT_DAMAGE = 'weapon damage'
-WEAPON_STAT_DICE = 'base damage dice'
-WEAPON_STAT_CRIT_MULT = 'critical multiplier'
-WEAPON_STAT_CRIT_RANGE = 'critical threat range'
-WEAPON_STAT_COMPOSITE = 'weapon base damage'
-
-# §15.2 — exact-match lookup table. Deliberately NOT routed through
-# normalize_stat_name: substring matching would misfire ("critical multiplier"
-# overlapping "spell critical damage", "weapon damage" against Weapon_* types).
-WEAPON_BASE_STATS = frozenset({
-    WEAPON_STAT_DAMAGE,
-    WEAPON_STAT_DICE,
-    WEAPON_STAT_CRIT_MULT,
-    WEAPON_STAT_CRIT_RANGE,
-    WEAPON_STAT_COMPOSITE,
-})
-
-# §15.3 — the composite double-counts if listed alongside either component.
-# This is specified as a frontend validation rule (EC-29): the backend does not
-# reject such a payload, it only surfaces a note.
-WEAPON_COMPOSITE_COMPONENTS = frozenset({WEAPON_STAT_DAMAGE, WEAPON_STAT_DICE})
 
 # §15.6 — tier-4 "meaningful bar" per weapon-base stat. A weapon is essentially
 # always equipped, so the generic "one credited source" rule would make
@@ -222,197 +168,17 @@ WEAPON_TIER4_BASELINES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# §16 — hard-required Weapon1/Weapon2 slots (docs/HARD_REQUIRED_SLOTS_SPEC.md)
-# ---------------------------------------------------------------------------
-
-# Authoritative source: DDOBuilderV2/Output/DataFiles/WeaponGroupings.xml's
-# Slashing/Bludgeoning/Piercing <WeaponGroup> entries, taken verbatim — NOT
-# derived from <DRBypass> (that reflects what DR a weapon bypasses, which is
-# not the same thing as its own damage type; many items grant bonus bypass
-# types unrelated to their base) and NOT from <Description> text (only 5
-# items in the whole corpus mention a damage type there — far too sparse).
-# Throwing Axe/Dagger/Hammer are real melee-usable weapon types in the corpus
-# but appear in none of the three WeaponGroupings.xml groups (DDOBuilderV2
-# treats them as thrown/ranged only) — deliberately excluded here rather than
-# guessed at, per explicit instruction during the spec review.
-_SLASHING_WEAPONS = ('Bastard Sword', 'Battle Axe', 'Dwarven Axe', 'Falchion',
-                     'Great Axe', 'Great Sword', 'Hand Axe', 'Kama', 'Khopesh',
-                     'Kukri', 'Longsword', 'Scimitar', 'Shortsword', 'Shuriken', 'Sickle')
-_BLUDGEONING_WEAPONS = ('Club', 'Great Club', 'Handwraps', 'Heavy Mace', 'Light Hammer',
-                        'Light Mace', 'Maul', 'Morningstar', 'Quarterstaff', 'Unarmed',
-                        'Warhammer')
-_PIERCING_WEAPONS = ('Dagger', 'Dart', 'Heavy Pick', 'Light Pick', 'Rapier')
-
-WEAPON_DAMAGE_TYPES = {
-    **{w.lower(): 'Slashing' for w in _SLASHING_WEAPONS},
-    **{w.lower(): 'Bludgeoning' for w in _BLUDGEONING_WEAPONS},
-    **{w.lower(): 'Piercing' for w in _PIERCING_WEAPONS},
-}
-
-# Same authoritative source, "One Handed" <WeaponGroup> — used to identify a
-# "caster stick" (any one-handed weapon; the term does NOT mean literally a
-# Quarterstaff, which is two-handed and its own separate caster weapon_style
-# option — see docs/HARD_REQUIRED_SLOTS_SPEC.md §4).
-ONE_HANDED_WEAPON_TYPES = frozenset(w.lower() for w in (
-    'Bastard Sword', 'Battle Axe', 'Club', 'Dagger', 'Dwarven Axe', 'Hand Axe',
-    'Heavy Mace', 'Heavy Pick', 'Kama', 'Khopesh', 'Kukri', 'Light Hammer',
-    'Light Mace', 'Light Pick', 'Longsword', 'Morningstar', 'Rapier',
-    'Scimitar', 'Shortsword', 'Sickle', 'Warhammer',
-))
-
-# The six weapon "families" known for carrying multiple worthwhile craftable
-# augment slots (redefined during spec review — this is NOT about augment-
-# slot-TYPE families like Cannith Prefix/Suffix/Extra, it's specific weapon
-# sources). Dinosaur Bone / Undying Age / Legendary Green Steel / Defiled
-# Reliquary are reliably name-substring-identifiable (verified against the
-# real corpus — note it's "Green Steel", two words, not "Greensteel"; Defiled
-# Reliquary's own DropLocation text says "Unholy Defiler of the Hidden Hand,
-# defiled version of ...", NOT "Defiled Reliquary", so name is the only
-# reliable signal for it too — added per docs/CASTER_WEAPON_SELECTION_SPEC.md
-# after confirming "Calamitous" weapons, also proposed as a family, already
-# ARE the Viktranium family below: Legendary Calamitous Warhammer's own
-# DropLocation literally starts with "Viktranium Experiment crafting").
-# Viktranium Experiment crafting and Den of Vipers have no reliable name
-# pattern and are identified via DropLocation text instead.
-CRAFTABLE_FAMILY_NAME_SUBSTRINGS = ('dinosaur bone', 'undying age', 'green steel', 'defiled reliquary')
-CRAFTABLE_FAMILY_DROPLOCATION_SUBSTRINGS = ('viktranium', 'den of vipers')
 
 
-def _is_craftable_family_weapon(name, drop_location):
-    name_l = (name or '').lower()
-    if any(s in name_l for s in CRAFTABLE_FAMILY_NAME_SUBSTRINGS):
-        return True
-    drop_l = (drop_location or '').lower()
-    return any(s in drop_l for s in CRAFTABLE_FAMILY_DROPLOCATION_SUBSTRINGS)
 
 
-def weapon_types_for_damage_type(damage_type):
-    """The set of lowercase weapon_type strings classified under a given
-    damage type (Slashing/Piercing/Bludgeoning) — solver.py's bridge from a
-    user-facing damage-type choice to create_model's weapon1_eligible_types."""
-    dt = (damage_type or '').strip().lower()
-    return {w for w, d in WEAPON_DAMAGE_TYPES.items() if d.lower() == dt}
 
 
-# --- Raid detection (docs/RAID_DETECTION_SPEC.md) --------------------------
-#
-# Confirmed real tier-quality prefixes that share a base item's exact name
-# once stripped (verified against the corpus: 1702/1796 "Legendary "-prefixed
-# items, 524/648 "Epic ", 14/28 "Perfected ", 7/8 "Mythic ", 1/1 "Elite " —
-# "Ancient " was tested and dropped, 0/12 real matches, not a real
-# tier-upgrade prefix in this data). Order doesn't matter — every prefix is
-# tried independently.
-RAID_UPGRADE_TIER_PREFIXES = ('Epic ', 'Legendary ', 'Mythic ', 'Perfected ', 'Elite ')
-
-# "<Tier> version of <Name>[ and <Name2>][, ...]" — 605 confirmed real
-# occurrences, always naming one or more ingredient items by their exact name
-# (e.g. "Epic version of Torc of Prince Raiyum-de II", "Cauldron of Sora
-# Katra, Upgraded version of Blade of Fury and Hooked Blade").
-_RAID_VERSION_OF_RE = re.compile(r'(?:upgraded )?version of\s+(.+)', re.IGNORECASE)
-
-# Scoping keywords for the looser ingredient-name cross-reference (needed for
-# catalyst-crafted items like "Perfected Longsword of the Weapon Master",
-# whose real ingredient — "Drow Longsword of the Weapon Master" — isn't
-# reachable by tier-prefix stripping OR "version of" phrasing). Deliberately
-# scoped to crafting-flavored DropLocation text rather than run on every
-# item: bounds the O(items-with-keyword × corpus-size) cost (measured ~3s
-# one-time for the full real corpus) and the false-positive surface from
-# short/generic names appearing incidentally inside unrelated text.
-_RAID_CRAFTING_KEYWORDS = ('turn in', 'catalyst', 'crafting')
-
-# A candidate ingredient name shorter than this is more likely to
-# false-positive-match as a substring of unrelated text than to be a genuine
-# ingredient reference.
-_RAID_MIN_INGREDIENT_NAME_LEN = 8
 
 
-@functools.lru_cache(maxsize=4)
-def _all_item_name_drop_locations(base_dir):
-    """Lightweight Name -> DropLocation index across every item in the
-    corpus, completely unfiltered by ML/pack/armor/etc. Needed because an
-    upgrade chain's *base* item (e.g. a Heroic-tier raid item) is often well
-    under today's endgame ML search floor and would otherwise never appear
-    in the filtered candidate pool `is_raid` resolution needs to walk back
-    through. Cached per base_dir — this project only ever solves against one
-    base_dir per process, so the cache is effectively "compute once per
-    solver invocation," not a source of staleness risk."""
-    out = {}
-    for item_file in glob.glob(os.path.join(base_dir, 'Items', '*.item')):
-        try:
-            tree = ET.parse(item_file)
-            for item_node in tree.findall('.//Item'):
-                name = item_node.findtext('Name')
-                if name:
-                    out[name] = item_node.findtext('DropLocation') or ''
-        except Exception:
-            pass
-    return out
 
 
-def _raid_ingredient_names(name, drop_location, all_names):
-    """The set of other item names this item's raid status should be
-    inherited from, per docs/RAID_DETECTION_SPEC.md's two-signal design.
-    `all_names` is the full corpus name set, for cross-referencing."""
-    found = set()
-    dl = drop_location or ''
 
-    # Signal A — "<Tier> version of <Name>[ and <Name2>]" phrasing.
-    m = _RAID_VERSION_OF_RE.search(dl)
-    if m:
-        tail = re.sub(r'\s*\([^)]*\)\s*$', '', m.group(1)).strip()
-        for part in re.split(r'\s+and\s+|\s*\+\s*', tail):
-            part = part.strip().rstrip('.')
-            if part in all_names:
-                found.add(part)
-
-    # Signal A (cont.) — looser ingredient cross-reference for catalyst-
-    # crafted items whose ingredient name doesn't follow "version of"
-    # phrasing at all. Scoped to crafting-flavored DropLocation text only.
-    dl_lower = dl.lower()
-    if any(kw in dl_lower for kw in _RAID_CRAFTING_KEYWORDS):
-        for candidate in all_names:
-            if (candidate != name
-                    and len(candidate) >= _RAID_MIN_INGREDIENT_NAME_LEN
-                    and candidate in dl):
-                found.add(candidate)
-
-    # Signal B — tier-prefix name stripping (catches e.g. "Perfected X"
-    # items whose DropLocation is a generic catalyst turn-in with no textual
-    # link to "X" at all).
-    for prefix in RAID_UPGRADE_TIER_PREFIXES:
-        if name and name.startswith(prefix):
-            remainder = name[len(prefix):]
-            if remainder in all_names:
-                found.add(remainder)
-
-    found.discard(name)
-    return found
-
-
-def _resolve_is_raid(name, drop_location, raid_names, all_drop_locations, memo):
-    """Memoized graph walk: True if `name` is sourced from a real raid
-    (`drop_location` names a raid directly) OR any of its upgrade/crafting
-    ingredients (transitively) are. `memo` also doubles as a cycle guard —
-    seeded False before recursing, so a (theoretical, never observed) cycle
-    resolves to False rather than infinite-looping."""
-    if name in memo:
-        return memo[name]
-    memo[name] = False
-
-    dl = drop_location or ''
-    if any(rn in dl for rn in raid_names):
-        memo[name] = True
-        return True
-
-    all_names = all_drop_locations.keys()
-    for ingredient_name in _raid_ingredient_names(name, dl, all_names):
-        ingredient_dl = all_drop_locations.get(ingredient_name, '')
-        if _resolve_is_raid(ingredient_name, ingredient_dl, raid_names, all_drop_locations, memo):
-            memo[name] = True
-            return True
-
-    return False
 
 
 def safe_name(s):
@@ -442,83 +208,12 @@ def _weapon_family_key(item):
     return None
 
 
-# The 21 real DDO skills, taken from the distinct <Item> values on the
-# corpus's 992 SkillBonus buffs (docs/CASTER_BONUS_TYPE_STATS_SPEC.md's
-# post-release corrections). Used to decide whether a user's priority is
-# asking for a skill, so a skill buff is never absorbed by an unrelated
-# priority — see is_skill_buff in normalize_stat_name.
-SKILL_NAMES = frozenset({
-    'balance', 'bluff', 'concentration', 'diplomacy', 'disable device',
-    'haggle', 'heal', 'hide', 'intimidate', 'jump', 'listen',
-    'move silently', 'open lock', 'perform', 'repair', 'search',
-    'spellcraft', 'spot', 'swim', 'tumble', 'use magic device',
-})
 
 
-def _priority_wants_skill(p_clean):
-    """True when a priority is asking for a skill: it either names one of the
-    real skills outright, or says "skill(s)" (covering the group buffs like
-    "Alluring Skills Bonus" that have no per-skill <Item>)."""
-    return 'skill' in p_clean or any(s in p_clean for s in SKILL_NAMES)
 
 
-def _is_stacking(b_type):
-    return (b_type or '').lower().strip() in STACKING_TYPES
 
 
-# CORRECTION (confirmed by a real DDO player, superseding an earlier wrong
-# assumption in this same file): a 'Colorless' augment slot does NOT accept
-# the 8 standard elemental/celestial colors (Red/Orange/Yellow/Green/Blue/
-# Purple/Sun/Moon) — that was the actual bug behind GitHub issue
-# jorgec/ddogearset#2 ("Lunar/Solar gems in colorless slots"), not a fix for
-# anything. Colorless slots only accept augments that are THEMSELVES
-# colorless-compatible — DDO calls these "Diamond" augments.
-#
-# DDOBuilderV2 does NOT reliably encode this via <Type> at all: confirmed by
-# enumerating every one of the 168 distinct real augment <Type> values in the
-# corpus, zero are "Colorless" or "Diamond" or anything colorless-adjacent —
-# e.g. "Diamond of Charisma" is typed "Blue" in the data, not "Colorless".
-# The only reliable signal is the augment's NAME, matched against this
-# pattern (confirmed against the real corpus: 46 matches, every one
-# independently confirmed typed "Blue" — i.e. the <Type> field would have
-# silently misidentified all 46 as Blue-slot-only without this override).
-COLORLESS_AUGMENT_NAME_PATTERN = re.compile(
-    r"^(Diamond of .+|Set Augment: .+|Globe of .+|Clearwater Diamond|"
-    r"Essence of the Epic Litany of the Dead|"
-    r"Ravil's Book of (?:Legendary )?Recipes|The Master's Gift)$"
-)
-
-
-def augment_fits_slot(aug_type, slot_color, aug_name=None):
-    """A 'Colorless' slot accepts an augment ONLY if its name matches
-    COLORLESS_AUGMENT_NAME_PATTERN (see above) or, defensively, if it is
-    ever literally typed "Colorless" in the data (true of none today, but
-    cheap to also honor in case that ever changes). Every other slot family,
-    including Colorless for any other augment, requires an EXACT type
-    match — no substring fallback.
-
-    A substring fallback (`slot_color in aug_type`) used to sit here and was
-    removed after a real-data audit of the full DDOBuilderV2 corpus (194 item
-    slot types x 168 augment types) found 34 false-positive pairs it let
-    through, e.g. a plain "Red" slot accepting the unrelated augment
-    "Incredible Potential" (because "red" is a substring of "incREDible"), a
-    plain "Green" slot accepting any Greensteel Weapon Tier augment, and
-    heroic-tier slots (e.g. "Alchemical Tier 1") accepting their Legendary-
-    tier counterparts ("Legendary Alchemical Tier 1") across a tier boundary
-    that should never cross. Every one of those 34 pairs was a bug, not a
-    legitimate match the substring rule was relied on for — of the 193 real
-    non-Colorless slot types, the 70 with no exact-match augment counterpart
-    at all (Cannith crafting prefix/suffix/extra, Set Bonus, Upgrade, Variant,
-    etc.) got zero matches under the substring rule too, confirming those
-    slot families are resolved through a different mechanism entirely, not
-    this general augment-fitting path."""
-    slot_color = (slot_color or '').lower()
-    aug_type = (aug_type or '').lower()
-    if slot_color == 'colorless':
-        if aug_type == 'colorless':
-            return True
-        return bool(aug_name) and bool(COLORLESS_AUGMENT_NAME_PATTERN.match(aug_name.strip()))
-    return aug_type == slot_color
 
 
 def _clamp(v, lo, hi):
@@ -532,244 +227,53 @@ def _val(var):
     return 0.0 if v is None else float(v)
 
 
-def strip_cap_suffix(name):
-    """'Melee Power[50]' -> 'Melee Power'."""
-    return re.sub(r'\[\d+\]', '', str(name)).strip()
 
 
-def normalize_stat_key(name):
-    """Duplicate-detection key (§2.6): strip [N], strip whitespace, casefold."""
-    return strip_cap_suffix(name).casefold()
 
 
-# docs/CASTER_BONUS_TYPE_STATS_SPEC.md — recognized bonus-type qualifier
-# prefixes for Spell DC / Spell Focus Mastery priorities (e.g. "Sacred Spell
-# Focus Mastery", "Profane Spell DC"). Deliberately excludes Reaper (a
-# stacking bonus type, not a real gear-farming target) and the caster-
-# irrelevant bonus types (Armor, Competence, Deflection, Luck, Resistance,
-# etc.) — this is every bonus type actually observed on real SpellDC/
-# SpellFocusMastery sources in DDOBuilderV2, minus Reaper.
-BONUS_TYPE_PREFIXES = frozenset({
-    'sacred', 'quality', 'profane', 'artifact', 'insightful', 'exceptional',
-    'equipment', 'legendary', 'enhancement', 'fortune',
-})
 
 
-def _split_bonus_type_prefix(p_clean):
-    """'sacred spell focus mastery' -> ('sacred', 'spell focus mastery').
-    No recognized prefix -> (None, p_clean) unchanged, so every priority that
-    isn't bonus-type-qualified keeps matching any bonus type, exactly as
-    before this existed."""
-    first, _, rest = p_clean.partition(' ')
-    if first in BONUS_TYPE_PREFIXES and rest:
-        return first, rest
-    return None, p_clean
 
 
-def normalize_stat_name(typ, item, desc, priorities, bonus_type=None):
-    typ = (typ or '').lower()
-    item = (item or '').lower()
-    desc = (desc or '').lower()
-    bonus_type = (bonus_type or '').strip().lower()
-
-    # Skills used to be dropped outright here (`if 'skill' in typ/item/desc:
-    # return None`), a blanket simplification carried over from the original
-    # Phase 3 integration. It meant a Spellcraft or Disable Device priority
-    # could never match anything, even though the data is perfectly
-    # structured for it: Type='SkillBonus', Item='<skill name>', with a real
-    # Value1 and BonusType (992 such buffs across 21 skills).
-    #
-    # They cannot simply be un-dropped, though. Alongside per-skill buffs the
-    # corpus carries GROUP buffs typed e.g. "Intelligence Skills - Exceptional
-    # Bonus" or "Alluring Skills Bonus" — bonuses to the skills governed by an
-    # ability, NOT to the ability score. Matching those by plain substring
-    # would let an "Intelligence" ability priority absorb them, which is the
-    # same defect class as the school-save bug below.
-    #
-    # So skills are gated per-priority instead: only a priority that actually
-    # asks for a skill may claim a skill buff. Structural fields only, never
-    # the free-text description, so a buff that merely mentions "skills" in
-    # prose is unaffected.
-    is_skill_buff = 'skill' in typ or 'skill' in item
-
-    # A Hireling* buff (HirelingPRR, HirelingMRR, HirelingMeleePower,
-    # HirelingAbilityBonus) buffs YOUR HIRELING, not you. The stat name is a
-    # substring of the character's own stat, so a plain match credits it to
-    # the player: reported from a real gearset, The Cry of Battle's 2-piece
-    # bonus (HirelingPRR +20 / HirelingMRR +20) was counted toward the user's
-    # own PRR and MRR priorities, and the solver duly spent two filigree slots
-    # acquiring +40 of defence that goes to a hireling. Same defect class as
-    # the school-save and ability-skill-group collisions.
-    is_hireling_buff = 'hireling' in typ or 'hireling' in item
-
-    # A saving-throw buff — IllusionSave, EnchantmentSave, "Illusion Save" —
-    # is a DEFENSIVE stat: it raises YOUR save against that school and does
-    # nothing for the DC of spells you cast. Because it carries the school's
-    # name, a plain substring match happily credits it to an OFFENSIVE
-    # priority: reported from a real gearset, Legendary Eyes of
-    # Enlightenment's "IllusionSave +11 (Resistance)" was being counted
-    # toward an Illusion DC priority and inflating its realized total.
-    #
-    # Rather than dropping these outright (the skill guard's approach), they
-    # are gated per-priority below, so someone who genuinely wants the
-    # defensive stat can still ask for it by name ("illusion save" /
-    # "illusion resistance"). Keyed on the structural Type/Item fields and
-    # never the free-text description, so a buff that merely mentions "save"
-    # in prose isn't swept in.
-    is_save_buff = 'save' in typ or 'save' in item
-
-    combined = f"{item} {typ} {desc}".lower()
-
-    def match_terms(p_clean):
-        """(direct, implied) match strings for one priority.
-
-        `direct` are the stat this priority literally names. `implied` are
-        stats it only benefits from indirectly — currently just Spell Focus
-        Mastery, which raises the DC of EVERY school, so any school-DC
-        priority legitimately profits from it.
-
-        The split matters because a buff is attributed to exactly one
-        priority. Before it existed, every "…dc"/"…focus" priority carried
-        the universal Spell-Focus-Mastery terms in the same flat list, so a
-        priority like "evocation spelldc" would swallow every
-        SpellFocusMastery buff purely by being earlier in the user's list —
-        starving an explicit "sacred spell focus mastery" priority to zero
-        sources and reporting it as matching nothing.
-        """
-        direct = [p_clean, p_clean.replace(' ', '')]
-        implied = []
-        if p_clean == 'prr':
-            direct.extend(['physical resistance', 'physicalresistancerating'])
-        elif p_clean == 'mrr':
-            direct.extend(['magical resistance', 'magicalresistancerating'])
-        elif p_clean == 'hamp' or p_clean == 'healing amp':
-            direct.extend(['healing amplification'])
-
-        if 'spell power' in p_clean:
-            direct.append(p_clean.replace('spell power', 'spellpower'))
-        if 'spell crit chance' in p_clean or 'spell lore' in p_clean:
-            ele = p_clean.replace('spell crit chance', '').replace('spell lore', '').strip()
-            direct.append(f"{ele} spelllore")
-            direct.append(f"{ele} spell lore")
-        if 'spell crit damage' in p_clean or 'spell critical damage' in p_clean:
-            ele = p_clean.replace('spell crit damage', '').replace('spell critical damage', '').strip()
-            direct.append(f"{ele} spellcriticaldamage")
-            direct.append(f"{ele} spell critical damage")
-        if 'dc' in p_clean or 'focus' in p_clean:
-            school = p_clean.replace('dc', '').replace('focus', '').replace('spell', '').strip()
-            direct.append(f"{school} spellfocus")
-            direct.append(f"{school} spell focus")
-            # Universal, school-agnostic — hence implied, not direct. A
-            # priority that names Spell Focus Mastery outright already
-            # matches it through `direct` above.
-            implied.append("spell focus mastery")
-            implied.append("spellfocusmastery")
-        return direct, implied
-
-    # Two passes: every priority gets a shot at a DIRECT match before any
-    # priority is allowed to claim the buff through an implied one. Within a
-    # pass, earlier priorities still win, preserving the original ordering
-    # semantics. A user who lists only school DCs and no Spell Focus Mastery
-    # priority still credits SFM buffs on the second pass, exactly as before.
-    for use_implied in (False, True):
-        for p in priorities:
-            p_base = re.sub(r'\[\d+\]', '', p).strip()
-            required_bonus, p_clean = _split_bonus_type_prefix(p_base.lower())
-            if required_bonus and required_bonus != bonus_type:
-                continue
-            # Weapon combat properties are matched by exact element name in
-            # parse_items (§15.2) and must never go through the substring heuristic.
-            if p_clean in WEAPON_BASE_STATS:
-                continue
-            # Only a priority that actually asks for a save may claim a
-            # defensive saving-throw buff (see is_save_buff above).
-            if is_save_buff and 'save' not in p_clean and 'resist' not in p_clean:
-                continue
-            # Likewise, only a skill-seeking priority may claim a skill buff
-            # (see is_skill_buff above) — this is what stops an "Intelligence"
-            # ability priority from absorbing "Intelligence Skills" buffs.
-            if is_skill_buff and not _priority_wants_skill(p_clean):
-                continue
-            # Only a priority explicitly asking for a hireling stat may claim
-            # a Hireling* buff (see is_hireling_buff above).
-            if is_hireling_buff and 'hireling' not in p_clean:
-                continue
-
-            direct, implied = match_terms(p_clean)
-            for m in (implied if use_implied else direct):
-                if m in combined:
-                    return p_base
-    return None
 
 
-def _float_text(text):
-    if text is None:
-        return None
-    try:
-        return float(str(text).strip())
-    except (ValueError, TypeError):
-        return None
 
 
-def _weapon_base_buffs(item_node, wanted):
-    """§15.2 — extract weapon combat properties as ordinary `buffs` entries.
 
-    `wanted` maps canonical lowercase stat name -> the user's own spelling (so
-    the emitted stat key matches the PriorityEntry exactly). Values are emitted
-    only when the source element is present and parses; Rune Arms (which have
-    no crit profile) correctly emit nothing rather than a fabricated default.
-    """
-    out = []
-    if not wanted:
-        return out
+# ---------------------------------------------------------------------------
+# Per-node extractors — "what does this node GRANT?"
+#
+# Split out of parse_items so the same extraction can be reached by two
+# different candidacy rules: the search's ("is this item a candidate for the
+# model?") and recalculation's ("did the user equip it?"). See
+# docs/0.5.0/01_RECALC_SPEC_AND_PHASED_PLAN.md Phase 1.
+#
+# These functions contain NO search restrictions — no ML window, no armor or
+# weapon-style filter, no pack exclusion, no owned-items check. All of that
+# stays in parse_items below. That separation is what makes it structurally
+# impossible for recalculation to inherit a restriction, rather than merely
+# impolite.
+# ---------------------------------------------------------------------------
 
-    wd = _float_text(item_node.findtext('WeaponDamage'))
 
-    dice_ev = None
-    dice_node = item_node.find('BaseDice')
-    if dice_node is not None:
-        number = _float_text(dice_node.findtext('Number'))
-        sides = _float_text(dice_node.findtext('Sides'))
-        if number is not None and sides is not None:
-            # §15.3 — collapse the dice to expected value. Number and Sides are
-            # individually meaningless as priorities (1d12 EV 6.5 would beat
-            # 2d6 EV 7.0 on "sides" alone).
-            dice_ev = number * (sides + 1.0) / 2.0
 
-    crit_mult = _float_text(item_node.findtext('CriticalMultiplier'))
-    crit_range = _float_text(item_node.findtext('CriticalThreatRange'))
 
-    emitted = [
-        (WEAPON_STAT_DAMAGE, wd),
-        (WEAPON_STAT_DICE, dice_ev),
-        (WEAPON_STAT_CRIT_MULT, crit_mult),
-        (WEAPON_STAT_CRIT_RANGE, crit_range),
-        # Composite: the two factors multiply, so neither ranks weapons alone.
-        (WEAPON_STAT_COMPOSITE, (wd * dice_ev) if (wd is not None and dice_ev is not None) else None),
-    ]
 
-    for canonical, value in emitted:
-        if value is None:
-            continue
-        user_name = wanted.get(canonical)
-        if not user_name:
-            continue
-        out.append((user_name, WEAPON_BASE_BONUS_TYPE, float(value)))
-    return out
+
+
+
+
+
+
+
+
 
 
 def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None, min_ml=29, owned_names=None):
     items = []
     allowed_armor = allowed_armor.strip().lower() if allowed_armor else None
 
-    # §15.2 — only emit weapon-property buffs the user actually asked for;
-    # unused weapon-property stats add zero variables to the model.
-    wanted_weapon_stats = {}
-    for p in priorities or []:
-        base = strip_cap_suffix(p)
-        low = base.lower()
-        if low in WEAPON_BASE_STATS:
-            wanted_weapon_stats[low] = base
+    wanted_weapon_stats = wanted_weapon_stats_for(priorities)
 
     force_dino = False
     if art_slot_input:
@@ -811,13 +315,7 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                 weapon_type = item_node.findtext('Weapon')
                 is_minor = item_node.find('MinorArtifact') is not None
 
-                slots = []
-                slots_node = item_node.find('EquipmentSlot') or item_node.find('Slots')
-                if slots_node is not None:
-                    for child in slots_node:
-                        tag = child.tag
-                        if tag in ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring', 'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2']:
-                            slots.append(tag)
+                slots = _item_slots_from_node(item_node)
 
                 if not slots:
                     continue
@@ -859,29 +357,10 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                     if not slots:
                         continue
 
-                drop_location = item_node.findtext('DropLocation') or ""
-                item_is_raid = False
-                item_pack = None
-
-                if quests_lookup:
-                    for quest_name, quest_info in quests_lookup.items():
-                        if quest_name in drop_location:
-                            item_pack = quest_info.get('AdventurePack')
-                            break
-                    # docs/RAID_DETECTION_SPEC.md — direct match (quest name
-                    # in this item's own DropLocation) OR any upgrade/
-                    # crafting ingredient (transitively) traces back to a
-                    # raid. Replaces the old direct-match-only check; a
-                    # direct match is still the common case and resolves
-                    # immediately inside _resolve_is_raid.
-                    item_is_raid = _resolve_is_raid(
-                        name, drop_location, raid_names, raid_all_drop_locations, raid_memo)
-                elif "raid" in drop_location.lower():
-                    # No Quests.xml-derived raid list available at all (e.g.
-                    # a caller that doesn't pass quests_lookup) — fall back
-                    # to the old crude substring heuristic rather than
-                    # reporting every item as non-raid.
-                    item_is_raid = True
+                provenance = _item_provenance(
+                    item_node, name, quests_lookup, raid_names,
+                    raid_all_drop_locations, raid_memo)
+                _drop_location, item_pack, item_is_raid = provenance
 
                 if not is_pre_equipped and excluded_packs and item_pack in excluded_packs:
                     continue
@@ -896,121 +375,14 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
                 if not is_pre_equipped and owned_names is not None and name not in owned_names:
                     continue
 
-                buffs = []
-                for buff_node in item_node.findall('Buff'):
-                    b_type = buff_node.findtext('Type')
-                    b_item = buff_node.findtext('Item')
-                    b_desc = buff_node.findtext('Description1')
-                    b_val = buff_node.findtext('Value1')
-                    b_bonus = buff_node.findtext('BonusType')
-
-                    stat = normalize_stat_name(b_type, b_item, b_desc, priorities, bonus_type=b_bonus)
-                    if stat and b_val and b_bonus:
-                        try:
-                            val = float(b_val)
-                            buffs.append((stat, b_bonus.strip(), val))
-                        except ValueError:
-                            pass
-                    elif not b_bonus and _is_proc_presence_flag_type(b_type):
-                        # Shape A (docs/PROC_EFFECTS_EXPANSION_SPEC.md) — a
-                        # whitelisted proc buff missing BonusType (most have
-                        # no Value1 either; a few like Tendon Slice carry one
-                        # that isn't a comparable magnitude). Matched via
-                        # _proc_priority_match, not the `stat` computed above
-                        # — several real proc names ("Legendary Affirmation",
-                        # "Legendary Negation", ...) start with a word
-                        # normalize_stat_name's bonus-type-prefix splitting
-                        # would otherwise misinterpret. Presence-only: see
-                        # PROC_BONUS_TYPE.
-                        proc_stat = _proc_priority_match(b_type, priorities)
-                        if proc_stat:
-                            buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
-
-                # §15.2 — weapon combat properties are direct children of <Item>,
-                # not <Buff> elements, but they land in the same `buffs` list so
-                # sources / z / UB_s / n_s / goals / reconciliation are unchanged.
-                try:
-                    buffs.extend(_weapon_base_buffs(item_node, wanted_weapon_stats))
-                except ValueError:
-                    pass
-
-                sets = []
-                for set_node in item_node.findall('.//SetBonus'):
-                    if set_node.text:
-                        sets.append(set_node.text.strip())
-
-                augments = []
-                for aug_node in item_node.findall('.//ItemAugment'):
-                    a_type = aug_node.findtext('Type')
-                    if a_type:
-                        augments.append(a_type.strip())
-
-                # docs/HARD_REQUIRED_SLOTS_SPEC.md §1 — only meaningful for
-                # weapons; None/False for everything else, which is exactly
-                # what an unclassified weapon_type (e.g. Throwing Axe) also
-                # gets, so callers don't need to special-case "not a weapon"
-                # vs "a weapon type we deliberately don't classify".
-                damage_type = WEAPON_DAMAGE_TYPES.get((weapon_type or '').lower())
-                craftable_family = bool(weapon_type) and _is_craftable_family_weapon(name, drop_location)
-
-                items.append({
-                    'name': name,
-                    'file': os.path.basename(item_file),
-                    'slots': slots,
-                    'buffs': buffs,
-                    'sets': sets,
-                    'augments': augments,
-                    'minor': is_minor,
-                    'is_raid': item_is_raid,
-                    'pack': item_pack,
-                    'ml': ml,
-                    'weapon_type': weapon_type,
-                    'damage_type': damage_type,
-                    'craftable_family': craftable_family,
-                })
+                items.append(_item_from_node(
+                    item_node, item_file, slots, priorities,
+                    wanted_weapon_stats, provenance))
         except Exception:
             pass
     return items
 
 
-def parse_sets(base_dir, priorities):
-    set_bonuses = {}
-    try:
-        tree = ET.parse(os.path.join(base_dir, 'SetBonuses.xml'))
-        for set_node in tree.findall('.//SetBonus'):
-            name = set_node.findtext('Type')
-            if not name: continue
-
-            if name not in set_bonuses:
-                set_bonuses[name] = {}
-
-            for buff_node in set_node.findall('Buff'):
-                count = buff_node.findtext('EquippedCount')
-                if not count: continue
-                count = int(count)
-
-                if count not in set_bonuses[name]:
-                    set_bonuses[name][count] = []
-
-                for effect_node in buff_node.findall('Effect'):
-                    b_types = [t.text for t in effect_node.findall('Type') if t.text]
-                    b_bonus = effect_node.findtext('Bonus')
-                    b_item = effect_node.findtext('Item')
-                    amt_node = effect_node.find('Amount')
-                    b_val = amt_node.text if amt_node is not None else None
-
-                    if b_val and b_bonus:
-                        try:
-                            val = float(b_val)
-                            for t in b_types:
-                                stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
-                                if stat:
-                                    set_bonuses[name][count].append((stat, b_bonus.strip(), val))
-                        except ValueError:
-                            pass
-    except Exception:
-        pass
-    return set_bonuses
 
 
 def flatten_pre_filled_augment_names(pre_filled_augments):
@@ -1030,6 +402,12 @@ def flatten_pre_filled_augment_names(pre_filled_augments):
         else:
             names.update(n for n in (aug_entry or []) if n)
     return names
+
+
+
+
+
+
 
 
 def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, min_ml=29, owned_names=None):
@@ -1066,40 +444,7 @@ def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, 
                 if not is_pre_filled and owned_names is not None and name not in owned_names:
                     continue
 
-                buffs = []
-                for effect_node in aug_node.findall('Effect'):
-                    b_types = [t.text for t in effect_node.findall('Type') if t.text]
-                    b_bonus = effect_node.findtext('Bonus')
-                    b_item = effect_node.findtext('Item')
-                    amt_node = effect_node.find('Amount')
-                    b_val = amt_node.text if amt_node is not None else None
-
-                    if b_val and b_bonus:
-                        try:
-                            val = float(b_val)
-                            for t in b_types:
-                                stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
-                                if stat:
-                                    buffs.append((stat, b_bonus.strip(), val))
-                        except ValueError:
-                            pass
-
-                # Shape B (docs/PROC_EFFECTS_EXPANSION_SPEC.md) — a small,
-                # confirmed-real whitelist of augments whose own effect data
-                # is entirely empty (DDOBuilderV2 marks these
-                # "(Undocumented: Grants <Name>)"); the augment's Name is the
-                # only signal. Only fires when the loop above found zero
-                # buffs — an augment with both real effects AND a whitelisted
-                # name (shouldn't happen, but stay conservative) keeps its
-                # real buffs untouched. Matched via _proc_priority_match, not
-                # normalize_stat_name — several whitelisted names ("Legendary
-                # Affirmation", "Legendary Ash", ...) start with a word
-                # normalize_stat_name's bonus-type-prefix splitting would
-                # otherwise misinterpret (see that helper's docstring).
-                if not buffs and name.strip().lower() in PROC_ZERO_EFFECT_AUGMENT_NAMES:
-                    proc_stat = _proc_priority_match(name, priorities)
-                    if proc_stat:
-                        buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
+                augment = _augment_from_node(aug_node, priorities)
 
                 # A pre-filled augment must never be dropped for having zero
                 # buffs that match the user's *current* stat_priorities — same
@@ -1113,12 +458,8 @@ def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, 
                 # list (e.g. the user removed that stat from priorities after
                 # slotting it) would silently vanish here and turn a
                 # calculate-only solve infeasible.
-                if buffs or is_pre_filled:
-                    augments.append({
-                        'name': name,
-                        'type': a_type.strip(),
-                        'buffs': buffs
-                    })
+                if augment['buffs'] or is_pre_filled:
+                    augments.append(augment)
         except Exception:
             pass
     return augments
@@ -1152,58 +493,19 @@ def parse_filigrees(base_dir, priorities):
                         sets[name][count] = []
 
                     for effect_node in buff_node.findall('Effect'):
-                        b_types = [t.text for t in effect_node.findall('Type') if t.text]
-                        b_bonus = effect_node.findtext('Bonus')
-                        b_item = effect_node.findtext('Item')
-                        amt_node = effect_node.find('Amount')
-                        b_val = amt_node.text if amt_node is not None else None
-
-                        if b_val and b_bonus:
-                            try:
-                                val = float(b_val)
-                                for t in b_types:
-                                    stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
-                                    if stat:
-                                        sets[name][count].append((stat, b_bonus.strip(), val))
-                            except ValueError:
-                                pass
+                        sets[name][count].extend(
+                            _effect_buffs_from_node(effect_node, priorities))
 
             for f_node in tree.findall('.//Filigree'):
-                name = f_node.findtext('Name') or 'Unknown'
-                set_bonus = f_node.findtext('SetBonus')
+                filigree = _filigree_from_node(f_node, priorities)
 
-                buffs = []
-                for effect_node in f_node.findall('Effect'):
-                    # "Rare" is an alternate/upgraded variant of the same filigree
-                    # instance, not an additional stacking bonus on top of the base
-                    # effect. Only the base (non-Rare) effect should ever be counted.
-                    if effect_node.find('Rare') is not None:
-                        continue
-                    b_types = [t.text for t in effect_node.findall('Type') if t.text]
-                    b_bonus = effect_node.findtext('Bonus')
-                    b_item = effect_node.findtext('Item')
-                    amt_node = effect_node.find('Amount')
-                    b_val = amt_node.text if amt_node is not None else None
-
-                    if b_val and b_bonus:
-                        try:
-                            val = float(b_val)
-                            for t in b_types:
-                                stat = normalize_stat_name(t, b_item, "", priorities, bonus_type=b_bonus)
-                                if stat:
-                                    buffs.append((stat, b_bonus.strip(), val))
-                        except ValueError:
-                            pass
-
-                base_name = name.split(':')[0].strip() if ':' in name else name
-
-                if buffs:
-                    filigrees.append({
-                        'name': name,
-                        'base_name': base_name,
-                        'set': set_bonus,
-                        'buffs': buffs
-                    })
+                # Candidacy, not extraction: a filigree granting nothing the
+                # current priorities name adds only variables to the model.
+                # Recalculation deliberately does NOT apply this — a filigree
+                # the user has equipped is part of their gearset whether or not
+                # it happens to match a priority.
+                if filigree['buffs']:
+                    filigrees.append(filigree)
         except Exception:
             pass
 
@@ -2583,53 +1885,8 @@ def _slot_matches(item, slot):
     return wanted in item.get('slots', [])
 
 
-def _collect_contributions(equipped, aug_list, fil_weapon, fil_artifact, sets):
-    """Direct arithmetic against a fixed gearset — the same computation
-    calculate_only mode performs. Returns {(stat, b_type): [(val, origin)]}."""
-    contrib = collections.defaultdict(list)
-
-    for slot, item in equipped:
-        for stat, b_type, val in item['buffs']:
-            if b_type == WEAPON_BASE_BONUS_TYPE and slot != WEAPON_BASE_SLOT:
-                continue
-            contrib[(stat, b_type)].append((val, 'item'))
-
-    for aug in aug_list:
-        for stat, b_type, val in aug['buffs']:
-            contrib[(stat, b_type)].append((val, 'augment'))
-
-    for f in list(fil_weapon) + list(fil_artifact):
-        for stat, b_type, val in f['buffs']:
-            contrib[(stat, b_type)].append((val, 'filigree'))
-
-    # Set bonuses recomputed with the candidate substituted.
-    piece_counts = collections.Counter()
-    for _slot, item in equipped:
-        for k in item.get('sets', []) or []:
-            piece_counts[k] += 1
-    for f in list(fil_weapon) + list(fil_artifact):
-        if f.get('set'):
-            piece_counts[f['set']] += 1
-
-    for k, tiers in sets.items():
-        pieces = piece_counts.get(k, 0)
-        for m, buffs in tiers.items():
-            if pieces >= m:
-                for stat, b_type, val in buffs:
-                    contrib[(stat, b_type)].append((val, 'set'))
-
-    return contrib
 
 
-def _resolve_totals(contrib, exclude_filigrees=False):
-    """Sum for stacking bonus types, max for non-stacking — the DDO rule."""
-    totals = collections.defaultdict(float)
-    for (stat, b_type), entries in contrib.items():
-        vals = [v for v, o in entries if not (exclude_filigrees and o == 'filigree')]
-        if not vals:
-            continue
-        totals[stat] += sum(vals) if _is_stacking(b_type) else max(vals)
-    return dict(totals)
 
 
 def _tier_vector(contrib, weights, tier_of, ub_all, ub_nofil):
