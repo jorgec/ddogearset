@@ -20,7 +20,6 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from .transform import TransformResult
 
@@ -131,10 +130,15 @@ CREATE TABLE item_set (
     PRIMARY KEY (item_uuid, set_uuid)
 ) WITHOUT ROWID;
 
+-- origin_hint is NOT meaningful game data (see etl/walk.py's RawSetTier
+-- docstring) — purely which DDOBuilderV2 file a tier definition came from.
+-- Kept because two historical code paths read the two files separately and
+-- the Phase 1 differential snapshot still proves parity against each.
 CREATE TABLE set_tier (
     uuid        TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
     set_uuid    TEXT NOT NULL REFERENCES gear_set(uuid) ON DELETE CASCADE,
-    piece_count INTEGER NOT NULL
+    piece_count INTEGER NOT NULL,
+    origin_hint TEXT NOT NULL DEFAULT 'top_level'
 ) WITHOUT ROWID;
 CREATE INDEX set_tier_set_idx ON set_tier(set_uuid, piece_count);
 
@@ -259,7 +263,7 @@ def build_catalog(result: TransformResult, out_path: Path, *, registry_path: Pat
             _insert_many(conn, "filigree_set", result.filigree_sets,
                         ["filigree_uuid", "set_uuid", "position"])
             _insert_many(conn, "set_tier", result.set_tiers,
-                        ["uuid", "set_uuid", "piece_count"])
+                        ["uuid", "set_uuid", "piece_count", "origin_hint"])
             _insert_many(conn, "stat", result.stats, [
                 "uuid", "raw_type", "raw_target", "match_text", "is_skill",
                 "is_hireling", "is_save", "is_weapon_base"])

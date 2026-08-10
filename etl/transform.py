@@ -265,9 +265,17 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
     # emit_effects separately per row, which restarts `ordinal` at 0 each
     # time and collides effect UUIDs across rows — caught by this build's
     # validation the first time this was tried.
+    # origin_hint travels with the group rather than joining the grouping key:
+    # measured zero overlap in (set_name, piece_count) between the two source
+    # files (see RawSetTier's docstring), so every group is single-origin by
+    # construction — grouping by the pair alone already matches; this just
+    # carries the label along without changing what merges.
     tier_groups: Dict[Tuple[str, int], list] = {}
+    tier_origin: Dict[Tuple[str, int], str] = {}
     for st in corpus.set_tiers:
-        tier_groups.setdefault((st.set_name, st.piece_count), []).extend(st.buffs)
+        key = (st.set_name, st.piece_count)
+        tier_groups.setdefault(key, []).extend(st.buffs)
+        tier_origin[key] = st.origin_hint
 
     for (set_name, piece_count), merged_buffs in tier_groups.items():
         set_uuid = gear_set_id(set_name)
@@ -278,7 +286,8 @@ def transform(corpus: Corpus, registry: Registry, *, built_at: str,
                           "name": f"{set_name} ({piece_count}-piece)"})
         r.set_tiers.append({
             "uuid": src.entity_uuid, "set_uuid": set_uuid,
-            "piece_count": piece_count})
+            "piece_count": piece_count,
+            "origin_hint": tier_origin[(set_name, piece_count)]})
         emit_effects(src.entity_uuid, merged_buffs)
 
     # --- quests --------------------------------------------------------

@@ -34,9 +34,8 @@ from rules.extract import (  # noqa: E402
     _item_from_node,
     _item_provenance,
     _item_slots_from_node,
-    wanted_weapon_stats_for,
 )
-from rules.provenance import _all_item_name_drop_locations, _resolve_is_raid  # noqa: E402
+from rules.provenance import _all_item_name_drop_locations  # noqa: E402
 from rules.constants import WEAPON_BASE_STATS  # noqa: E402
 
 # Every priority ever needed by the catalog is "everything" — keep_unmatched
@@ -88,6 +87,15 @@ class RawSetTier:
     set_name: str
     piece_count: int
     buffs: list
+    # Which DDOBuilderV2 file this came from: 'top_level' (SetBonuses.xml) or
+    # 'filigree_file' (a FiligreeSets/*.xml). NOT meaningful game data — it is
+    # the SAME kind of tier row either way, and the app-facing schema never
+    # needs it — but two historical code paths (parse_sets vs parse_filigrees'
+    # second return value) read them from different files, and the Phase 1
+    # differential snapshot still tests them as separate keys. Measured on the
+    # real corpus: zero overlap in (set_name, piece_count) between the two
+    # files, so tagging costs nothing and keeps that proof exact.
+    origin_hint: str = "top_level"
 
 
 @dataclass
@@ -207,7 +215,8 @@ def walk_filigrees(base_dir: str):
                         buffs.extend(_effect_buffs_from_node(
                             effect_node, [], keep_unmatched=True, with_raw=True))
                     set_tiers.append(RawSetTier(
-                        set_name=set_name, piece_count=int(count), buffs=buffs))
+                        set_name=set_name, piece_count=int(count), buffs=buffs,
+                        origin_hint="filigree_file"))
             except Exception:
                 continue
 

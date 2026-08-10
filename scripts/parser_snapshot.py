@@ -125,15 +125,75 @@ def digest(obj):
     return hashlib.sha256(blob.encode()).hexdigest(), blob
 
 
-def run_all():
-    import optimizer
-    import parser as ddo_parser
+def run_all(backend: str = "xml", catalog_path: str = None):
+    """backend='xml' walks DDOBuilderV2 via optimizer.parse_*, exactly as
+    before. backend='catalog' calls the SAME 9 restriction combinations
+    through python/catalog_source.py against a built catalog.db — this is
+    Phase 4's correctness gate (docs/0.5.0/00_ETL_START_HERE.md): if every
+    digest still matches, the catalog changed no numbers.
 
-    if not BASE_DIR.exists():
-        sys.exit(f"DDOBuilderV2 data not found at {BASE_DIR}")
+    Deliberately NOT parameterised any further than the backend switch — both
+    paths must exercise identical restriction combinations for the comparison
+    to mean anything.
+    """
+    if backend == "xml":
+        import optimizer
+        import parser as ddo_parser
+        if not BASE_DIR.exists():
+            sys.exit(f"DDOBuilderV2 data not found at {BASE_DIR}")
+        quests = ddo_parser.parse_quests(str(BASE_DIR))
+
+        def do_items(priorities, o):
+            return optimizer.parse_items(
+                str(BASE_DIR), o.get("max_ml", 34), priorities,
+                o.get("allowed_armor", ""), o.get("allowed_w1_list"),
+                o.get("allowed_w2_list"), o.get("allow_gomf", True),
+                o.get("art_slot_input", ""), o.get("excluded_packs"), quests,
+                o.get("pre_equipped_names"), min_ml=o.get("min_ml", 29),
+                owned_names=o.get("owned_names"))
+
+        def do_augments(priorities, o):
+            return optimizer.parse_augments(
+                str(BASE_DIR), o.get("max_ml", 34), priorities,
+                o.get("pre_filled_augment_names"), min_ml=o.get("min_ml", 29),
+                owned_names=o.get("owned_names"))
+
+        def do_filigrees(priorities):
+            return optimizer.parse_filigrees(str(BASE_DIR), priorities)
+
+        def do_sets(priorities):
+            return optimizer.parse_sets(str(BASE_DIR), priorities)
+
+    elif backend == "catalog":
+        import catalog_source
+        if not catalog_path or not Path(catalog_path).exists():
+            sys.exit(f"catalog not found at {catalog_path!r}")
+        conn = catalog_source.connect(catalog_path)
+
+        def do_items(priorities, o):
+            return catalog_source.parse_items(
+                conn, o.get("max_ml", 34), priorities,
+                o.get("allowed_armor", ""), o.get("allowed_w1_list"),
+                o.get("allowed_w2_list"), o.get("allow_gomf", True),
+                o.get("art_slot_input", ""), o.get("excluded_packs"),
+                o.get("pre_equipped_names"), min_ml=o.get("min_ml", 29),
+                owned_names=o.get("owned_names"))
+
+        def do_augments(priorities, o):
+            return catalog_source.parse_augments(
+                conn, o.get("max_ml", 34), priorities,
+                o.get("pre_filled_augment_names"), min_ml=o.get("min_ml", 29),
+                owned_names=o.get("owned_names"))
+
+        def do_filigrees(priorities):
+            return catalog_source.parse_filigrees(conn, priorities)
+
+        def do_sets(priorities):
+            return catalog_source.parse_sets(conn, priorities)
+    else:
+        sys.exit(f"unknown backend {backend!r}")
 
     owned_items, owned_augments = owned_fixture_names()
-    quests = ddo_parser.parse_quests(str(BASE_DIR))
     out = {}
 
     for plabel, priorities in (("caster", CASTER_PRIORITIES),
@@ -142,50 +202,40 @@ def run_all():
             o = dict(opts)
             if o.get("owned_names") == "FROM_FIXTURE":
                 o["owned_names"] = owned_items
-            items = optimizer.parse_items(
-                str(BASE_DIR),
-                o.get("max_ml", 34),
-                priorities,
-                o.get("allowed_armor", ""),
-                o.get("allowed_w1_list"),
-                o.get("allowed_w2_list"),
-                o.get("allow_gomf", True),
-                o.get("art_slot_input", ""),
-                o.get("excluded_packs"),
-                quests,
-                o.get("pre_equipped_names"),
-                min_ml=o.get("min_ml", 29),
-                owned_names=o.get("owned_names"),
-            )
-            out[f"items/{plabel}/{label}"] = items
+            out[f"items/{plabel}/{label}"] = do_items(priorities, o)
 
         for label, opts in AUGMENT_COMBINATIONS:
             o = dict(opts)
             if o.get("owned_names") == "FROM_FIXTURE":
                 o["owned_names"] = owned_augments
-            augs = optimizer.parse_augments(
-                str(BASE_DIR), o.get("max_ml", 34), priorities,
-                o.get("pre_filled_augment_names"),
-                min_ml=o.get("min_ml", 29),
-                owned_names=o.get("owned_names"),
-            )
-            out[f"augments/{plabel}/{label}"] = augs
+            out[f"augments/{plabel}/{label}"] = do_augments(priorities, o)
 
-        fils, fil_sets = optimizer.parse_filigrees(str(BASE_DIR), priorities)
+        fils, fil_sets = do_filigrees(priorities)
         out[f"filigrees/{plabel}/all"] = fils
         out[f"filigree_sets/{plabel}/all"] = fil_sets
-        out[f"sets/{plabel}/all"] = optimizer.parse_sets(str(BASE_DIR), priorities)
+        out[f"sets/{plabel}/all"] = do_sets(priorities)
+
+    if backend == "catalog":
+        conn.close()
 
     return out
 
 
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "verify"
-    if mode not in ("capture", "verify"):
-        sys.exit(f"usage: {sys.argv[0]} [capture|verify]")
+    if mode not in ("capture", "verify", "verify-catalog"):
+        sys.exit(f"usage: {sys.argv[0]} [capture|verify|verify-catalog <catalog.db>]")
 
-    print(f"parser snapshot — {mode} (full corpus, this takes ~30 s)\n")
-    results = run_all()
+    if mode == "verify-catalog":
+        if len(sys.argv) < 3:
+            sys.exit(f"usage: {sys.argv[0]} verify-catalog <path-to-catalog.db>")
+        catalog_path = sys.argv[2]
+        print(f"parser snapshot — verify-catalog against {catalog_path} "
+              f"(Phase 4 correctness gate)\n")
+        results = run_all(backend="catalog", catalog_path=catalog_path)
+    else:
+        print(f"parser snapshot — {mode} (full corpus, this takes ~30 s)\n")
+        results = run_all(backend="xml")
 
     digests, sizes = {}, {}
     FULL_DIR.mkdir(parents=True, exist_ok=True)

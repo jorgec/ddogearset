@@ -344,10 +344,19 @@ CREATE TABLE item_set (
     PRIMARY KEY (item_uuid, set_uuid)
 ) WITHOUT ROWID;
 
+-- ADDED (Phase 4 implementation): `origin_hint` — NOT meaningful game data.
+-- DDOBuilderV2 defines set tiers in two places, SetBonuses.xml and per-file
+-- FiligreeSets/*.xml tier blocks, with zero overlap in (set_name,
+-- piece_count) between them (measured on the real corpus). Two historical
+-- code paths read them separately (parse_sets vs parse_filigrees' second
+-- return value), and the Phase 1 differential snapshot still checks each as
+-- its own key, so the tag is kept purely to let the catalog-backed readers
+-- reproduce both outputs exactly.
 CREATE TABLE set_tier (
     uuid        TEXT PRIMARY KEY REFERENCES source(uuid) ON DELETE CASCADE,
     set_uuid    TEXT NOT NULL REFERENCES gear_set(uuid) ON DELETE CASCADE,
-    piece_count INTEGER NOT NULL
+    piece_count INTEGER NOT NULL,
+    origin_hint TEXT NOT NULL DEFAULT 'top_level'
 ) WITHOUT ROWID;
 CREATE INDEX set_tier_set_idx ON set_tier(set_uuid, piece_count);
 
