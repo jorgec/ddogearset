@@ -1,0 +1,47 @@
+{
+  "capture_mode": "calculate",
+  "captured_with_app_version": "0.4.4",
+  "empty_gearset": true,
+  "notes": [
+    "no equipped gear; retained as the empty-gearset regression fixture (plan \u00a717)"
+  ],
+  "payload": {
+    "armor_restriction": "Light",
+    "build_type": "Melee",
+    "caster_restrict_weapon_families": true,
+    "caster_schools": [],
+    "caster_spellpowers": [],
+    "exclude_gem_of_many_facets": false,
+    "excluded_packs": [],
+    "gearset_name": "__1__",
+    "is_dino_artifact": false,
+    "max_level": 34,
+    "max_search_time": 60,
+    "minor_artifact_filigree_slots": 4,
+    "mode": "calculate",
+    "offhand_style": "None",
+    "output_filename": "",
+    "pre_equipped": {},
+    "pre_filled_augments": {},
+    "pre_filled_filigrees": {
+      "artifact": [],
+      "weapon": []
+    },
+    "raid_item_limit": 2,
+    "reserved_minor_artifact_slot": "Ring",
+    "runearm_use": false,
+    "stat_priorities": [],
+    "swashbuckling": false,
+    "weapon_style": "Two Weapon Fighting"
+  },
+  "result": null,
+  "source_app_version": "0.5.0",
+  "source_file": "__1___MeleeTwoWeaponFighting_20260810021656.ddogearset",
+  "source_version": "1.3",
+  "stored_reference": {
+    "activeSets": null,
+    "realizedStats": null,
+    "trustworthy": false,
+    "why": "written by the discarded 0.5.0 Go implementation - gear names are real, stats are not"
+  }
+}

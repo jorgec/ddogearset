@@ -28,6 +28,18 @@ test_glpk.py
 
 python/tests/__pycache__/
 
+# Every __pycache__, wherever it appears — the per-directory rules above
+# missed python/rules/ when that package was added.
+__pycache__/
+
+# Scratch dir used by scripts/capture_oracle.py while replaying gearsets
+# through the solver. The captured fixtures themselves
+# (python/tests/fixtures/oracle/*.oracle.json) ARE tracked on purpose — they are
+# the differential oracle for the 0.5.0 recalculation work and cannot be
+# regenerated once mode:"calculate" is removed. See
+# docs/0.5.0/00_ETL_START_HERE.md Phase 0.
+python/tests/fixtures/.capture_tmp/
+
 frontend/wailsjs/runtime/package.json
 
 frontend/wailsjs/runtime/runtime.d.ts
@@ -37,3 +49,7 @@ frontend/wailsjs/runtime/runtime.js
 .DS_Store
 
 dist/darwin-arm64/DDO Gearset Optimizer.zip
+
+# Full canonical parser output written by scripts/parser_snapshot.py.
+# Only the digests file is tracked; this is the local diffing aid.
+python/tests/fixtures/.snapshot_full/

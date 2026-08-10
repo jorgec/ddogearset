@@ -1,0 +1,120 @@
+# Known, justified divergences between a fixture's OWN stored stats and what the
+# current implementation produces.
+#
+# See docs/0.5.0/00_ETL_START_HERE.md — Phase 0 (capture) and Phase 4 (the
+# catalog must reproduce these). Recalculation differentials against them in 0.5.1.
+#
+# The rule this file exists to enforce: an UNEXPLAINED delta is a test failure.
+# An EXPLAINED one is a regression test for the fix that caused it. Without this
+# file, stale fixtures are noise that gets ignored; with it, they are assets.
+#
+# Scope note. Each `oracle/<name>.oracle.json` fixture carries TWO references:
+#
+#   result            - captured by replaying the gearset through
+#                       app 0.4.4's mode:"calculate". Delta-free by construction:
+#                       it IS the current implementation's answer. This is the
+#                       primary oracle for Phase 4.
+#   stored_reference  - the stats the file was saved with, possibly years and
+#                       several bug fixes ago. Secondary, and only trustworthy
+#                       when stored_reference.trustworthy is true (v1.2 files).
+#
+# Entries below therefore describe `stored_reference` vs `result`, NOT
+# recalculate vs the oracle. Recalculate is expected to match `result` exactly.
+
+version: 1
+
+# ---------------------------------------------------------------------------
+# Fixtures whose stored stats are NOT a valid reference at all.
+# ---------------------------------------------------------------------------
+untrustworthy_stored_stats:
+  reason: >
+    Written by the discarded 0.5.0 Go implementation (save format v1.3). The
+    retrospective documents this implementation reporting 0 for 13 of 14
+    priorities on a real gearset; its numbers are not evidence of anything. The
+    gear NAMES in these files are real, which is why they were replayed to
+    produce a trustworthy `result`.
+  detect: source_version == "1.3"
+  files:
+    - Atr_CasterDualCaster_20260810052012
+    - Atr_CasterDualCaster_20260810052244
+    - Test_CasterDualCaster_20260810032751
+    - __1___MeleeTwoWeaponFighting_20260810021656
+    - __2___MeleeTwoWeaponFighting_20260810021758
+    - __2___MeleeTwoWeaponFighting_20260810023942
+    - __2___MeleeTwoWeaponFighting_20260810032718
+    - __2___MeleeTwoWeaponFighting_20260810043424
+    - why_CasterDualCaster_20260810024013
+
+# ---------------------------------------------------------------------------
+# v1.2 files: real solver output, but from older app versions whose known bug
+# fixes legitimately move numbers. Populate `expected_deltas` the first time a
+# comparison actually diverges — do not guess them in advance.
+# ---------------------------------------------------------------------------
+trustworthy_stored_stats:
+  - file: Test_CasterDualCaster_20260809010240
+    saved_app_version: "0.4.1"
+    predates:
+      - "0.4.2 school-save guard (IllusionSave must not inflate an Illusion DC)"
+      - "0.4.3 skill-group guard (an Intelligence priority absorbing Intelligence Skills)"
+      - "0.4.4 hireling guard (HirelingPRR credited to the player)"
+    expected_deltas: {}   # fill in on first observed divergence, with a reason
+
+  - file: Trickster_1_CasterDualCaster_20260809044425
+    saved_app_version: "0.4.2"
+    predates:
+      - "0.4.3 skill-group guard"
+      - "0.4.4 hireling guard"
+    expected_deltas: {}
+
+  - file: Test_CasterDualCaster_20260809055408
+    saved_app_version: "0.4.3"
+    predates:
+      - "0.4.4 hireling guard"
+    # This fixture has no captured `result`: today's calculate mode REFUSES it.
+    # See unevaluatable_today below.
+    expected_deltas: {}
+
+  - file: why_CasterDualCaster_20260809055010
+    saved_app_version: "0.4.3"
+    predates:
+      - "0.4.4 hireling guard"
+    expected_deltas: {}
+
+  - file: Test_CasterDualCaster_20260810053044
+    saved_app_version: "0.4.4"
+    predates: []          # current version — any delta here is a real failure
+    expected_deltas: {}
+
+# ---------------------------------------------------------------------------
+# The headline fixture. Today's implementation cannot evaluate this gearset at
+# all; 0.5.0's recalculate must return numbers plus warnings for it.
+# ---------------------------------------------------------------------------
+unevaluatable_today:
+  - file: Test_CasterDualCaster_20260809055408
+    saved_app_version: "0.4.3"
+    error: >
+      The supplied gearset could not be evaluated; some locked items may be
+      incompatible with each other.
+    root_cause: base-name-collision
+    mechanism: >
+      optimizer.py:1817 constrains sum(fw) <= 1 and sum(fm) <= 1 per filigree
+      base_name. This gearset equips two "Lunar Magic" variants in BOTH the
+      weapon and the artifact bucket, so the model is unsatisfiable before it
+      solves anything. Bisected 2026-08-10: removing either bucket alone still
+      fails (both collide); removing all filigrees succeeds; reducing the
+      artifact bucket to any set containing one Lunar Magic succeeds.
+    also_present:
+      - empty-filigree-entry        # 1 empty string in the weapon bucket
+      - duplicate-filigree-name     # 9 non-empty weapon entries, 8 distinct
+      - dino-fragment               # is_dino_artifact with no reserved slot
+      - search-restriction-present  # armor Light, excluded pack, weapon style
+    phase_4_requirement: >
+      recalculate MUST produce totals for this gearset, plus warnings naming the
+      duplicate name and the empty entry. It must NOT fail, and it must NOT
+      apply the base_name rule — that is a search heuristic about what the
+      solver may PROPOSE, not a statement about what the user may equip.
+    out_of_scope_question: >
+      Whether sum <= 1 per base_name is correct for the SEARCH is a separate
+      question. Two filigrees sharing a base name are two pieces of the same
+      named set, and set bonuses need several pieces — so the heuristic may be
+      wrong for the solver too. Not touched by 0.5.0.

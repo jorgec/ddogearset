@@ -1,0 +1,255 @@
+{
+  "capture_error": "The supplied gearset could not be evaluated; some locked items may be incompatible with each other.",
+  "capture_failed": true,
+  "capture_mode": "calculate",
+  "captured_with_app_version": "0.4.4",
+  "diagnosis": [
+    {
+      "bucket": "weapon",
+      "class": "empty-filigree-entry",
+      "detail": "1 empty-string entry/ies",
+      "mechanism": "corrupted saved data counted by the sum(f) == total constraint (optimizer.py:1826)"
+    },
+    {
+      "bucket": "weapon",
+      "class": "duplicate-filigree-name",
+      "detail": "9 non-empty entries, 8 distinct: ['Lunar Magic: +9 Force Spell Power']",
+      "mechanism": "sum(f) == count-of-non-empty, but pins are per distinct name - unsatisfiable on arrival"
+    },
+    {
+      "bucket": "weapon",
+      "class": "base-name-collision",
+      "detail": {
+        "Lunar Magic": [
+          "Lunar Magic: +1 Intelligence",
+          "Lunar Magic: +9 Force Spell Power"
+        ]
+      },
+      "mechanism": "optimizer.py:1817 constrains sum(f) <= 1 per base_name per bucket - a SEARCH heuristic ('only one variant of a filigree'), applied to a gearset the user actually has equipped"
+    },
+    {
+      "bucket": "artifact",
+      "class": "base-name-collision",
+      "detail": {
+        "Lunar Magic": [
+          "Lunar Magic: +1 Intelligence",
+          "Lunar Magic: +9 Force Spell Power"
+        ]
+      },
+      "mechanism": "optimizer.py:1817 constrains sum(f) <= 1 per base_name per bucket - a SEARCH heuristic ('only one variant of a filigree'), applied to a gearset the user actually has equipped"
+    },
+    {
+      "class": "dino-fragment",
+      "detail": "reserved_minor_artifact_slot is empty with is_dino_artifact true -> the ' (dino)' fragment",
+      "mechanism": "solver.py:500 concatenates a slot name that is not there; parse_items then force-filters minor artifacts"
+    },
+    {
+      "class": "search-restriction-present",
+      "detail": "armor_restriction = 'Light'",
+      "mechanism": "shapes the candidate pool during an evaluation of gear the user already owns"
+    },
+    {
+      "class": "search-restriction-present",
+      "detail": "excluded_packs = ['Terror of Demogorgon']",
+      "mechanism": "shapes the candidate pool during an evaluation of gear the user already owns"
+    },
+    {
+      "class": "search-restriction-present",
+      "detail": "weapon_style = 'Dual Caster'",
+      "mechanism": "shapes the candidate pool during an evaluation of gear the user already owns"
+    }
+  ],
+  "notes": [],
+  "payload": {
+    "armor_restriction": "Light",
+    "build_type": "Caster",
+    "caster_restrict_weapon_families": false,
+    "caster_schools": [],
+    "caster_spellpowers": [],
+    "exclude_gem_of_many_facets": true,
+    "excluded_packs": [
+      "Terror of Demogorgon"
+    ],
+    "gearset_name": "Test",
+    "is_dino_artifact": true,
+    "max_level": 34,
+    "max_search_time": 60,
+    "minor_artifact_filigree_slots": 5,
+    "mode": "calculate",
+    "offhand_style": "None",
+    "output_filename": "",
+    "pre_equipped": {
+      "Armor": "Legendary Downcast Vest",
+      "Belt": "Legendary Tunneler's Toolkit",
+      "Boots": "Dinosaur Bone Boots",
+      "Bracers": "Legendary Auspicious Bracers",
+      "Cloak": "Legendary Gravekeeper's Mystic Cloak",
+      "Gloves": "Legendary Darstil's Gloves",
+      "Goggles": "Legendary Kundarak Delving Goggles",
+      "Helmet": "Legendary Lamordian Bowler",
+      "Necklace": "Legendary Torc of Prince Raiyum-de II",
+      "Ring_1": "Legendary Ring of Spell Storing",
+      "Ring_2": "Legendary Argonnessen Eye Band",
+      "Trinket": "Bauble of Draconic Resistance",
+      "Weapon1": "Attuned Bone Dwarven Waraxe",
+      "Weapon2": "The Piercing Pain"
+    },
+    "pre_filled_augments": {
+      "Armor": {
+        "Dolorous Slot (Armor)": "Dolorous Silencer (Legendary)",
+        "Miserable Slot (Accessory)": "Miserable Force Spell Critical Damage (Legendary)",
+        "Sun": "Solar Gem of Intelligence (Legendary)",
+        "Woeful Slot (Accessory)": "Woeful Force Spell Crit Chance (Legendary)"
+      },
+      "Belt": {
+        "Moon": "Lunar Gem of Illusion (Legendary)"
+      },
+      "Boots": {
+        "IoD: Accessory: Artifact Claw Slot": "Claw: +38 Physical Resistance Rating",
+        "IoD: Accessory: Artifact Scale Slot": "Scale: +15 Intelligence"
+      },
+      "Bracers": {
+        "Dolorous Slot (Accessory)": "Dolorous Quality Intelligence (Legendary)",
+        "Melancholic Slot (Accessory)": "Melancholic Force Spell Critical Damage (Legendary)",
+        "Moon": "Lunar Gem of Disable Device and Open Lock (Legendary)"
+      },
+      "Cloak": {
+        "Dolorous Slot (Accessory)": "Dolorous Force Spell Critical Damage (Legendary)",
+        "Melancholic Slot (Accessory)": "Melancholic Constitution (Legendary)",
+        "Sun": "Solar Gem of Disable Device and Open Lock (Legendary)"
+      },
+      "Gloves": {
+        "Moon": "Lunar Gem of Intelligence (Legendary)"
+      },
+      "Helmet": {
+        "Dolorous Slot (Accessory)": "Dolorous Quality Constitution (Legendary)",
+        "Sun": "Solar Gem of Illusion (Legendary)"
+      },
+      "Necklace": {
+        "Green": "Weaverwisp Melody"
+      },
+      "Trinket": {
+        "Sealed in Undeath": "Insightful Constitution +7",
+        "Sun": "Solar Gem of Sneak Attack Dice (Legendary)"
+      },
+      "Weapon1": {
+        "IoD: Weapon: Claw Slot": "Brightclaw: Intelligence"
+      },
+      "Weapon2": {
+        "Dolorous Slot (Weapon)": "Dolorous Arcana: Force (Legendary)",
+        "Miserable Slot (Weapon)": "Miserable Arcana: Force (Legendary)"
+      }
+    },
+    "pre_filled_filigrees": {
+      "artifact": [
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "Lunar Magic: +1 Intelligence",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ],
+      "weapon": [
+        "Lunar Magic: +9 Force Spell Power",
+        "Nystul's Mystical Defense/Electrocution +6 MRR",
+        "Lunar Magic: +1 Intelligence",
+        "Zarigan's Arcane Enlightenment/Voltaic Experiment +2 Intelligence",
+        "",
+        "Zarigan's Arcane Enlightenment: +9 Force Spell Power",
+        "The Blood Feast: +1 Constitution",
+        "The Cry of Battle: +1 Constitution",
+        "Lunar Magic: +9 Force Spell Power",
+        "Trapper's Delight: +1 Intelligence"
+      ]
+    },
+    "raid_item_limit": -1,
+    "reserved_minor_artifact_slot": "",
+    "runearm_use": false,
+    "stat_priorities": [
+      {
+        "stat": "force spellpower",
+        "tier": 1
+      },
+      {
+        "stat": "Sneak attack dice",
+        "tier": 1
+      },
+      {
+        "stat": "illusion spelldc",
+        "tier": 1
+      },
+      {
+        "stat": "Intelligence",
+        "tier": 2
+      },
+      {
+        "stat": "disable device skill",
+        "tier": 2
+      },
+      {
+        "stat": "spellcraft skill",
+        "tier": 2
+      },
+      {
+        "stat": "force spelllore",
+        "tier": 2
+      },
+      {
+        "stat": "force spellcriticaldamage",
+        "tier": 2
+      },
+      {
+        "stat": "constitution",
+        "tier": 3
+      },
+      {
+        "stat": "prr",
+        "tier": 3
+      },
+      {
+        "stat": "mrr",
+        "tier": 3
+      },
+      {
+        "stat": "dodge",
+        "tier": 4
+      },
+      {
+        "stat": "astute skills",
+        "tier": 4
+      }
+    ],
+    "swashbuckling": false,
+    "weapon_style": "Dual Caster"
+  },
+  "result": null,
+  "source_app_version": "0.4.3",
+  "source_file": "Test_CasterDualCaster_20260809055408.ddogearset",
+  "source_version": "1.2",
+  "stored_reference": {
+    "activeSets": [
+      "The Legendary Desert's Biting Sands (2-piece)",
+      "Nystul's Mystical Defense (2-piece)",
+      "Zarigan's Arcane Enlightenment (2-piece)",
+      "Zarigan's Arcane Enlightenment (3-piece)",
+      "The Blood Feast (2-piece)",
+      "The Cry of Battle (2-piece)",
+      "Lunar Magic (2-piece)",
+      "Trapper's Delight (2-piece)"
+    ],
+    "realizedStats": {
+      "Intelligence": 39,
+      "Sneak attack dice": 5,
+      "constitution": 32,
+      "disable device skill": 39,
+      "dodge": 15,
+      "force spellcriticaldamage": 41,
+      "force spelllore": 29,
+      "force spellpower": 324,
+      "illusion spelldc": 25,
+      "mrr": 61,
+      "prr": 67,
+      "spellcraft skill": 22
+    },
+    "trustworthy": true,
+    "why": "real solver output"
+  }
+}
