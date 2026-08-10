@@ -354,3 +354,24 @@ def parse_filigrees(catalog, priorities):
     finally:
         if not isinstance(catalog, sqlite3.Connection):
             conn.close()
+
+
+def known_adventure_pack_names(catalog) -> set:
+    """Every AdventurePack name any item in the catalog actually carries.
+
+    Replaces the old quests_lookup-derived `real_packs` set (solver.py used to
+    build this by walking Quests.xml at request time); the catalog's
+    `item.adventure_pack` column already holds the SAME resolved value — it
+    was computed from Quests.xml once, at ETL time (walk.py's
+    `_item_provenance`), not rederived per request. Used only to validate an
+    `excluded_packs` entry actually matches something real (proposal:
+    docs/0.5.0/00_ETL_START_HERE.md — the "Chill of Ravenloft" typo warning).
+    """
+    conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT adventure_pack FROM item WHERE adventure_pack IS NOT NULL")
+        return {r[0] for r in rows}
+    finally:
+        if not isinstance(catalog, sqlite3.Connection):
+            conn.close()

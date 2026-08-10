@@ -8,10 +8,12 @@ import type { models } from '../../../wailsjs/go/models';
 
 // Per-session read-through caches for the item-detail panel.
 //
-// There is no TTL and no background invalidation: this is a desktop app whose
-// only data-refresh trigger is the explicit "Update External Sources" action,
-// which rebuilds the Go-side caches and must call clearItemCatalogCache() so the
-// frontend stops serving items from the previous data set.
+// There is no TTL and no background invalidation: the catalog is a static,
+// versioned artifact (catalog.db, seeded once at app launch — see
+// docs/0.5.0/00_ETL_START_HERE.md Phase 6), so within one running session the
+// Go-side caches it backs never change. clearItemCatalogCache() exists for a
+// future catalog-update feature (schema doc §5.1.2, not built in 0.5.0), not
+// for anything called today.
 //
 // Every backend lookup below returns a ZERO-VALUE struct rather than an error on
 // a miss (see app.go's GetSetBonus/GetAugmentByName/GetFiligreeByName), so an

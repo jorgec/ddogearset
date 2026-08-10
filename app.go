@@ -58,11 +58,17 @@ func (a *App) GetAppVersion() string {
 
 // App struct
 type App struct {
-	ctx            context.Context
-	logs           []string
-	solverPath     string
-	glpsolPath     string
-	solverDir      string
+	ctx        context.Context
+	logs       []string
+	solverPath string
+	glpsolPath string
+	solverDir  string
+	// catalogDBPath is the seeded, resolved catalog.db location — set once by
+	// ensureCatalogSeeded() in startup(), read by loadCaches() and runSolver()
+	// so Go's own caches and the Python subprocess always agree on which
+	// catalog they're reading. Empty until startup() runs (see catalogPath()'s
+	// fallback for callers, like tests, that read caches without it).
+	catalogDBPath  string
 	itemsCache     []models.XMLItem
 	augmentsCache  []models.XMLAugment
 	filigreesCache []models.XMLFiligree
@@ -103,17 +109,19 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.logs = make([]string, 0)
 
-	// Fetch DDOBuilderV2 before loading caches from it — on a fresh checkout
-	// this directory doesn't exist yet, so this is what makes "clone this repo
-	// and run" work with no manual setup step. checkForUpdates=false: a normal
-	// launch never makes an extra network round trip once the data is already
-	// there — checking for updates is what the "Update External Sources"
-	// button is for. Both run in the same background goroutine so startup()
+	// Seed catalog.db into the user data directory before loading caches from
+	// it — on a fresh install nothing is there yet, so this is what makes a
+	// freshly unzipped/installed app self-sufficient with no manual setup
+	// step and no network access (docs/0.5.0/00_ETL_START_HERE.md Phase 6).
+	// Runs in the same background goroutine as loadCaches so startup()
 	// itself returns immediately.
 	go func() {
-		if _, err := a.ensureDDOBuilderData(false); err != nil {
-			a.addLog("Warning: failed to fetch DDOBuilderV2 data: " + err.Error())
+		path, err := a.ensureCatalogSeeded()
+		if err != nil {
+			a.addLog("Warning: failed to seed catalog: " + err.Error())
+			return
 		}
+		a.catalogDBPath = path
 		a.loadCaches("Cached")
 	}()
 
@@ -124,121 +132,29 @@ func (a *App) startup(ctx context.Context) {
 	})
 }
 
-// ensureDDOBuilderData makes sure DDOBuilderV2 is present, fetching it over
-// HTTPS if it's missing entirely (see ddobuilder_fetch.go —
-// docs/DDOBUILDER_FETCH_WITHOUT_GIT_PLAN.md has the full rationale for why
-// this isn't `git clone`/`git pull` anymore). Shared by startup() and
-// UpdateExternalSources() so the two can't drift into different behavior.
-//
-// checkForUpdates controls whether an ALREADY-PRESENT checkout is checked
-// against the latest upstream commit — that's one GitHub API call, cheap,
-// but still a network round trip, so startup() passes false (a normal
-// launch shouldn't pay that cost) and UpdateExternalSources() passes true
-// (checking is the entire point of that button). When the directory is
-// missing entirely there's nothing to compare against, so this parameter is
-// irrelevant to that path — it always fetches.
-func (a *App) ensureDDOBuilderData(checkForUpdates bool) (string, error) {
-	_, statErr := os.Stat(ddoRepoDir)
-	switch {
-	case statErr == nil && !checkForUpdates:
-		return "DDOBuilderV2 already present.", nil
-	case statErr == nil && checkForUpdates:
-		return a.updateDDOBuilderDataIfStale()
-	case os.IsNotExist(statErr):
-		return a.fetchDDOBuilderData(
-			fmt.Sprintf("DDOBuilderV2 not found at ./%s — downloading (~80MB, one-time)...", ddoRepoDir), "")
-	default:
-		return "", statErr
-	}
-}
+// packMappingsPath is project-relative (resolved against the process's
+// working directory), matching every other bundled data-file path in this
+// app.
+const packMappingsPath = "data/PackMappings.json"
 
-// updateDDOBuilderDataIfStale checks GitHub for the latest commit on main
-// and only downloads the (~79MB) archive if it differs from what's recorded
-// in ddoCommitMarkerPath from the last successful fetch.
-func (a *App) updateDDOBuilderDataIfStale() (string, error) {
-	latestSHA, err := latestDDOBuilderCommitSHA()
-	if err != nil {
-		msg := "Could not check DDOBuilderV2 for updates: " + err.Error()
-		a.addLog("Warning: " + msg + " (existing data is still usable)")
-		return msg, nil
-	}
-	storedSHA, _ := os.ReadFile(ddoCommitMarkerPath)
-	if strings.TrimSpace(string(storedSHA)) == latestSHA {
-		a.addLog("DDOBuilderV2 is already up to date.")
-		return "Already up to date.", nil
-	}
-	return a.fetchDDOBuilderData(
-		fmt.Sprintf("DDOBuilderV2 update available (commit %s) — downloading (~80MB)...", shortSHA(latestSHA)),
-		latestSHA)
-}
+// catalogEnvVar mirrors python/catalog_source.py's DDO_CATALOG_DB convention
+// exactly, so both processes resolve the same file from the same override
+// with no separate configuration surface. When set, it wins outright — no
+// seeding, no bundle read — which is what makes running against a
+// hand-built fixture catalog (dev, this project's own test suite) possible
+// without going through the packaged app at all.
+const catalogEnvVar = "DDO_CATALOG_DB"
 
-// fetchDDOBuilderData does the actual download+extract and records the
-// fetched commit SHA for next time. knownSHA avoids a second GitHub API call
-// when the caller already looked it up (the "update" path); pass "" when it
-// hasn't been (the "missing entirely" path) and this will look it up once,
-// after the fetch, purely to populate the marker for future checks.
-func (a *App) fetchDDOBuilderData(logMsg string, knownSHA string) (string, error) {
-	a.addLog(logMsg)
-	if err := fetchAndExtractDDOBuilderZip(); err != nil {
-		a.addLog("Failed to fetch DDOBuilderV2: " + err.Error())
-		return "", err
-	}
-
-	sha := knownSHA
-	if sha == "" {
-		var err error
-		sha, err = latestDDOBuilderCommitSHA()
-		if err != nil {
-			a.addLog("DDOBuilderV2 fetched, but couldn't record its version: " + err.Error())
-			return "DDOBuilderV2 fetched successfully (version marker not saved).", nil
-		}
-	}
-	if err := os.WriteFile(ddoCommitMarkerPath, []byte(sha), 0644); err != nil {
-		a.addLog("DDOBuilderV2 fetched, but couldn't save version marker: " + err.Error())
-		return "DDOBuilderV2 fetched successfully (version marker not saved).", nil
-	}
-
-	msg := "DDOBuilderV2 fetched successfully (commit " + shortSHA(sha) + ")."
-	a.addLog(msg)
-	return msg, nil
-}
-
-// ddoRepoDir/ddoDataRoot locate DDOBuilderV2's checkout. Go's OWN caches no
-// longer read from here — see loadCaches, which reads catalog.db instead
-// (docs/0.5.0/00_ETL_START_HERE.md Phase 5). This still exists because the
-// Python subprocess does: DDO_DATA_PATH (runSolver) still points solver.py at
-// this same checkout, since its own switch to the catalog is a later phase.
-// Cutting this entirely — deleting the fetch, shipping catalog.db as the only
-// data source — is Phase 6.
-//
-// ddoRepoDir is project-relative (resolved against the process's working
-// directory, exactly like packMappingsPath below already was) rather than a
-// hardcoded absolute path — the old "/Users/jorgecosgayon/dev/ddo/DDOBuilderV2"
-// only ever worked on one specific machine. ensureDDOBuilderData() fetches it
-// here on first run if it's missing (over HTTPS, no git binary required — see
-// ddobuilder_fetch.go), so a fresh checkout is enough; nothing needs to
-// pre-exist outside the project. It's gitignored (see .gitignore) — this is
-// fetched data, not source.
-const (
-	ddoRepoDir  = "DDOBuilderV2"
-	ddoDataRoot = ddoRepoDir + "/Output/DataFiles"
-
-	packMappingsPath = "data/PackMappings.json"
-)
-
-// catalogEnvVar / defaultCatalogPath mirror python/catalog_source.py's
-// DDO_CATALOG_DB convention exactly, so both processes resolve the same file
-// from the same override with no separate configuration surface.
-const (
-	catalogEnvVar      = "DDO_CATALOG_DB"
-	defaultCatalogPath = "catalog.db"
-)
-
+// catalogPath resolves the env override, with a bare relative "catalog.db"
+// as the last-resort fallback for callers that never ran
+// ensureCatalogSeeded (a direct loadCaches call in a test, or `go run`
+// during development). The real app always has a.catalogDBPath set by
+// startup() before loadCaches ever runs — see ensureCatalogSeeded.
 func catalogPath() string {
 	if p := os.Getenv(catalogEnvVar); p != "" {
 		return p
 	}
-	return defaultCatalogPath
+	return "catalog.db"
 }
 
 // loadCaches parses every data source, rebuilds all four name indexes, and runs
@@ -269,7 +185,10 @@ func (a *App) loadCaches(verb string) {
 	// catalog's own precomputed column (verified against Python's identical
 	// walk in Phase 4), so there is no quest list to parse and no
 	// upgrade-chain to walk on this path.
-	path := catalogPath()
+	path := a.catalogDBPath
+	if path == "" {
+		path = catalogPath()
+	}
 	db, err := catalog.Open(path)
 	if err != nil {
 		a.addLog(fmt.Sprintf("Failed to open catalog at %s: %s", path, err.Error()))
@@ -349,6 +268,13 @@ func (a *App) extractSolver() error {
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
+			continue
+		}
+		// catalog.db lives in the same bundleRoot but has its own dedicated
+		// seed path (ensureCatalogSeeded, catalog_seed.go) into the
+		// persistent user data directory — extracting a 60 MB copy into this
+		// throwaway temp dir on every launch would be pure waste.
+		if entry.Name() == catalogFileName {
 			continue
 		}
 		data, err := bundleFS.ReadFile(bundleRoot + "/" + entry.Name())
@@ -651,19 +577,20 @@ func (a *App) runSolver(payload any) (json.RawMessage, error) {
 	// dynamic-linker patching step (macOS's install_name_tool, see
 	// build_releases.sh) was skipped or is incomplete for a given platform;
 	// they're harmless no-ops on platforms/binaries that don't need them.
-	// DDO_DATA_PATH gives solver.py the absolute path to the same
-	// DDOBuilderV2 checkout ensureDDOBuilderData() maintains, so Python
-	// doesn't independently depend on inheriting the Go process's working
-	// directory to find it (see python/solver.py's base_dir resolution).
-	ddoDataAbsPath, absErr := filepath.Abs(ddoDataRoot)
+	// DDO_CATALOG_DB gives solver.py the same seeded catalog path Go's own
+	// caches read (a.catalogDBPath, set once by ensureCatalogSeeded() in
+	// startup() — see catalog_seed.go). Python no longer depends on
+	// inheriting the Go process's working directory, or on DDOBuilderV2
+	// existing on disk at all (docs/0.5.0/00_ETL_START_HERE.md Phase 6).
+	catalogAbsPath, absErr := filepath.Abs(a.catalogDBPath)
 	if absErr != nil {
-		ddoDataAbsPath = ddoDataRoot
+		catalogAbsPath = a.catalogDBPath
 	}
 	cmd.Env = append(os.Environ(),
 		"GLPSOL_PATH="+a.glpsolPath,
 		"LD_LIBRARY_PATH="+a.solverDir,
 		"DYLD_LIBRARY_PATH="+a.solverDir,
-		"DDO_DATA_PATH="+ddoDataAbsPath,
+		"DDO_CATALOG_DB="+catalogAbsPath,
 	)
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = cmd.Stdout
@@ -904,24 +831,6 @@ func (a *App) GetAvailableFiligrees(searchTerm string) []models.XMLFiligree {
 	})
 
 	return results
-}
-
-// UpdateExternalSources fetches DDOBuilderV2 if it's stale or missing (see
-// ensureDDOBuilderData) and reloads every cache from it.
-func (a *App) UpdateExternalSources() (string, error) {
-	a.addLog("Updating external sources from DDOBuilderV2...")
-
-	out, err := a.ensureDDOBuilderData(true)
-	if err != nil {
-		return out, err
-	}
-
-	// Reload every cache, name index and the enrichment pass together, so no
-	// index can survive pointing into a cache that has since been replaced.
-	a.addLog("Reloading item, augment, filigree and set-bonus caches...")
-	a.loadCaches("Reloaded")
-
-	return out, nil
 }
 
 // OpenFile opens a file using the default OS application.

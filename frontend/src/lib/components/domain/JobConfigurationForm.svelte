@@ -14,7 +14,7 @@
   // uses, with no standing binding to go stale.
 
   import { configStore, isOptimizing, resultStore, drawerOpen, showToast, troveImportStore } from '$lib/store';
-  import { RunOptimization, UpdateExternalSources } from '../../../../wailsjs/go/main/App';
+  import { RunOptimization } from '../../../../wailsjs/go/main/App';
   import { loadTroveCsv } from '$lib/services/troveImport';
   import { hydrateConfigFromSlots } from '../../store';
   import type { main } from '../../../../wailsjs/go/models';
@@ -24,7 +24,6 @@
   import StatSetPicker from './StatSetPicker.svelte';
   import CasterConfig from './CasterConfig.svelte';
 
-  let isUpdatingData = false;
   let expansions: string[] = [];
 
   // docs/TROVE_INVENTORY_IMPORT_SPEC.md — troveImportStore.ownedNames holds
@@ -131,18 +130,6 @@
       showToast('Optimization failed: ' + err, 'error');
     } finally {
       $isOptimizing = false;
-    }
-  }
-
-  async function handleUpdateData() {
-    isUpdatingData = true;
-    try {
-      await UpdateExternalSources();
-      showToast('Data updated successfully.', 'success');
-    } catch (e) {
-      showToast('Update failed: ' + e, 'error');
-    } finally {
-      isUpdatingData = false;
     }
   }
 
@@ -465,19 +452,6 @@
         Running Optimization...
       {:else}
         Optimize Gear
-      {/if}
-    </button>
-
-    <button
-      on:click={handleUpdateData}
-      disabled={isUpdatingData}
-      class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border h-9 px-4 py-2 flex-1 min-w-[12rem]"
-    >
-      {#if isUpdatingData}
-        <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-        Updating...
-      {:else}
-        Update External Sources (DDOBuilderV2)
       {/if}
     </button>
   </div>

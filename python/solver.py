@@ -2,7 +2,7 @@ import json
 import sys
 import os
 import re
-import parser
+import catalog_source
 import optimizer
 from optimizer import PriorityEntry
 
@@ -515,23 +515,22 @@ def main():
     pre_filled_filigrees = parsed_data.get('pre_filled_filigrees', {})
     max_search_time = parsed_data.get('max_search_time', optimizer.DEFAULT_SEARCH_TIME)
 
-    # DDO_DATA_PATH is set by app.go's runSolver() to the absolute path of the
-    # DDOBuilderV2 checkout it maintains (see ensureDDOBuilderData in app.go —
-    # clones it into ./DDOBuilderV2 on first run, gitignored). Falling back to
-    # the project-relative default keeps `python solver.py` usable directly
-    # from a dev checkout, as long as it's run from the project root (the same
-    # assumption app.go's own packMappingsPath already makes).
-    base_dir = os.environ.get("DDO_DATA_PATH") or "DDOBuilderV2/Output/DataFiles"
-    if not os.path.exists(base_dir):
-        fail(f"DDOBuilderV2 data directory not found at '{base_dir}'. Set DDO_DATA_PATH, "
-             f"or run from the project root after DDOBuilderV2 has been cloned "
-             f"(see ensureDDOBuilderData in app.go / install.sh).")
+    # DDO_CATALOG_DB is set by app.go's runSolver() to the same seeded
+    # catalog.db path Go's own item/augment/filigree caches read (see
+    # ensureCatalogSeeded in catalog_seed.go — docs/0.5.0/00_ETL_START_HERE.md
+    # Phase 6). Falling back to a project-relative default keeps
+    # `python solver.py` usable directly from a dev checkout with a catalog
+    # built by `python -m etl` sitting at the project root, the same
+    # assumption app.go's own packMappingsPath already makes.
+    catalog_db_path = os.environ.get("DDO_CATALOG_DB") or "catalog.db"
+    if not os.path.exists(catalog_db_path):
+        fail(f"Catalog not found at '{catalog_db_path}'. Set DDO_CATALOG_DB, "
+             f"or build one with `python -m etl` and run from the project root "
+             f"(see docs/0.5.0/00_ETL_START_HERE.md).")
+    catalog_conn = catalog_source.connect(catalog_db_path)
 
-    print(f"\nParsing Quests from {base_dir}...")
-    quests_lookup = parser.parse_quests(base_dir)
-
-    print(f"\nParsing Sets from {base_dir}...")
-    sets = optimizer.parse_sets(base_dir, priority_names)
+    print(f"\nParsing Sets from {catalog_db_path}...")
+    sets = catalog_source.parse_sets(catalog_conn, priority_names)
     print(f"Loaded {len(sets)} sets.")
 
     filename = parsed_data.get('output_filename', 'gearset_output.json')
@@ -570,7 +569,7 @@ def main():
         # Console in real time, it never reads gearset_output.txt, so a
         # print()-less warning here would be invisible in the running app.
         if excluded_packs:
-            real_packs = {info.get('AdventurePack') for info in quests_lookup.values() if info.get('AdventurePack')}
+            real_packs = catalog_source.known_adventure_pack_names(catalog_conn)
             for p in excluded_packs:
                 if p not in real_packs:
                     msg = (f"WARNING: excluded pack '{p}' does not exactly match any known "
@@ -592,18 +591,18 @@ def main():
         pre_equipped_names = list(pre_equipped.values()) if pre_equipped else []
         if mode == "alternatives":
             pre_equipped_names = list((parsed_data.get('equipped_items') or {}).values())
-        items = optimizer.parse_items(base_dir, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, quests_lookup, pre_equipped_names, min_ml=min_ml, owned_names=pool_owned_names)
+        items = catalog_source.parse_items(catalog_conn, cap, priority_names, armor_input, w1_list, w2_list, allow_gomf, art_slot_input, excluded_packs, pre_equipped_names, min_ml=min_ml, owned_names=pool_owned_names)
         print(f"Loaded {len(items)} items")
 
         print(f"Parsing Augments (ML {min_ml}-{cap})...")
         pre_filled_augment_names = optimizer.flatten_pre_filled_augment_names(pre_filled_augments)
-        augments = optimizer.parse_augments(base_dir, cap, priority_names, pre_filled_augment_names, min_ml=min_ml, owned_names=pool_owned_names)
+        augments = catalog_source.parse_augments(catalog_conn, cap, priority_names, pre_filled_augment_names, min_ml=min_ml, owned_names=pool_owned_names)
         print(f"Loaded {len(augments)} augments")
 
         filigrees = []
         if cap >= 34 or mode == "stat_search":
             print(f"Parsing Filigrees...")
-            filigrees, filigree_sets = optimizer.parse_filigrees(base_dir, priority_names)
+            filigrees, filigree_sets = catalog_source.parse_filigrees(catalog_conn, priority_names)
             print(f"Loaded {len(filigrees)} filigrees")
             for k, v in filigree_sets.items():
                 if k not in sets:
