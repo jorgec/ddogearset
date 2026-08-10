@@ -127,13 +127,22 @@ safe, and it is what lets all three layers name the same thing.
 | `stat` | `NS_STAT` | `raw_type` + `\x1f` + `raw_target` (normalized, lowercased) |
 | `effect` | `NS_EFFECT` | source uuid + ordinal within source |
 
-**Honest limitation:** a UUID is only as stable as its natural key. If
-DDOBuilderV2 *renames* an item, the natural key changes and so does the UUID, so
-a saved gearset's reference still breaks. What changes is that it breaks
-**detectably** — a lookup miss the app can report as *"Legendary Bracers of Wind
-is no longer in the catalog"* — instead of silently resolving to nothing. That
-is an improvement, not a solution, and the warning path in §3.5 of the
-recalculation spec is what handles it.
+**v5 hashing alone is not enough, and the registry is what closes the gap.** A
+UUID derived from a natural key is only as stable as that key: if DDOBuilderV2
+*renames* an item, the key changes and so would the UUID, orphaning every
+`app.db` reference. Hashing cannot fix that, because a rename is information
+that exists only *between* two runs.
+
+So the table above describes **minting only**. Identity is then **pinned in
+`etl/identity_registry.json`** (START_HERE §6): once a UUID is minted it never
+changes, and a later rename appends to that entity's `aka` list rather than
+producing a new identity. A natural key is consulted only when nothing in the
+registry already claims it.
+
+What remains genuinely unfixable is **removal**: if an item leaves the game
+data entirely, its UUID resolves to nothing. That is what §5.3's name tombstone
+exists for — so the app can say *"Legendary Bracers of Wind is no longer in the
+catalog"* rather than showing an empty slot.
 
 ### 3.2 Storage form
 
@@ -198,12 +207,44 @@ a half-populated catalog in place.
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
+-- Exactly one row. See §5.1.1 for why each field exists and why none of them
+-- can be added later to a catalog that has already shipped.
 CREATE TABLE catalog_meta (
-    schema_version    INTEGER NOT NULL,
-    ddobuilder_commit TEXT    NOT NULL,
-    built_at          TEXT    NOT NULL,
-    source_file_count INTEGER NOT NULL
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+
+    -- SHAPE — which tables and columns exist. Bumped by hand when the DDL
+    -- changes. The app refuses a catalog outside the range it understands.
+    schema_version          INTEGER NOT NULL,
+
+    -- ARTEFACT IDENTITY — monotonic and orderable. This is the number an
+    -- "update catalog" check compares, and it is NOT derivable from either
+    -- field below: a Git SHA has no order, and the same DDOBuilderV2 commit
+    -- can legitimately be rebuilt after an ETL fix.
+    catalog_version         INTEGER NOT NULL,
+    built_at                TEXT    NOT NULL,   -- RFC3339, informational
+
+    -- PROVENANCE — what produced it.
+    ddobuilder_commit       TEXT    NOT NULL,
+    etl_version             TEXT    NOT NULL,
+    source_file_count       INTEGER NOT NULL,
+
+    -- COMPATIBILITY — the other direction: a new catalog telling an old app
+    -- not to open it, with something a human can read in the refusal.
+    min_app_version         TEXT    NOT NULL,
+
+    -- INTEGRITY of the logical content (sorted rows), NOT of the file.
+    -- SQLite files are not byte-reproducible — page ordering and the freelist
+    -- differ between runs — so a file hash cannot answer "did the data
+    -- change?". A download's *bytes* are verified separately (§5.1.2).
+    content_hash            TEXT    NOT NULL,
+
+    -- IDENTITY CONTINUITY — see the warning in §5.1.1. A catalog built from a
+    -- divergent identity registry would silently re-mint UUIDs and orphan
+    -- every reference in app.db.
+    identity_registry_hash  TEXT    NOT NULL
 );
+
+-- (§5.1.1 explains the versioning fields; the rest of the schema follows.)
 
 -- Supertype: every effect-bearing thing has an identity here (§3.3).
 CREATE TABLE source (
@@ -349,6 +390,77 @@ Note that `effect_target` points at `stat`, not at a raw string: the `<Type>` ×
 which is the whole "normalize before the database" requirement. `effect` carries
 the amount and bonus type; `stat` carries the identity and its classification.
 
+### 5.1.1 Versioning, and why it is recorded now
+
+0.5.0 does not build an "update catalog" feature. It records what such a feature
+would need, because **none of it can be added retroactively to a catalog that has
+already shipped.** A catalog in the wild without a `catalog_version` cannot be
+compared against anything; one without a `min_app_version` cannot refuse an app
+that would misread it. The fields cost nothing today.
+
+**Three versions, deliberately separate.** Collapsing any two of them is the
+mistake this table exists to prevent:
+
+| Field | Answers | Changes when |
+|---|---|---|
+| `schema_version` | *Can this app read this file at all?* | The DDL changes |
+| `catalog_version` | *Is there a newer catalog than mine?* | Every published build, monotonically |
+| `ddobuilder_commit` | *Which game data is this?* | Upstream data moves |
+
+`ddobuilder_commit` cannot do `catalog_version`'s job: a Git SHA has no
+ordering, so "is `abc123` newer than `def456`?" is unanswerable without the
+upstream history — which the shipped app deliberately does not have (§2 of
+START_HERE). And the same commit is legitimately rebuilt whenever an ETL bug is
+fixed, which is a new catalog with identical provenance.
+
+**Compatibility is checked in both directions:**
+
+- the app knows the `schema_version` range it supports and refuses anything
+  outside it;
+- the catalog carries `min_app_version` so a *newer* catalog can refuse an older
+  app with a message a human can act on, rather than being half-understood.
+
+> [!WARNING]
+> **`identity_registry_hash` is the field that protects user data.**
+>
+> `app.db` references catalog UUIDs. Those UUIDs are stable only because
+> `etl/identity_registry.json` pins them (§6 of START_HERE) — mint-on-first-sight,
+> never re-mint. A catalog built from a **divergent or missing** registry would
+> silently issue different UUIDs for the same items, and every saved gearset
+> would resolve to nothing.
+>
+> Two mitigations, both required:
+> 1. The ETL **fails** if the registry is absent. It never silently mints a
+>    fresh identity space.
+> 2. Every catalog records the registry hash it was built from, so an update
+>    that would break identity continuity is **detectable before it is
+>    installed**, not after a user reports empty gearsets.
+
+### 5.1.2 What an update feature will need beyond this table
+
+Sketched only far enough to keep the fields above aligned with it.
+
+- **A manifest** — a small JSON listing published catalogs with
+  `catalog_version`, `schema_version`, `min_app_version`, `identity_registry_hash`,
+  a download URL, byte size, and a **file checksum**. The file checksum lives in
+  the manifest, not in `catalog_meta`: a file cannot contain its own hash, and
+  SQLite files are not byte-reproducible anyway (`content_hash` covers the
+  logical data instead).
+- **A writable install location.** A downloaded catalog cannot go in the app
+  bundle — signed and read-only on macOS. It belongs in the user data
+  directory, alongside `app.db`.
+- **A resolution rule.** With a shipped catalog and possibly a downloaded one,
+  open the **highest `catalog_version` whose `schema_version` the app supports
+  and whose `identity_registry_hash` matches the chain the local `app.db`
+  already references**; fall back to the shipped one on any failure. The shipped
+  catalog is never deleted, so a bad download is always recoverable by ignoring
+  it.
+- **Atomic install**, exactly as the build-time Load does: download to a temp
+  file, verify checksum and `catalog_meta`, then rename.
+
+None of this is 0.5.0 work. It is written down so that the four `catalog_meta`
+fields it depends on are present in the very first catalog that ships.
+
 ### 5.2 `app.db`
 
 ```sql
@@ -491,10 +603,18 @@ CREATE TABLE run_warning (
 ### 5.3 The one deliberate denormalization
 
 `gearset_slot` stores both `item_uuid` **and** `item_name`. That is not 3NF, and
-it is on purpose: `app.db` cannot have a foreign key into `catalog.db`, so if a
-catalog rebuild drops or renames an item the UUID resolves to nothing. Keeping
-the name lets the app say *"Legendary Bracers of Wind is no longer in the
-catalog"* instead of showing an empty slot. The name is a **tombstone for
+it is on purpose: `app.db` cannot hold a foreign key into `catalog.db`, so a
+UUID that no longer resolves fails silently rather than at write time.
+
+The registry (§3.1) means a **rename** no longer causes this — the UUID
+survives. Two cases still do:
+
+- an item is **removed** from the game data outright;
+- the user installs a catalog built from a divergent identity registry, which
+  `catalog_meta.identity_registry_hash` is there to detect (§5.1.1).
+
+In both, the name lets the app say *"Legendary Bracers of Wind is no longer in
+the catalog"* instead of showing an empty slot. It is a **tombstone for
 reporting**, never a join key — every lookup goes through `item_uuid`.
 
 Same reasoning for `augment_name`, `filigree_name` and `owned_item.item_name`.

@@ -136,6 +136,14 @@ file:catalog.db?mode=ro&immutable=1
 skip locking entirely. Go passes the resolved path to the solver as
 `DDO_CATALOG_DB`, replacing `DDO_DATA_PATH`.
 
+**The catalog carries its own version.** `catalog_meta` records a monotonic
+`catalog_version` alongside `schema_version`, `min_app_version`, a content hash
+and the identity-registry hash — see
+[`01_CATALOG_AND_APP_SCHEMA.md`](01_CATALOG_AND_APP_SCHEMA.md) §5.1.1. 0.5.0
+builds **no** update feature, but a catalog that ships without those fields can
+never be compared or safely replaced by one, and they cannot be added
+retroactively to a file already in the wild. Recording them now is free.
+
 ---
 
 ## 6. Identity: a checked-in registry, not just v5 hashing
@@ -311,7 +319,10 @@ atomic rename.
 
 **Gate:** `catalog.db` builds from a cold checkout · size and build time
 recorded · `PRAGMA integrity_check` and `foreign_key_check` clean · rebuilding
-twice produces **identical UUIDs** (the determinism the registry promises).
+twice produces **identical UUIDs** (the determinism the registry promises) ·
+`catalog_meta` is populated with all of `schema_version`, `catalog_version`,
+`min_app_version`, `content_hash` and `identity_registry_hash`, and the ETL
+**refuses to build** when `identity_registry.json` is missing.
 
 ### Phase 4 — Python reads `catalog.db` · **the correctness gate**
 
@@ -344,7 +355,8 @@ artefacts build on macOS, Windows and Linux.
 
 ### Phase 7 — Build integration and drift workflow
 
-`etl/` gets a CLI (`--strict`, `--out`, `--drift-report`). `build-mac.sh`,
+`etl/` gets a CLI (`--strict`, `--out`, `--drift-report`, `--catalog-version`).
+`build-mac.sh`,
 `build-windows.ps1`, `build-linux.sh` and `package_release.sh` invoke it before
 `wails build`; release builds pass `--strict`.
 
