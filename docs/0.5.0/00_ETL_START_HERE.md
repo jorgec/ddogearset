@@ -560,7 +560,17 @@ schema solves them, so 0.5.1 must not re-litigate them:
 
 ---
 
-## 10. Deprecated
+## 10. Shipped — see the retrospective
+
+0.5.0 is complete. What the work actually cost, the four latent bugs the gates
+uncovered, the invariants that will fail silently if broken, and the handoff
+into 0.5.1 are in
+[`RETROSPECTIVE_AND_HANDOFF.md`](RETROSPECTIVE_AND_HANDOFF.md). Read that before
+starting 0.5.1; this document is the plan, not the outcome.
+
+---
+
+## 11. Deprecated
 
 Every other document in `docs/0.5.0/` is superseded and carries a banner. They
 are kept for their **findings**, which remain true, not their plans:
