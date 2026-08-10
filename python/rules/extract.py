@@ -243,13 +243,22 @@ def _item_provenance(item_node, name, quests_lookup, raid_names,
 
 
 def _item_buffs_from_node(item_node, priorities, wanted_weapon_stats,
-                          keep_unmatched=False):
+                          keep_unmatched=False, with_raw=False):
     """Every buff this item grants. No candidacy, no restrictions.
 
     `keep_unmatched` is what the ETL needs: report every stat the item provides,
     including ones no priority claims, instead of dropping them. It defaults to
     False so the search's output — and therefore the Phase 1 purity snapshot —
     is bit-for-bit what it always was.
+
+    `with_raw`, independently: when True, each tuple gains a 4th element
+    `(raw_type, raw_target)` — the untouched `<Type>`/`<Item>` pair, before
+    normalize_stat_name or _raw_stat_name ever see it. This is what the ETL's
+    stat dimension keys on (docs/0.5.0/01_CATALOG_AND_APP_SCHEMA.md §5.1's
+    `stat` table is built from the true pair, not from a display string).
+    Defaults to False so every existing 3-tuple caller — the search and the
+    Phase 1 snapshot — is completely unaffected; this only ever widens a tuple
+    that keep_unmatched=True already changed the meaning of.
     """
     buffs = []
     for buff_node in item_node.findall('Buff'):
@@ -265,7 +274,8 @@ def _item_buffs_from_node(item_node, priorities, wanted_weapon_stats,
         if stat and b_val and b_bonus:
             try:
                 val = float(b_val)
-                buffs.append((stat, b_bonus.strip(), val))
+                entry = (stat, b_bonus.strip(), val)
+                buffs.append(entry + ((b_type, b_item),) if with_raw else entry)
             except ValueError:
                 pass
         elif not b_bonus and _is_proc_presence_flag_type(b_type):
@@ -279,7 +289,8 @@ def _item_buffs_from_node(item_node, priorities, wanted_weapon_stats,
             # Presence-only: see PROC_BONUS_TYPE.
             proc_stat = _proc_priority_match(b_type, priorities)
             if proc_stat:
-                buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
+                entry = (proc_stat, PROC_BONUS_TYPE, 1.0)
+                buffs.append(entry + ((b_type, None),) if with_raw else entry)
 
     # §15.2 — weapon combat properties are direct children of <Item>, not
     # <Buff> elements, but they land in the same `buffs` list so sources / z /
@@ -289,7 +300,12 @@ def _item_buffs_from_node(item_node, priorities, wanted_weapon_stats,
     # priority-driven projection of a fixed vocabulary, not a match/no-match
     # filter over catalog data. The ETL passes the full vocabulary instead.
     try:
-        buffs.extend(_weapon_base_buffs(item_node, wanted_weapon_stats))
+        weapon_buffs = _weapon_base_buffs(item_node, wanted_weapon_stats)
+        if with_raw:
+            # Weapon base stats have no <Type>/<Item> pair of their own — the
+            # stat name IS the raw identity here (WEAPON_STAT_* constants).
+            weapon_buffs = [(s, bt, v, (s, None)) for (s, bt, v) in weapon_buffs]
+        buffs.extend(weapon_buffs)
     except ValueError:
         pass
 
@@ -297,7 +313,7 @@ def _item_buffs_from_node(item_node, priorities, wanted_weapon_stats,
 
 
 def _item_from_node(item_node, item_file, slots, priorities, wanted_weapon_stats,
-                    provenance, keep_unmatched=False):
+                    provenance, keep_unmatched=False, with_raw=False):
     """What does this item GRANT? No filtering, no restrictions.
 
     `slots` is supplied by the caller because candidacy does not merely accept
@@ -336,7 +352,8 @@ def _item_from_node(item_node, item_file, slots, priorities, wanted_weapon_stats
         'file': os.path.basename(item_file),
         'slots': slots,
         'buffs': _item_buffs_from_node(item_node, priorities, wanted_weapon_stats,
-                                       keep_unmatched=keep_unmatched),
+                                       keep_unmatched=keep_unmatched,
+                                       with_raw=with_raw),
         'sets': sets,
         'augments': augments,
         'minor': item_node.find('MinorArtifact') is not None,
@@ -389,12 +406,17 @@ def parse_sets(base_dir, priorities):
     return set_bonuses
 
 
-def _effect_buffs_from_node(effect_node, priorities, keep_unmatched=False):
+def _effect_buffs_from_node(effect_node, priorities, keep_unmatched=False,
+                            with_raw=False):
     """Buffs from one `<Effect>`. Shared by augments, filigrees and filigree set
     tiers — all three read the same shape (`<Type>+ <Bonus> <Item> <Amount>`),
     and before the Phase 1 split each carried its own copy of this loop.
 
     `<Type>` repeats: one effect can grant the same amount to several stats.
+
+    `with_raw` — see `_item_buffs_from_node`'s docstring; same contract, same
+    default. Each `<Type>` repeat gets its own `(raw_type, raw_target)` pair,
+    since each is genuinely a distinct stat identity sharing one amount.
     """
     b_types = [t.text for t in effect_node.findall('Type') if t.text]
     b_bonus = effect_node.findtext('Bonus')
@@ -413,11 +435,12 @@ def _effect_buffs_from_node(effect_node, priorities, keep_unmatched=False):
             if not stat and keep_unmatched:
                 stat = _raw_stat_name(t, b_item)
             if stat:
-                out.append((stat, b_bonus.strip(), val))
+                entry = (stat, b_bonus.strip(), val)
+                out.append(entry + ((t, b_item),) if with_raw else entry)
     return out
 
 
-def _augment_from_node(aug_node, priorities, keep_unmatched=False):
+def _augment_from_node(aug_node, priorities, keep_unmatched=False, with_raw=False):
     """What does this augment GRANT? No candidacy, no restrictions.
 
     Returns None when the node is not a usable augment at all (no `<Type>`) —
@@ -432,7 +455,8 @@ def _augment_from_node(aug_node, priorities, keep_unmatched=False):
     buffs = []
     for effect_node in aug_node.findall('Effect'):
         buffs.extend(_effect_buffs_from_node(effect_node, priorities,
-                                             keep_unmatched=keep_unmatched))
+                                             keep_unmatched=keep_unmatched,
+                                             with_raw=with_raw))
 
     # Shape B (docs/PROC_EFFECTS_EXPANSION_SPEC.md) — a small, confirmed-real
     # whitelist of augments whose own effect data is entirely empty
@@ -447,12 +471,13 @@ def _augment_from_node(aug_node, priorities, keep_unmatched=False):
     if not buffs and name.strip().lower() in PROC_ZERO_EFFECT_AUGMENT_NAMES:
         proc_stat = _proc_priority_match(name, priorities)
         if proc_stat:
-            buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
+            entry = (proc_stat, PROC_BONUS_TYPE, 1.0)
+            buffs.append(entry + ((name, None),) if with_raw else entry)
 
     return {'name': name, 'type': a_type.strip(), 'buffs': buffs}
 
 
-def _filigree_from_node(f_node, priorities, keep_unmatched=False):
+def _filigree_from_node(f_node, priorities, keep_unmatched=False, with_raw=False):
     """What does this filigree GRANT? No candidacy, no restrictions."""
     name = f_node.findtext('Name') or 'Unknown'
 
@@ -464,7 +489,8 @@ def _filigree_from_node(f_node, priorities, keep_unmatched=False):
         if effect_node.find('Rare') is not None:
             continue
         buffs.extend(_effect_buffs_from_node(effect_node, priorities,
-                                             keep_unmatched=keep_unmatched))
+                                             keep_unmatched=keep_unmatched,
+                                             with_raw=with_raw))
 
     return {
         'name': name,
