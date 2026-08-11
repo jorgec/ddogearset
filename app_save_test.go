@@ -299,11 +299,18 @@ func TestAFailedOptimizeLeavesEquippedUntouched(t *testing.T) {
 		t.Fatalf("setup: %d equipped slots, want 2", len(before))
 	}
 
-	// No solver has been extracted, so runSolver fails before doing anything.
+	// A payload with no stat priorities: solver.py rejects it during validation,
+	// before parsing anything, and returns a failure payload.
+	//
+	// This used to rely on the solver being unable to START — which was true,
+	// because go:embed had silently dropped its symlinks. Two tests were green
+	// BECAUSE of that bug, and only went red when it was fixed. A test whose
+	// premise is "the thing under test is broken" is worse than no test.
 	failing := samplePayload()
-	failing.BuildType = "Caster"
-	if _, err := app.RunOptimization(failing); err == nil {
-		t.Fatal("expected the optimize to fail with no solver available")
+	failing.StatPriorities = nil
+	result, err := app.RunOptimization(failing)
+	if err == nil && result.Success {
+		t.Fatal("expected the optimize to fail with no stat priorities")
 	}
 
 	after := app.equippedSlots(t, buildUUID)
@@ -491,9 +498,14 @@ func TestAFailedSolveIsStillRecorded(t *testing.T) {
 	}
 	buildUUID := app.BuildIDForCurrentConfig("Round Trip")
 
-	// No solver has been extracted, so this fails before producing anything.
-	if _, err := app.RunOptimization(samplePayload()); err == nil {
-		t.Fatal("expected the optimize to fail with no solver available")
+	// No stat priorities: rejected during validation. See the note in
+	// TestAFailedOptimizeLeavesEquippedUntouched — this deliberately does NOT
+	// rely on the solver failing to start.
+	failing := samplePayload()
+	failing.StatPriorities = nil
+	result, err := app.RunOptimization(failing)
+	if err == nil && result.Success {
+		t.Fatal("expected the optimize to fail with no stat priorities")
 	}
 
 	runs, err := app.ListRuns(buildUUID)

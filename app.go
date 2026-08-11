@@ -274,6 +274,23 @@ func (a *App) loadCaches(verb string) {
 // re-extracts.
 const solverCacheDirName = "ddo-solver"
 
+// symlinkManifestName lists the symbolic links the bundle contains, because
+// go:embed CANNOT carry them — it silently skips symlinks (see `go doc embed`).
+//
+// PyInstaller's --onedir output is full of them: `_internal/Python` points at
+// `Python.framework/Versions/3.11/Python`, and the framework has three more.
+// Embedded, those paths simply vanished, and the extracted solver died at
+// startup with "Failed to load Python shared library" — which is what this file
+// exists to prevent recurring.
+//
+// A manifest rather than dereferencing them at build time: `cp -RL` would work
+// and costs 14 MB of duplicated library, paid twice (once inside the binary,
+// once in every extracted cache directory), to avoid thirty lines here.
+//
+// Written by the build scripts after staging; absent from a bundle built before
+// this existed, which extractSolver treats as "no symlinks" rather than an error.
+const symlinkManifestName = ".symlinks.json"
+
 // extractionStampName marks a solver cache directory as COMPLETE. Written
 // last, inside the staging directory, before that directory is renamed into
 // place — so a directory that exists but lacks the stamp can only be debris
@@ -307,6 +324,8 @@ func bundleFingerprint() (string, error) {
 		if d.IsDir() || path == bundleRoot+"/"+catalogFileName {
 			return nil
 		}
+		// The symlink manifest is hashed like any other file, so changing where
+		// a link points invalidates the cached extraction.
 		data, err := bundleFS.ReadFile(path)
 		if err != nil {
 			return err
@@ -389,6 +408,10 @@ func (a *App) extractSolver() error {
 		if relative == catalogFileName {
 			return nil
 		}
+		// Instructions for the extraction, not part of it.
+		if relative == symlinkManifestName {
+			return nil
+		}
 		data, err := bundleFS.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("reading embedded %s: %w", relative, err)
@@ -399,6 +422,10 @@ func (a *App) extractSolver() error {
 		return nil
 	})
 	if err != nil {
+		return err
+	}
+
+	if err := recreateSymlinks(stagingDir); err != nil {
 		return err
 	}
 
@@ -427,6 +454,40 @@ func (a *App) extractSolver() error {
 	a.addLog(fmt.Sprintf("Solver and GLPK extracted to %s", targetDir))
 	pruneStaleSolverCaches(parent, filepath.Base(targetDir))
 	return a.useSolverDir(targetDir)
+}
+
+// recreateSymlinks restores the links go:embed could not carry.
+//
+// Runs after every regular file is written, so each link's target already
+// exists — not required by os.Symlink, but it keeps a half-extracted directory
+// from ever looking complete.
+func recreateSymlinks(root string) error {
+	raw, err := bundleFS.ReadFile(bundleRoot + "/" + symlinkManifestName)
+	if err != nil {
+		// No manifest: either a platform whose bundle has no symlinks (Windows),
+		// or a bundle staged before the manifest existed. Neither is an error
+		// here — a bundle that NEEDS links and lacks them fails loudly at
+		// useSolverDir instead, with the missing file named.
+		return nil
+	}
+
+	var links map[string]string
+	if err := json.Unmarshal(raw, &links); err != nil {
+		return fmt.Errorf("reading the bundle's symlink manifest: %w", err)
+	}
+	for name, target := range links {
+		full := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			return fmt.Errorf("creating directory for symlink %s: %w", name, err)
+		}
+		// Remove first: a rerun over a partially-extracted directory would
+		// otherwise fail with EEXIST on every link.
+		os.Remove(full)
+		if err := os.Symlink(filepath.FromSlash(target), full); err != nil {
+			return fmt.Errorf("recreating symlink %s -> %s: %w", name, target, err)
+		}
+	}
+	return nil
 }
 
 // useSolverDir points the App at an extracted bundle and verifies it actually

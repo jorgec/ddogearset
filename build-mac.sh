@@ -110,6 +110,32 @@ cp "python/dist/solver/solver" "${BUNDLE_DIR}/solver"
 chmod +x "${BUNDLE_DIR}/solver"
 echo "   staged ${BUNDLE_DIR}/solver + _internal/ ($(find "${BUNDLE_DIR}/_internal" -type f | wc -l | tr -d ' ') files)"
 
+# go:embed SILENTLY SKIPS SYMLINKS (`go doc embed`), and PyInstaller's --onedir
+# output contains four: _internal/Python points at the framework's real library,
+# and Python.framework has three more. Embedded, those paths simply vanish, and
+# the extracted solver dies at startup with "Failed to load Python shared
+# library" — which is exactly what happened, unnoticed, from the --onedir switch
+# until the app was first launched.
+#
+# The links are recorded here and recreated at extraction (app.go's
+# recreateSymlinks). A manifest rather than `cp -RL`, which would work and cost
+# 14 MB of duplicated library paid twice — once inside the binary, once in every
+# extracted cache directory.
+echo "-> Recording symlinks for extraction (go:embed cannot carry them)..."
+"$PYTHON" - "$BUNDLE_DIR" <<'PYEOF'
+import json, os, sys
+bundle = sys.argv[1]
+links = {}
+for root, dirs, files in os.walk(bundle):
+    for name in dirs + files:
+        full = os.path.join(root, name)
+        if os.path.islink(full):
+            links[os.path.relpath(full, bundle)] = os.readlink(full)
+with open(os.path.join(bundle, ".symlinks.json"), "w") as f:
+    json.dump(links, f, indent=2, sort_keys=True)
+print(f"   recorded {len(links)} symlink(s)")
+PYEOF
+
 # ── 3. Locate and stage GLPK (glpsol) + its shared-library dependencies ─────
 echo ""
 echo "-> Staging GLPK (glpsol) and its dependencies..."

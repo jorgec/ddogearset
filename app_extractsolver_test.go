@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -127,7 +128,10 @@ func TestExtractSolver_ExtractsEveryBundledFileAtItsOwnPath(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || relative == "." || relative == catalogFileName {
+		// catalog.db has its own destination; the symlink manifest is
+		// instructions FOR the extraction rather than part of it.
+		if d.IsDir() || relative == "." || relative == catalogFileName ||
+			relative == symlinkManifestName {
 			return nil
 		}
 		if strings.Contains(relative, string(os.PathSeparator)) {
@@ -245,4 +249,108 @@ func TestBundleFingerprint_IsStableAndNamesTheCacheDirectory(t *testing.T) {
 	if want := AppVersion + "-" + first; filepath.Base(app.solverDir) != want {
 		t.Errorf("cache directory is %q, want %q", filepath.Base(app.solverDir), want)
 	}
+}
+
+func TestExtractedSolverActuallyStarts(t *testing.T) {
+	// The test that was missing. Everything else here asserts that files landed
+	// where they should; none of it noticed that go:embed had silently dropped
+	// four SYMLINKS, so the extracted tree was missing `_internal/Python` and the
+	// solver died at startup with "Failed to load Python shared library".
+	//
+	// It went unseen from the --onedir switch until someone launched the app,
+	// because "every embedded file was extracted" is trivially true of files
+	// that were never embedded.
+	//
+	// Running the thing is the only assertion that could have caught it.
+	withTempCacheDir(t)
+	app := &App{}
+	if err := app.extractSolver(); err != nil {
+		t.Fatalf("extractSolver: %v", err)
+	}
+
+	// No payload argument: the solver prints its usage error and exits. That is
+	// enough — reaching its own code means the interpreter loaded, which is the
+	// entire question.
+	cmd := exec.Command(app.solverPath)
+	cmd.Dir = t.TempDir()
+	output, _ := cmd.CombinedOutput()
+
+	text := string(output)
+	for _, fatal := range []string{
+		"Failed to load Python shared library",
+		"Failed to load Python runtime",
+		"no such file",
+	} {
+		if strings.Contains(text, fatal) {
+			t.Fatalf("the extracted solver cannot start: %s\n%s", fatal, text)
+		}
+	}
+	if !strings.Contains(text, "No JSON payload") && !strings.Contains(text, "Error") {
+		t.Errorf("the solver produced unexpected output; did it run at all?\n%s", text)
+	}
+}
+
+func TestEverySymlinkInTheBundleIsRecreated(t *testing.T) {
+	// go:embed cannot carry symlinks, so they travel in a manifest and are
+	// recreated at extraction. This asserts the manifest matches what is
+	// actually staged — a link added by a PyInstaller upgrade and not recorded
+	// would otherwise vanish exactly as the first four did.
+	staged := map[string]string{}
+	root := bundleRoot
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			return nil
+		}
+		target, err := os.Readlink(path)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		staged[rel] = target
+		return nil
+	})
+	if err != nil {
+		t.Skipf("cannot inspect the staged bundle at %s: %v", root, err)
+	}
+	if len(staged) == 0 {
+		t.Skip("this platform's bundle contains no symlinks")
+	}
+
+	withTempCacheDir(t)
+	app := &App{}
+	if err := app.extractSolver(); err != nil {
+		t.Fatalf("extractSolver: %v", err)
+	}
+
+	for name, target := range staged {
+		full := filepath.Join(app.solverDir, name)
+		info, err := os.Lstat(full)
+		if err != nil {
+			t.Errorf("symlink %s was not recreated: %v", name, err)
+			continue
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("%s was extracted as a regular file, not a symlink", name)
+			continue
+		}
+		got, err := os.Readlink(full)
+		if err != nil || got != target {
+			t.Errorf("%s -> %q, want %q (%v)", name, got, target, err)
+		}
+		// ...and it has to actually resolve.
+		if _, err := os.Stat(full); err != nil {
+			t.Errorf("symlink %s does not resolve after extraction: %v", name, err)
+		}
+	}
+	t.Logf("recreated %d symlink(s)", len(staged))
 }

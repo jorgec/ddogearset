@@ -245,6 +245,12 @@ Get-ChildItem -Path $GlpkDir -Filter "*.dll" | ForEach-Object {
     Write-Ok "staged $BundleDir\$($_.Name)"
 }
 
+# Windows PyInstaller output contains no symlinks, so there is nothing for
+# go:embed to skip and no manifest to write (app.go's recreateSymlinks treats an
+# absent manifest as "no symlinks"). Stated rather than left silent: on macOS and
+# Linux this step is load-bearing — see the comment in build-mac.sh.
+Write-Ok "No symlink manifest needed on Windows."
+
 # == 8. Build =================================================================
 # go:embed reads the FILESYSTEM, not git - anything sitting in $BundleDir right
 # now is compiled into the shipped binary, tracked or not. SQLite's WAL

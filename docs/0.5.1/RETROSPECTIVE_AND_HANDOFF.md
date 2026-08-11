@@ -128,7 +128,37 @@ not have been stored — and those are the ones most worth recording.
 Both were written down carefully, reviewed, and wrong. Checking a schema against
 the data it will hold is not the same activity as reading it.
 
-### 3.6 Smaller ones
+### 3.7 The packaged app had never started — and neither had two of its tests
+
+The first time the `.app` was actually launched, the solver died with
+*"Failed to load Python shared library"*. **`go:embed` silently skips symbolic
+links** (`go doc embed` says so plainly), and PyInstaller's `--onedir` output
+contains four — `_internal/Python` points at the framework's real library, and
+`Python.framework` has three more. They were staged into `bundled/`, tracked by
+git, and never embedded. The extracted tree was missing them, so the interpreter
+could not load.
+
+Broken since the `--onedir` switch in 0.5.0 Phase 7. Every test passed
+throughout, because the one that checked extraction asserted *"every embedded
+file was extracted"* — trivially true of files that were never embedded.
+
+Fixed with a manifest: the links are recorded at stage time and recreated at
+extraction, rather than dereferenced with `cp -RL`, which would have worked and
+cost 14 MB of duplicated library paid twice — once inside the binary, once in
+every extracted cache directory.
+
+**Two things are worth carrying forward.** First: the test that catches this is
+the one that *runs the extracted binary*. Checking that files landed in the
+right places cannot detect a file that was never supposed to be a file.
+
+Second, and sharper: **two unrelated tests were green because of this bug.**
+`TestAFailedOptimizeLeavesEquippedUntouched` and `TestAFailedSolveIsStillRecorded`
+both established "a failed solve" by relying on the solver being unable to start.
+They went red the moment it was fixed. A test whose premise is that the thing
+under test is broken is worse than no test, and neither of them said out loud
+what it was depending on.
+
+### 3.8 Smaller ones
 
 - **A test I could not write honestly.** Phase 2's "a failed save does not
   destroy the previous build" first used an out-of-range priority tier — which
@@ -233,11 +263,13 @@ all of which still hold.
   larger: `app.db`'s path resolution, the migration, and the whole storage layer
   have only ever run on macOS. `TestFirstRunCreatesAppDBWithNoOverrides` skips
   on Windows because `os.UserConfigDir` reads `%AppData%` rather than `HOME`.
-- **The packaged `.app` has not been launched.** The release builds and passes
-  `codesign --verify`, and the shipped solver + shipped catalog were exercised
-  directly (§8). What has *not* happened is a human double-clicking the `.app`
-  and pressing the buttons. Every RPC is driven by tests, including the exact
-  sequence the UI performs, but that is not the same thing.
+- **The packaged `.app` was launched, and it was broken.** See §3.7 — the first
+  real launch found that `go:embed` silently drops symlinks, so the extracted
+  solver had been unable to start since the `--onedir` switch in 0.5.0. Fixed,
+  with the extraction now verified by running the extracted binary. What is
+  still untested is a human working through the UI: every RPC is driven by
+  tests, including the exact sequence the frontend performs, but that is not the
+  same as somebody using it.
 - **`owned_item` is modelled and unwired.** It is player-level inventory fed by
   the Trove import, not per-build, and nothing in 0.5.1's gates touched it.
 - **`run_effect.source_name` is not resolved to a catalog UUID.** The names are
@@ -268,6 +300,10 @@ all of which still hold.
   no GLPK involved, recalculated the gearset the old implementation refused:
   14 slots, 12 realized stats, two warnings, `allEffectsDetail` present, in
   **0.55–0.66 s** warm.
+- After the symlink fix (§3.7), the full path was exercised end to end: extract
+  the embedded bundle exactly as launch does, run the extracted solver, and
+  recalculate through `RecalculateGearset` — producing a stored run stamped with
+  catalog `f91af4e6`.
 
 Verification recipes are unchanged from
 [0.5.0 §8](../0.5.0/RETROSPECTIVE_AND_HANDOFF.md#8-verification-recipes), plus:
