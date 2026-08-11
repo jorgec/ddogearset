@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -59,4 +60,59 @@ func TestLoadCaches_AgainstRealCatalog(t *testing.T) {
 
 	t.Logf("items=%d augments=%d filigrees=%d sets=%d",
 		len(a.itemsCache), len(a.augmentsCache), len(a.filigreesCache), len(a.setBonusCache))
+}
+
+// TestPackAttributionSurvivesAForeignWorkingDirectory reproduces a real report
+// from a packaged Windows install:
+//
+//	Failed to load pack mappings, item pack attribution unavailable: open
+//	data/PackMappings.json: The system cannot find the path specified.
+//
+// InitEnrichment used to be handed "data/PackMappings.json", resolved against
+// the process's WORKING DIRECTORY — the repo root under `go run`/`wails dev`,
+// and whatever directory the OS launched the packaged app from otherwise. That
+// is why it went unnoticed here: every test in this repo runs with the repo
+// root as cwd, so the path always resolved in CI and in every local run.
+//
+// The fix embeds the file (`packMappingsJSON` in app.go) so there is no path
+// left to get wrong. This test is the one that would have caught the
+// original bug: it runs loadCaches from a directory containing nothing but
+// itself, exactly what a packaged app's launch directory looks like.
+func TestPackAttributionSurvivesAForeignWorkingDirectory(t *testing.T) {
+	catalogFile, err := filepath.Abs("bundled/darwin-arm64/catalog.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := os.Getenv(catalogEnvVar); p != "" {
+		if catalogFile, err = filepath.Abs(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(catalogFile); err != nil {
+		t.Skipf("no catalog at %s", catalogFile)
+	}
+
+	// Absolute, taken BEFORE the chdir below — a relative catalog path would
+	// break for the same reason PackMappings.json used to, and that is not
+	// the bug this test exists to catch.
+	t.Chdir(t.TempDir())
+
+	a := NewApp()
+	a.catalogDBPath = catalogFile
+	a.loadCaches("Cached")
+
+	if len(a.itemsCache) == 0 {
+		t.Fatal("items failed to load from a non-repo-root working directory")
+	}
+	var attributed int
+	for _, it := range a.itemsCache {
+		if it.PackID != "" {
+			attributed++
+		}
+	}
+	if attributed == 0 {
+		t.Fatal("every item has an empty PackID — this reproduces the Windows report")
+	}
+	t.Logf("%d of %d items carry pack attribution from a foreign working directory",
+		attributed, len(a.itemsCache))
 }

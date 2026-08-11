@@ -3,9 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/url"
-	"os"
 	"strings"
 
 	"goGearset/internal/models"
@@ -18,26 +16,25 @@ func InitEnrichmentForTest(mockConfig models.PackMappingsConfig) {
 	config = mockConfig
 }
 
-// InitEnrichment loads pack-mapping configuration — fatal on failure, since
-// without it no item can be attributed to an adventure pack.
+// InitEnrichment loads pack-mapping configuration from its embedded bytes —
+// fatal on failure, since without it no item can be attributed to an
+// adventure pack.
 //
-// Raid detection is no longer computed here. It used to be a Go-side
-// upgrade/crafting-chain walk (docs/RAID_DETECTION_SPEC.md) mirroring
-// python/rules/provenance.py's _resolve_is_raid; that walk is now done once,
-// correctly, by the ETL (docs/0.5.0/00_ETL_START_HERE.md Phase 4 verified the
-// two agree), and catalog.LoadItems sets XMLItem.IsRaid directly from the
-// catalog's precomputed column. See internal/catalog/catalog.go.
-func InitEnrichment(packMappingsPath string) error {
-	packFile, err := os.Open(packMappingsPath)
-	if err != nil {
-		return err
-	}
-	defer packFile.Close()
-	packBytes, err := io.ReadAll(packFile)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(packBytes, &config)
+// Bytes, not a path. It used to be `os.Open(packMappingsPath)` against
+// `"data/PackMappings.json"`, resolved against the process's WORKING
+// DIRECTORY — which is the repo root under `go run`/`wails dev`, and
+// something else entirely once packaged. Confirmed from a real Windows
+// install: "Failed to load pack mappings ... The system cannot find the path
+// specified." Every item still loaded — the failure is caught and only
+// degrades pack attribution — which is exactly why it shipped unnoticed. The
+// comment this replaced claimed the path "match[ed] every other bundled
+// data-file path in this app"; that was the misconception. The sibling file
+// two lines above it in app.go, `data/stat_sets.default.json`, has been
+// `go:embed`-ed the whole time — this one just wasn't. Embedding removes the
+// failure mode instead of relocating it: there is no path left to resolve
+// wrong.
+func InitEnrichment(packMappingsJSON []byte) error {
+	return json.Unmarshal(packMappingsJSON, &config)
 }
 
 // packIDFor maps an item's drop locations to a UI-facing pack ID via

@@ -43,6 +43,14 @@ import (
 //go:embed data/stat_sets.default.json
 var defaultStatSets []byte
 
+// packMappingsJSON is services.InitEnrichment's config, embedded rather than
+// read from a path relative to the process's working directory — see that
+// function's doc comment for why a path was the wrong choice here (confirmed
+// from a real Windows install: "The system cannot find the path specified").
+//
+//go:embed data/PackMappings.json
+var packMappingsJSON []byte
+
 // AppVersion is the running app's release version, stamped into every saved
 // .ddogearset file (as "app_version", distinct from the file-format schema
 // "version" field below) and returned by GetAppVersion so the frontend can
@@ -154,11 +162,6 @@ func (a *App) startup(ctx context.Context) {
 	})
 }
 
-// packMappingsPath is project-relative (resolved against the process's
-// working directory), matching every other bundled data-file path in this
-// app.
-const packMappingsPath = "data/PackMappings.json"
-
 // catalogEnvVar mirrors python/catalog_source.py's DDO_CATALOG_DB convention
 // exactly, so both processes resolve the same file from the same override
 // with no separate configuration surface. When set, it wins outright — no
@@ -195,7 +198,7 @@ func (a *App) loadCaches(verb string) {
 		}
 	}
 
-	if err := services.InitEnrichment(packMappingsPath); err != nil {
+	if err := services.InitEnrichment(packMappingsJSON); err != nil {
 		// Fatal for enrichment only: items still load, they just carry no pack
 		// attribution. Everything else in the app is unaffected.
 		a.addLog("Failed to load pack mappings, item pack attribution unavailable: " + err.Error())
