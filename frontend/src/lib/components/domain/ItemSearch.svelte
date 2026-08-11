@@ -3,6 +3,7 @@
   import { SearchItemsByStat } from '../../../../wailsjs/go/main/App';
   import StatPicker from './StatPicker.svelte';
   import Accordion from '../ui/Accordion.svelte';
+  import { openWikiSearch, wikiSearchURL } from '$lib/wiki';
 
   let selectedStat: string | null = null;
   let showPicker = false;
@@ -115,7 +116,22 @@
                               {#each entries as entry}
                                   <tr class="hover:bg-muted/30 transition-colors">
                                       <td class="px-3 py-2 font-semibold text-primary">{entry.value}</td>
-                                      <td class="px-3 py-2 font-medium text-foreground">{entry.sourceName}</td>
+                                      <td class="px-3 py-2 font-medium">
+                                          <!--
+                                            A button, not an <a href>. An anchor
+                                            navigates the WEBVIEW to ddowiki and the
+                                            app is simply gone — no error, no way
+                                            back. BrowserOpenURL hands it to the real
+                                            browser instead. Guarded by
+                                            TestFrontendOpensExternalLinksThroughWails.
+                                          -->
+                                          <button
+                                              type="button"
+                                              on:click={() => openWikiSearch(entry.sourceName)}
+                                              title="Look up “{entry.sourceName}” on ddowiki — {wikiSearchURL(entry.sourceName)}"
+                                              class="text-left text-foreground underline decoration-dotted decoration-primary/40 underline-offset-2 hover:text-primary hover:decoration-primary transition-colors"
+                                          >{entry.sourceName}</button>
+                                      </td>
                                       <td class="px-3 py-2 text-muted-foreground capitalize">{entry.sourceType}</td>
                                       <td class="px-3 py-2 text-xs text-muted-foreground">
                                           <div class="flex flex-col space-y-0.5">

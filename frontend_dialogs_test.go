@@ -74,6 +74,56 @@ func TestFrontendUsesNoNativeDialogs(t *testing.T) {
 	}
 }
 
+// TestFrontendOpensExternalLinksThroughWails guards the sibling trap.
+//
+// An `<a href="https://…">` inside a Wails webview NAVIGATES THE WEBVIEW. The
+// app is replaced by the website — no error, no back button, nothing to do but
+// quit and relaunch. External links have to go through the runtime's
+// BrowserOpenURL, which hands the URL to the user's real browser.
+func TestFrontendOpensExternalLinksThroughWails(t *testing.T) {
+	external := regexp.MustCompile(`href=\{?["\x60]?https?://`)
+
+	root := filepath.Join("frontend", "src")
+	if _, err := os.Stat(root); err != nil {
+		t.Skipf("no frontend source at %s", root)
+	}
+
+	var offenders []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || filepath.Ext(path) != ".svelte" {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for i, line := range strings.Split(string(raw), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "*") ||
+				strings.HasPrefix(trimmed, "<!--") {
+				continue
+			}
+			if external.MatchString(line) {
+				offenders = append(offenders,
+					filepath.ToSlash(path)+":"+itoa(i+1)+": "+trimmed)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scanning the frontend: %v", err)
+	}
+
+	if len(offenders) > 0 {
+		t.Errorf("an external <a href> navigates the WEBVIEW and the app disappears. "+
+			"Use BrowserOpenURL (see $lib/wiki.ts) instead.\n  %s",
+			strings.Join(offenders, "\n  "))
+	}
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"
