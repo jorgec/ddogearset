@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
@@ -71,7 +72,16 @@ type App struct {
 	// so Go's own caches and the Python subprocess always agree on which
 	// catalog they're reading. Empty until startup() runs (see catalogPath()'s
 	// fallback for callers, like tests, that read caches without it).
-	catalogDBPath  string
+	catalogDBPath string
+	// appDB is the user's own database — builds, gearsets, and from Phase 6 run
+	// history. Opened once by ensureAppDB() in startup() and held for the
+	// process lifetime, unlike the catalog, which is opened per read: this one
+	// is written to, and one long-lived handle is what keeps WAL doing its job.
+	// nil when storage could not be opened, which is survivable — see
+	// ensureAppDB.
+	appDB     *sql.DB
+	appDBPath string
+
 	itemsCache     []models.XMLItem
 	augmentsCache  []models.XMLAugment
 	filigreesCache []models.XMLFiligree
@@ -118,6 +128,15 @@ func (a *App) startup(ctx context.Context) {
 	// step and no network access (docs/0.5.0/00_ETL_START_HERE.md Phase 6).
 	// Runs in the same background goroutine as loadCaches so startup()
 	// itself returns immediately.
+	// app.db first, and NOT in the goroutine below: it is the user's own data,
+	// every RPC that persists anything needs the handle, and opening it is a
+	// local file operation measured in milliseconds — there is nothing to
+	// overlap. A failure is logged and survivable (see ensureAppDB); the app
+	// still solves, it just cannot save.
+	if err := a.ensureAppDB(); err != nil {
+		a.addLog("Warning: user data unavailable, nothing will be saved: " + err.Error())
+	}
+
 	go func() {
 		path, err := a.ensureCatalogSeeded()
 		if err != nil {

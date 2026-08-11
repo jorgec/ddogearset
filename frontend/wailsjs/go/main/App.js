@@ -50,6 +50,10 @@ export function GetTroveOwnedItems(arg1) {
   return window['go']['main']['App']['GetTroveOwnedItems'](arg1);
 }
 
+export function ImportLegacyGearsets() {
+  return window['go']['main']['App']['ImportLegacyGearsets']();
+}
+
 export function LoadTroveInventory(arg1) {
   return window['go']['main']['App']['LoadTroveInventory'](arg1);
 }
