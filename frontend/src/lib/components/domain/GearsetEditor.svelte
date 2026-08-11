@@ -1,8 +1,9 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast,
            troveImportStore, defaultConfig } from '$lib/store';
-  import { GetAvailableItems, GetItemDetails, RunOptimization, GetAvailableFiligrees } from '../../../../wailsjs/go/main/App';
+  import { GetAvailableItems, GetItemDetails, GetAvailableFiligrees, RecalculateGearset } from '../../../../wailsjs/go/main/App';
   import type { models, main } from '../../../../wailsjs/go/models';
+  import { main as mainModels } from '../../../../wailsjs/go/models';
   import ItemDetail from './ItemDetail.svelte';
   import SlotAlternatives from './SlotAlternatives.svelte';
 
@@ -328,6 +329,22 @@
       availableItems = [];
   }
 
+  // The one place a full configuration is narrowed to what a recalculation
+  // may see. Mirrors Go's RecalculationRequestFrom and Summary.svelte's
+  // recalculationRequest; kept to one function here for the same reason it is
+  // one function there.
+  function recalculationRequest(config: main.OptimizationPayload): main.RecalculationRequest {
+      return mainModels.RecalculationRequest.createFrom({
+          gearset_name: config.gearset_name,
+          max_level: config.max_level,
+          build_type: config.build_type,
+          stat_priorities: config.stat_priorities,
+          pre_equipped: config.pre_equipped,
+          pre_filled_augments: config.pre_filled_augments,
+          pre_filled_filigrees: config.pre_filled_filigrees,
+      });
+  }
+
   async function calculateGearSet() {
       $isOptimizing = true;
       try {
@@ -341,15 +358,11 @@
               $configStore.pre_filled_augments = hydrated.pre_filled_augments;
               $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
           }
-          // Calculate mode travels on the request, not on the shared store.
-          // The old mutate-then-restore made "calculate_only" briefly visible
-          // to every other subscriber for the duration of the call, and was
-          // unsafe if the user triggered a second action mid-flight.
-          // Cast mirrors store.ts: the spread drops the wails class's
-          // convertValues method, which nothing on this path calls.
-          const res = await RunOptimization(
-              { ...$configStore, mode: 'recalculate' } as unknown as main.OptimizationPayload
-          );
+          // A recalculation takes a NARROWED request, not the whole config:
+          // RecalculationRequest has nowhere to put a search restriction
+          // (armor_restriction, weapon_style, ...), so none can reach an
+          // evaluation of gear the user already has (0.5.1 Phase 4/5).
+          const res = await RecalculateGearset(recalculationRequest($configStore));
           if (res && res.success) {
               $resultStore = res;
               showToast('Stats recalculated.', 'success');
