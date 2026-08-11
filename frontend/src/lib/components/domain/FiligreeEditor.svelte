@@ -1,7 +1,7 @@
 <script lang="ts">
   import { configStore, resultStore, isOptimizing } from '$lib/store';
   import { GetAvailableFiligrees, GetItemDetails } from '../../../../wailsjs/go/main/App';
-  import type { models } from '../../../../wailsjs/go/models';
+  import type { models, main } from '../../../../wailsjs/go/models';
 
   let editingFiligreeIdx: number | null = null;
   let editingFiligreeType: "weapon" | "artifact" | null = null;
@@ -64,17 +64,37 @@
       $configStore.pre_filled_filigrees = {...$configStore.pre_filled_filigrees};
   }
 
-  // Display value for a slot: 
+  // Display value for a slot:
   // It should show the pre-filled value if it exists, otherwise it shows the generator's chosen value.
-  function getSlotDisplay(idx: number, type: "weapon" | "artifact") {
-      if ($configStore.pre_filled_filigrees[type] && $configStore.pre_filled_filigrees[type][idx]) {
-          return { name: $configStore.pre_filled_filigrees[type][idx], locked: true };
-      }
-      if ($resultStore?.filigrees && $resultStore.filigrees[type] && $resultStore.filigrees[type][idx]) {
-          return { name: $resultStore.filigrees[type][idx], locked: false };
-      }
+  //
+  // Takes the two stores as ARGUMENTS rather than reading them off the closure,
+  // and is driven by the `$:` blocks below, because Svelte cannot see through a
+  // function call: a `{@const display = getSlotDisplay(idx, …)}` in the each
+  // block compiles to a dependency on `getSlotDisplay` and `idx` only, so it was
+  // evaluated once at mount and never again. That went unnoticed while this
+  // component lived inside the drawer's `{#if $drawerOpen}` — it was destroyed
+  // and recreated on every open, which remounted it with current data. Once it
+  // became a permanently-mounted tab (only `class:hidden` toggling), the stale
+  // values became visible: a build loaded from app.db showed every slot empty.
+  // Naming the stores in the reactive statements is what makes them real
+  // dependencies.
+  function slotDisplay(
+      idx: number,
+      type: "weapon" | "artifact",
+      config: main.OptimizationPayload,
+      result: main.ResultPayload | null,
+  ) {
+      const locked = config?.pre_filled_filigrees?.[type]?.[idx];
+      if (locked) return { name: locked, locked: true };
+      const suggested = result?.filigrees?.[type]?.[idx];
+      if (suggested) return { name: suggested, locked: false };
       return null;
   }
+
+  $: artifactDisplays = Array.from({ length: artifactSlots },
+      (_, idx) => slotDisplay(idx, "artifact", $configStore, $resultStore));
+  $: weaponDisplays = Array.from({ length: weaponSlots },
+      (_, idx) => slotDisplay(idx, "weapon", $configStore, $resultStore));
 
 </script>
 
@@ -100,8 +120,7 @@
                     Minor Artifact
                 </h3>
                 <div class="grid grid-cols-1 gap-3">
-                    {#each Array(artifactSlots) as _, idx}
-                        {@const display = getSlotDisplay(idx, "artifact")}
+                    {#each artifactDisplays as display, idx}
                         <div class="flex flex-col space-y-1">
                             <div class="flex justify-between items-center text-sm font-medium">
                                 <span>Slot {idx + 1}</span>
@@ -168,8 +187,7 @@
                     Sentient Weapon
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                    {#each Array(weaponSlots) as _, idx}
-                        {@const display = getSlotDisplay(idx, "weapon")}
+                    {#each weaponDisplays as display, idx}
                         <div class="flex flex-col space-y-1">
                             <div class="flex justify-between items-center text-sm font-medium">
                                 <span>Slot {idx + 1}</span>
