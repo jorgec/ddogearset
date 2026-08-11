@@ -352,7 +352,7 @@ func writeBuild(tx *sql.Tx, catalog Catalog, saved savedGearset,
 		}
 	}
 
-	return insertGearset(tx, catalog, buildUUID, saved)
+	return insertGearset(tx, catalog, buildUUID, OriginEquipped, saved)
 }
 
 func insertPriorities(tx *sql.Tx, buildUUID string, cfg map[string]interface{}) error {
@@ -401,20 +401,21 @@ func insertStringList(tx *sql.Tx, buildUUID string, cfg map[string]interface{},
 	return nil
 }
 
-// insertGearset writes the file's gearset as origin='equipped'.
+// insertGearset writes a gearset under the given origin.
 //
-// A .ddogearset records ONE gearset, and after a save that gearset is what the
-// user has — so it is `equipped`, not `suggested`. Nothing imports as a
-// suggestion: a suggestion is the live output of a solve (Phase 3), and
-// resurrecting a years-old one as if it were pending would be inventing state
-// the file never claimed.
+// An IMPORT always passes 'equipped': a .ddogearset records one gearset, and
+// after a save that gearset is what the user has. Nothing imports as a
+// suggestion — a suggestion is the live output of a solve, and resurrecting a
+// years-old one as if it were pending would invent state the file never
+// claimed. SaveSuggestion passes 'suggested' through the same writer, so the
+// two nodes can never diverge in how they are stored.
 //
 // Where the gearset lives in the file varies by how it was saved: pinned into
 // `config.pre_equipped`, or only in `result.gearSet` when a solve was saved
 // without writing the picks back. Real files exist in both shapes — the same
 // survey scripts/capture_oracle.py's reconstruct_gearset was written from, and
 // the same precedence.
-func insertGearset(tx *sql.Tx, catalog Catalog, buildUUID string, saved savedGearset) ([]Orphan, error) {
+func insertGearset(tx *sql.Tx, catalog Catalog, buildUUID, origin string, saved savedGearset) ([]Orphan, error) {
 	var orphans []Orphan
 	cfg := saved.Config
 	if cfg == nil {
@@ -448,19 +449,19 @@ func insertGearset(tx *sql.Tx, catalog Catalog, buildUUID string, saved savedGea
 			continue
 		}
 		if _, err := tx.Exec(`INSERT INTO gearset_slot
-			(build_uuid, origin, slot, item_uuid, item_name) VALUES (?,'equipped',?,?,?)`,
-			buildUUID, slot, itemUUID, itemName); err != nil {
+			(build_uuid, origin, slot, item_uuid, item_name) VALUES (?,?,?,?,?)`,
+			buildUUID, origin, slot, itemUUID, itemName); err != nil {
 			return nil, fmt.Errorf("inserting slot %s: %w", slot, err)
 		}
 	}
 
-	augOrphans, err := insertAugments(tx, catalog, buildUUID, cfg, result)
+	augOrphans, err := insertAugments(tx, catalog, buildUUID, origin, cfg, result)
 	if err != nil {
 		return nil, err
 	}
 	orphans = append(orphans, augOrphans...)
 
-	filOrphans, err := insertFiligrees(tx, catalog, buildUUID, cfg, result)
+	filOrphans, err := insertFiligrees(tx, catalog, buildUUID, origin, cfg, result)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +470,7 @@ func insertGearset(tx *sql.Tx, catalog Catalog, buildUUID string, saved savedGea
 	return orphans, nil
 }
 
-func insertAugments(tx *sql.Tx, catalog Catalog, buildUUID string,
+func insertAugments(tx *sql.Tx, catalog Catalog, buildUUID, origin string,
 	cfg, result map[string]interface{}) ([]Orphan, error) {
 	var orphans []Orphan
 
@@ -526,8 +527,8 @@ func insertAugments(tx *sql.Tx, catalog Catalog, buildUUID string,
 			}
 			if _, err := tx.Exec(`INSERT OR IGNORE INTO gearset_augment
 				(build_uuid, origin, slot, colour, augment_uuid, augment_name)
-				VALUES (?,'equipped',?,?,?,?)`,
-				buildUUID, slot, colour, augUUID, name); err != nil {
+				VALUES (?,?,?,?,?,?)`,
+				buildUUID, origin, slot, colour, augUUID, name); err != nil {
 				return nil, fmt.Errorf("inserting augment %s/%s: %w", slot, name, err)
 			}
 		}
@@ -535,7 +536,7 @@ func insertAugments(tx *sql.Tx, catalog Catalog, buildUUID string,
 	return orphans, nil
 }
 
-func insertFiligrees(tx *sql.Tx, catalog Catalog, buildUUID string,
+func insertFiligrees(tx *sql.Tx, catalog Catalog, buildUUID, origin string,
 	cfg, result map[string]interface{}) ([]Orphan, error) {
 	var orphans []Orphan
 
@@ -575,8 +576,8 @@ func insertFiligrees(tx *sql.Tx, catalog Catalog, buildUUID string,
 			}
 			if _, err := tx.Exec(`INSERT INTO gearset_filigree
 				(build_uuid, origin, bucket, position, filigree_uuid, filigree_name)
-				VALUES (?,'equipped',?,?,?,?)`,
-				buildUUID, bucket, position, filUUID, name); err != nil {
+				VALUES (?,?,?,?,?,?)`,
+				buildUUID, origin, bucket, position, filUUID, name); err != nil {
 				return nil, fmt.Errorf("inserting filigree %s[%d]: %w", bucket, position, err)
 			}
 			position++

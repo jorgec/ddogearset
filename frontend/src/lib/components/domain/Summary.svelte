@@ -1,7 +1,7 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
   import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus,
-           ListBuilds, LoadBuild, ImportGearsetContent } from '../../../../wailsjs/go/main/App';
+           ListBuilds, LoadBuild, ImportGearsetContent, AcceptAll, BuildIDForCurrentConfig } from '../../../../wailsjs/go/main/App';
   import { onMount } from 'svelte';
   import type { appdb } from '../../../../wailsjs/go/models';
   // Imported as a VALUE (not `import type`) because createFrom is a static
@@ -239,6 +239,30 @@
   let builds: appdb.BuildSummary[] = [];
   let selectedBuild = '';
 
+  // A solve's output is stored as a SUGGESTION, on its own rows, and only
+  // becomes the user's gearset when they accept it (schema §5.4). That split is
+  // what makes "Optimize → Save wrote an empty gearset" impossible rather than
+  // merely unlikely — the two used to share one place, so whichever wrote last
+  // won.
+  $: hasSuggestion = !!$resultStore?.gearSet && Object.keys($resultStore.gearSet).length > 0;
+
+  async function acceptAll() {
+      $isOptimizing = true;
+      try {
+          const uuid = await BuildIDForCurrentConfig($configStore.gearset_name ?? '');
+          const updated = await AcceptAll(uuid);
+          $configStore = migrateLegacyConfig(mainModels.OptimizationPayload.createFrom(
+              { ...$configStore, ...updated.config, calculate_only: false }));
+          await refreshBuilds();
+          showToast('Equipped the suggested gearset.', 'success');
+      } catch (e) {
+          console.error(e);
+          showToast('Could not equip the suggestion: ' + e, 'error');
+      } finally {
+          $isOptimizing = false;
+      }
+  }
+
   async function refreshBuilds() {
       try {
           builds = await ListBuilds();
@@ -457,6 +481,11 @@
                 {/if}
                 Load
             </button>
+            {#if hasSuggestion}
+              <button on:click={acceptAll} disabled={$isOptimizing}
+                      title="Replace your equipped gear with what the solver proposed"
+                      class="px-2 py-1 text-[11px] rounded border border-carved bg-carved/60 text-vellum hover:bg-carved hover:shadow-press transition-all disabled:opacity-50">Accept All</button>
+            {/if}
             <button on:click={saveGearset} disabled={$isOptimizing}
                     class="px-2 py-1 text-[11px] rounded bg-arcane text-white hover:bg-arcane/85 transition-colors disabled:opacity-50">Save</button>
           </div>

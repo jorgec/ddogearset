@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"goGearset/internal/appdb"
 	"goGearset/internal/catalog"
@@ -170,6 +171,48 @@ type LoadedBuildPayload struct {
 	Name    string              `json:"name"`
 	Config  OptimizationPayload `json:"config"`
 	Orphans []appdb.Orphan      `json:"orphans,omitempty"`
+}
+
+// AcceptAll promotes the solver's suggestion to the user's equipped gearset and
+// returns the refreshed configuration.
+//
+// Schema §5.4's one statement. The caller gets the build back so the UI shows
+// the accepted gear without re-deriving it from a result payload — which is how
+// the two used to drift apart in the first place.
+func (a *App) AcceptAll(buildUUID string) (LoadedBuildPayload, error) {
+	var out LoadedBuildPayload
+	if a.appDB == nil {
+		return out, fmt.Errorf("user data is unavailable")
+	}
+	moved, err := appdb.AcceptSuggestion(a.appDB, buildUUID)
+	if err != nil {
+		return out, err
+	}
+	a.addLog(fmt.Sprintf("Accepted the suggestion: %d slot(s) are now equipped.", moved))
+	return a.LoadBuild(buildUUID)
+}
+
+// GetSuggestion returns what the solver most recently proposed for a build, in
+// the same pre_equipped / pre_filled_* shape a configuration uses.
+//
+// Read-only. Nothing here can turn a suggestion into equipped gear — that is
+// AcceptAll's job, and keeping it to one entry point is what makes the two-node
+// split enforceable rather than merely intended.
+func (a *App) GetSuggestion(buildUUID string) (map[string]interface{}, error) {
+	if a.appDB == nil {
+		return nil, fmt.Errorf("user data is unavailable")
+	}
+	return appdb.LoadGearset(a.appDB, buildUUID, appdb.OriginSuggested)
+}
+
+// BuildIDForCurrentConfig tells the frontend which build a configuration maps
+// to, so it can ask about a suggestion without having saved first.
+func (a *App) BuildIDForCurrentConfig(gearsetName string) string {
+	name := strings.TrimSpace(gearsetName)
+	if name == "" {
+		name = "Untitled"
+	}
+	return appdb.BuildUUIDForName(name)
 }
 
 // DeleteBuild removes a stored build and everything belonging to it.

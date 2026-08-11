@@ -254,7 +254,7 @@ func LoadBuild(db *sql.DB, buildUUID string) (LoadedBuild, error) {
 		cfg[pair.key] = values
 	}
 
-	if err := loadGearsetInto(db, buildUUID, cfg); err != nil {
+	if err := loadGearsetOrigin(db, buildUUID, OriginEquipped, cfg); err != nil {
 		return out, err
 	}
 	orphans, err := loadOrphans(db, buildUUID)
@@ -308,17 +308,19 @@ func loadStrings(db *sql.DB, query string, args ...interface{}) ([]string, error
 	return out, rows.Err()
 }
 
-// loadGearsetInto reconstructs pre_equipped / pre_filled_augments /
-// pre_filled_filigrees from the `equipped` rows.
+// loadGearsetOrigin reconstructs pre_equipped / pre_filled_augments /
+// pre_filled_filigrees from ONE node of a build's gearset.
 //
-// Reads origin='equipped' and nothing else. What the solver most recently
-// SUGGESTED is a different set of rows and never leaks into a configuration —
-// the failure this two-node split exists to make impossible (schema §5.4).
-func loadGearsetInto(db *sql.DB, buildUUID string, cfg map[string]interface{}) error {
+// LoadBuild always passes 'equipped'. What the solver most recently SUGGESTED
+// is a different set of rows and never leaks into a configuration — the failure
+// this two-node split exists to make impossible (schema §5.4). The parameter
+// exists so the suggestion can be READ (to show it, or to hand it to a
+// recalculation), never so a caller can load one as if it were the other.
+func loadGearsetOrigin(db *sql.DB, buildUUID, origin string, cfg map[string]interface{}) error {
 	equipped := map[string]string{}
 	rows, err := db.Query(
-		"SELECT slot, item_name FROM gearset_slot WHERE build_uuid = ? AND origin = 'equipped'",
-		buildUUID)
+		"SELECT slot, item_name FROM gearset_slot WHERE build_uuid = ? AND origin = ?",
+		buildUUID, origin)
 	if err != nil {
 		return fmt.Errorf("reading gearset slots: %w", err)
 	}
@@ -338,7 +340,7 @@ func loadGearsetInto(db *sql.DB, buildUUID string, cfg map[string]interface{}) e
 
 	augments := map[string]map[string]string{}
 	rows, err = db.Query(`SELECT slot, colour, augment_name FROM gearset_augment
-		WHERE build_uuid = ? AND origin = 'equipped'`, buildUUID)
+		WHERE build_uuid = ? AND origin = ?`, buildUUID, origin)
 	if err != nil {
 		return fmt.Errorf("reading gearset augments: %w", err)
 	}
@@ -358,7 +360,7 @@ func loadGearsetInto(db *sql.DB, buildUUID string, cfg map[string]interface{}) e
 
 	filigrees := map[string][]string{"weapon": {}, "artifact": {}}
 	rows, err = db.Query(`SELECT bucket, filigree_name FROM gearset_filigree
-		WHERE build_uuid = ? AND origin = 'equipped' ORDER BY bucket, position`, buildUUID)
+		WHERE build_uuid = ? AND origin = ? ORDER BY bucket, position`, buildUUID, origin)
 	if err != nil {
 		return fmt.Errorf("reading gearset filigrees: %w", err)
 	}

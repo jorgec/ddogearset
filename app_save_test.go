@@ -280,3 +280,106 @@ func TestSolverRunsOutsideTheWorkingDirectory(t *testing.T) {
 		t.Errorf("solver working directory = %s, want the user data directory %s", cmd.Dir, dir)
 	}
 }
+
+// --- Phase 3: the two-node model ------------------------------------------
+
+func TestAFailedOptimizeLeavesEquippedUntouched(t *testing.T) {
+	// The gate. Asserted through RunOptimization rather than the storage layer,
+	// because the property has to hold at the level the UI calls: a solve that
+	// errors must not have written anything.
+	app := newTestApp(t)
+	if _, err := app.SaveGearset(samplePayload(), ResultPayload{Success: true}); err != nil {
+		t.Fatalf("SaveGearset: %v", err)
+	}
+	buildUUID := app.BuildIDForCurrentConfig("Round Trip")
+
+	before := app.equippedSlots(t, buildUUID)
+	if len(before) != 2 {
+		t.Fatalf("setup: %d equipped slots, want 2", len(before))
+	}
+
+	// No solver has been extracted, so runSolver fails before doing anything.
+	failing := samplePayload()
+	failing.BuildType = "Caster"
+	if _, err := app.RunOptimization(failing); err == nil {
+		t.Fatal("expected the optimize to fail with no solver available")
+	}
+
+	after := app.equippedSlots(t, buildUUID)
+	if len(after) != len(before) {
+		t.Errorf("a failed optimize changed equipped: %v -> %v", before, after)
+	}
+	has, err := appdb.HasSuggestion(app.appDB, buildUUID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if has {
+		t.Error("a failed optimize recorded a suggestion")
+	}
+}
+
+func TestAcceptAllPromotesTheSuggestion(t *testing.T) {
+	app := newTestApp(t)
+	if _, err := app.SaveGearset(samplePayload(), ResultPayload{Success: true}); err != nil {
+		t.Fatalf("SaveGearset: %v", err)
+	}
+	buildUUID := app.BuildIDForCurrentConfig("Round Trip")
+
+	// Stand in for a solve: the same call RunOptimization makes on success.
+	app.recordSuggestion(samplePayload(), ResultPayload{
+		Success: true,
+		GearSet: map[string]interface{}{"Helmet": "Legendary Downcast Vest"},
+	})
+
+	updated, err := app.AcceptAll(buildUUID)
+	if err != nil {
+		t.Fatalf("AcceptAll: %v", err)
+	}
+	if len(updated.Config.PreEquipped) != 1 ||
+		updated.Config.PreEquipped["Helmet"] != "Legendary Downcast Vest" {
+		t.Errorf("equipped after AcceptAll = %v", updated.Config.PreEquipped)
+	}
+}
+
+func TestShouldRecordSuggestionGuardsBothCases(t *testing.T) {
+	// The guard the two-node model rests on. `calculate` evaluates gear the
+	// user already has and proposes nothing; an empty result proposes nothing
+	// either, and storing it would put a one-click gearset-eraser behind the
+	// Accept All button.
+	withGear := ResultPayload{Success: true,
+		GearSet: map[string]interface{}{"Helmet": "Legendary Lamordian Bowler"}}
+
+	optimize := samplePayload()
+	if !shouldRecordSuggestion(optimize, withGear) {
+		t.Error("an optimize that proposed a gearset was not recorded")
+	}
+
+	calculate := samplePayload()
+	calculate.Mode = "calculate"
+	if shouldRecordSuggestion(calculate, withGear) {
+		t.Error("calculate mode recorded a suggestion")
+	}
+
+	legacy := samplePayload()
+	legacy.CalculateOnly = true
+	if shouldRecordSuggestion(legacy, withGear) {
+		t.Error("the legacy calculate_only flag recorded a suggestion")
+	}
+
+	if shouldRecordSuggestion(optimize, ResultPayload{Success: true}) {
+		t.Error("a result with no gearset was recorded as a suggestion")
+	}
+	if shouldRecordSuggestion(optimize, ResultPayload{Success: false, GearSet: withGear.GearSet}) {
+		t.Error("a failed result was recorded as a suggestion")
+	}
+}
+
+// equippedSlots reads a build's equipped gearset for comparison.
+func (a *App) equippedSlots(t *testing.T, buildUUID string) map[string]string {
+	t.Helper()
+	loaded, err := a.LoadBuild(buildUUID)
+	if err != nil {
+		t.Fatalf("LoadBuild: %v", err)
+	}
+	return loaded.Config.PreEquipped
+}

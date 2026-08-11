@@ -853,7 +853,118 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 	if richResult.TierReport != nil {
 		richResult.Degraded = richResult.TierReport.Degraded
 	}
+
+	if shouldRecordSuggestion(config, richResult) {
+		a.recordSuggestion(config, richResult)
+	}
 	return richResult, nil
+}
+
+// shouldRecordSuggestion decides whether a solve's output is a PROPOSAL worth
+// storing as origin='suggested'.
+//
+// Two things disqualify a run. `calculate` evaluates gear the user already has
+// and proposes nothing, so recording it would replace a pending suggestion with
+// the very thing it was being compared against. And a run that produced no
+// gearset has nothing to propose — storing an empty suggestion would put a
+// one-click gearset-eraser behind the Accept All button.
+//
+// A predicate rather than an inline condition because it is the guard the
+// two-node model rests on, and a guard that cannot be tested without a
+// tens-of-seconds solve is a guard nobody checks.
+func shouldRecordSuggestion(config OptimizationPayload, result ResultPayload) bool {
+	if config.Mode == "calculate" || config.CalculateOnly {
+		return false
+	}
+	return result.Success && len(result.GearSet) > 0
+}
+
+// recordSuggestion stores what a solve proposed, as origin='suggested'.
+//
+// Best-effort and never fatal: a solve that produced a gearset must still reach
+// the user even if storage is unavailable. Reported in the log rather than
+// swallowed.
+//
+// It never writes an `equipped` row. That is the structural half of the fix for
+// *"Optimize → Save wrote an empty gearset"* — the old code had one place for
+// both the solver's output and the user's own gearset, so whichever wrote last
+// won. Here a solve cannot reach the user's gearset at all; only AcceptAll
+// moves rows across, and only when asked.
+func (a *App) recordSuggestion(config OptimizationPayload, result ResultPayload) {
+	if a.appDB == nil {
+		return
+	}
+	resolver, closeCatalog, err := a.nameResolver()
+	if err != nil {
+		a.addLog("Could not store the suggestion: " + err.Error())
+		return
+	}
+	defer closeCatalog()
+
+	// A suggestion needs a build to hang off. Solving before ever saving is
+	// normal, so the build is created from the current configuration when it is
+	// missing — and left completely alone when it already exists, because its
+	// `equipped` rows are the user's, not this solve's to rewrite.
+	buildUUID, err := a.ensureBuildFor(config, resolver)
+	if err != nil {
+		a.addLog("Could not store the suggestion: " + err.Error())
+		return
+	}
+
+	resultMap, err := resultAsMap(result)
+	if err != nil {
+		a.addLog("Could not store the suggestion: " + err.Error())
+		return
+	}
+	orphans, err := appdb.SaveSuggestion(a.appDB, resolver, buildUUID, resultMap)
+	if err != nil {
+		a.addLog("Could not store the suggestion: " + err.Error())
+		return
+	}
+	a.addLog(fmt.Sprintf("Stored the solver's suggestion for this build (%d slots, %d unresolved).",
+		len(result.GearSet), len(orphans)))
+}
+
+// ensureBuildFor returns the build a solve belongs to, creating it from the
+// current configuration only if it does not exist yet.
+func (a *App) ensureBuildFor(config OptimizationPayload, resolver appdb.Catalog) (string, error) {
+	name := strings.TrimSpace(config.GearsetName)
+	if name == "" {
+		name = "Untitled"
+	}
+	buildUUID := appdb.BuildUUIDForName(name)
+
+	var exists int
+	if err := a.appDB.QueryRow("SELECT count(*) FROM build WHERE uuid = ?", buildUUID).Scan(&exists); err != nil {
+		return "", err
+	}
+	if exists > 0 {
+		return buildUUID, nil
+	}
+
+	configMap, err := payloadAsMap(config)
+	if err != nil {
+		return "", err
+	}
+	if _, err := appdb.SaveBuildAs(a.appDB, resolver, configMap, buildUUID, AppVersion); err != nil {
+		return "", err
+	}
+	return buildUUID, nil
+}
+
+// resultAsMap round-trips a result through JSON so appdb reads exactly the
+// field names a .ddogearset's `result` object uses — the same reason
+// payloadAsMap exists, and what lets one writer serve both.
+func resultAsMap(result ResultPayload) (map[string]interface{}, error) {
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("serializing the result: %w", err)
+	}
+	var out map[string]interface{}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("serializing the result: %w", err)
+	}
+	return out, nil
 }
 
 // GetSlotAlternatives ranks the other items that could occupy TargetSlot, with
