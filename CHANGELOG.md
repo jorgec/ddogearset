@@ -40,9 +40,60 @@ suite, because none of them crossed the boundary where the loss happened.
 - **Clear now explicitly scoped to equipment only** (it already was; this pins
   it with a test). Priorities, build type, level cap, armor restriction and
   every other setting survive a Clear — New is the button that resets those.
+- **Filigrees moved into the Gearset panel** as a `Gear` / `Filigrees` tab
+  strip, instead of living in the Configuration & Auto-Solver drawer next to
+  Build & Priorities. Gear and filigrees are one task, so they now share one
+  panel; both tabs stay mounted (only visibility toggles), matching the
+  keep-mounted convention used for the drawer and the right-hand readouts.
+  The drawer opens straight into Build & Priorities now, with no sub-tab bar.
 
 ### Fixed
 
+- **The manual stat picker's "Pact Dice" entry, and the Warlock (Eldritch
+  Blast) preset's Tier 1 priority, both matched nothing in the real corpus.**
+  `pact dice` isn't a substring of any `raw_type`/`raw_target` in the catalog
+  — checked directly against `catalog.db` — so the priority sat there doing
+  nothing. The real sources are "Power in Pact" (Enhancement bonus to pact
+  dice) and `EldritchBlastD6`/`EldritchBlastD8`
+  (Artifact/Profane/Fortune/Stacking bonuses to Eldritch Blast dice size);
+  `power in pact` and `eldritch blast` both substring-match through the
+  existing, unmodified matcher — verified against `normalize_stat_name`
+  directly, not just asserted. Preset- and taxonomy-content only; no matching
+  logic changed.
+- **Handwraps could be routed into Weapon2, leaving both slots filled.**
+  Handwraps occupy both hands, but `weapon_style`'s `twf_weapons` candidate
+  pool legitimately makes handwraps eligible for Weapon1 *and* Weapon2 (a
+  monk's unarmed chain is a two-weapon-fighting style for feat/enhancement
+  purposes), and nothing stopped the ILP from filling both. Fixed with two
+  symmetric hard constraints — handwraps in either slot now locks the other
+  empty. An initial one-directional version left an escape route the solver
+  actually took (moving handwraps into Weapon2 to keep an unconstrained
+  offhand in Weapon1); five new tests cover both directions, the
+  non-equipped case, and that the constraints don't appear at all without a
+  handwraps item in the pool. Verified against the real shipped solver
+  binary and catalog, not just the Python unit tests.
+- **GearsetEditor's Recalculate button sent search-restriction fields**
+  (`armor_restriction`, `weapon_style`, `max_search_time`, and the rest of
+  `OptimizationPayload`) on every recalculation, tripping the solver's own
+  "recalculate evaluates gear you already have, so it cannot accept search
+  restrictions" validation. Summary.svelte's Calculate flow already narrowed
+  to `RecalculationRequest`, which has nowhere to put a restriction — the
+  Recalculate button just never got the same treatment. Ported the same
+  narrowing and switched to `RecalculateGearset`.
+- **Pack attribution silently failed on every packaged install** — reported
+  from a real Windows install's log (`Failed to load pack mappings ... open
+  data/PackMappings.json: The system cannot find the path specified`).
+  `InitEnrichment` read the file via a plain `os.Open` resolved against the
+  process's working directory, which is the repo root under `wails dev` but
+  something else entirely once packaged — the sibling `stat_sets.default.json`
+  two lines above it had been `go:embed`-ed the whole time; this one just
+  wasn't. It shipped unnoticed because the failure only costs pack
+  attribution rather than crashing, so nothing looked broken until someone
+  checked where an item dropped. Fixed by embedding the file and parsing
+  bytes directly, removing the failure mode instead of relocating it. New
+  regression test runs `loadCaches` from a directory containing nothing but
+  itself — what a packaged app's launch directory actually looks like — and
+  confirms all 8,474 real items carry pack attribution.
 - **The packaged solver could not start at all** —
   `Failed to load Python shared library`. `go:embed` silently skips symbolic
   links, and PyInstaller's `--onedir` output has four (`_internal/Python` and
