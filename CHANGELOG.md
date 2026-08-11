@@ -7,6 +7,199 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.5.2] — 2026-08-11
+
+UI/UX pass over the app.db-backed workflow, plus three bugs found by actually
+running the app for the first time since the rewrite — none caught by the test
+suite, because none of them crossed the boundary where the loss happened.
+
+### Added
+
+- **Check Inventory** button in the Gear Sockets header. Badges every socketed
+  item green/red against a loaded Trove CSV — **exact, case-sensitive**
+  matching on purpose, because that's precisely what the solver does
+  (`name not in owned_names`); anything looser would badge an item green that
+  the solver then refuses to use with "restrict to owned" on. Reactive
+  (swapping an item re-badges it) and self-clearing if the CSV is unloaded.
+- **New** button. Resets parameters, gear and the last result, with a
+  confirmation. Deliberately leaves the loaded Trove inventory alone — that's a
+  file you loaded, not part of the build.
+- **Open DB** replaces the saved-builds dropdown with a table in the Summary
+  panel: name, created date, build type, slot count, and per-row Load/Delete.
+  Ordered by `created_at` (not `updated_at`) so a build's position doesn't move
+  just because it was opened.
+- **Wiki links on item-search results.** Each source name in the stat-search
+  panel opens `https://ddowiki.com/index.php?search=<name>&title=Special:Search&go=Go`
+  in the real browser — the `go=Go` form jumps straight to the page on an
+  exact match and falls back to search otherwise. Opened via `BrowserOpenURL`,
+  not `<a href>` — see Fixed, below, for why that distinction is load-bearing
+  in a Wails webview.
+
+### Changed
+
+- **Clear now explicitly scoped to equipment only** (it already was; this pins
+  it with a test). Priorities, build type, level cap, armor restriction and
+  every other setting survive a Clear — New is the button that resets those.
+
+### Fixed
+
+- **The packaged solver could not start at all** —
+  `Failed to load Python shared library`. `go:embed` silently skips symbolic
+  links, and PyInstaller's `--onedir` output has four (`_internal/Python` and
+  three inside `Python.framework`); they were staged and tracked by git but
+  never embedded, so the extracted tree was missing them. Broken since the
+  `--onedir` switch landed (0.5.0 Phase 7) through every test run since — the
+  one test that checked extraction asserted "every *embedded* file was
+  extracted," trivially true of files that were never embedded. Fixed with a
+  manifest recorded at build time and recreated at extraction; the new test
+  runs the extracted binary rather than just checking file placement.
+- **Three solver result fields were silently dropped at the Go boundary** —
+  `otherStats`, `allEffectsDetail` and `warnings` were emitted by the solver
+  and absent from Go's `ResultPayload` struct, so `encoding/json` discarded
+  them on unmarshal. Symptom: the "Duplicated Stat Sources" panel showed `0`
+  and "Location unavailable" for every row, and run history recorded no
+  effects or warnings (the recorder had re-marshaled the already-truncated
+  struct and searched for fields that were already gone). All three declared
+  now; the new test recalculates through the real solver and asserts they
+  survive.
+- **Delete (and New) silently did nothing.** Wails' webview does not implement
+  the JavaScript dialog delegates, so `window.confirm` returns `false` without
+  ever showing a dialog — both buttons were guarded by one and returned early
+  on every click, with no error anywhere. This app has always asked
+  confirmation via an action toast; both now use that instead. Guarded by a
+  new test that scans the frontend for `confirm`/`alert`/`prompt`, and a
+  sibling test for the same-family trap of a plain `<a href="https://…">`
+  navigating the webview itself away from the app.
+
+### Docs
+
+- **`docs/housekeeping.md`** — install, per-platform builds (and why none of
+  them cross-compile), the ETL and identity-drift workflow, where user data
+  lives on disk, and the verification steps that guard things nothing else
+  does (the parser snapshot, the oracle differential, the symlink manifest).
+
+## [0.5.1] — 2026-08-11
+
+`app.db` and recalculation — the user's builds and gearsets move out of JSON
+files in the process working directory and into a real, versioned database,
+and evaluating a gearset stops borrowing the ILP solver. Full writeup:
+`docs/0.5.1/RETROSPECTIVE_AND_HANDOFF.md`.
+
+### Added
+
+- **`app.db`**, beside `catalog.db` in the user data directory: builds,
+  priorities, gearsets and (new) run history, schema-versioned and migrated
+  forward — never recreated. `.ddogearset` becomes an **export/import**
+  format instead of the source of truth; import is non-destructive and
+  idempotent (re-importing a file already imported is a no-op; content-hash
+  identity means an edited file imports as a new build rather than
+  overwriting).
+- **The two-node gearset model** — `equipped` and `suggested` are different
+  database rows, not different fields of shared state. A solve only ever
+  writes `suggested`; only **Accept All** moves rows across, and it refuses
+  to promote an empty suggestion. This retires *"Optimize → Save wrote an
+  empty gearset"* by construction rather than by care — the old bug was
+  possible because a solve's output and the user's own gearset lived in one
+  place, so whichever wrote last won.
+- **`mode: "recalculate"`** replaces `mode: "calculate"`. Evaluating a
+  gearset the user already has is now direct arithmetic
+  (`python/rules/evaluate.py`, ~275 lines) over the same two functions that
+  built the candidate pool's scoring all along — no ILP, no `glpsol`, no
+  candidate pool, and therefore no way for a search restriction to reach an
+  evaluation at all: `RecalculationRequest`'s Go type has nowhere to put one,
+  and the Python entry point rejects a payload that carries one by name.
+  Measured: **0.55–0.66 s warm**, down from 2.7–5.8 s for the ILP that was
+  solving a model whose answer was already determined.
+- **Run history** — every solve and recalculation is recorded (mode,
+  timestamp, the exact catalog revision it ran against, success/failure), in
+  one transaction or not at all. A failed run is recorded too, with no stat
+  rows — that's the part usually skipped because a failure feels like
+  nothing to store, and it's exactly what's useful six weeks later.
+
+### Fixed
+
+- **A gearset with two filigrees sharing a base name could not be evaluated
+  at all** under the old `calculate` mode — `optimizer.py:1817` limits one
+  filigree per base name per bucket, a *search* heuristic (don't propose two
+  variants of the same thing) that was incorrectly also applied while
+  evaluating gear a real user already owned. `recalculate` has no such
+  constraint, because it has no candidate pool to apply one to; the
+  previously-unevaluatable fixture now returns full numbers plus warnings in
+  well under a second.
+- **The oracle differential — the only thing standing between the pre- and
+  post-rewrite numbers — had never actually been run.** The existing script
+  only checked that its 14 captured fixtures were internally consistent; a
+  real compare-mode replay was built first (Phase 0, before anything else
+  depended on it) and failed on all 12 replayable fixtures on the very first
+  run: every *value* was identical, but four result lists came back in a
+  different (immaterial) order due to the 0.5.0 XML→SQL migration. Recorded
+  as an explicit, tested ordering allowance rather than silently re-sorted.
+- **`capture_oracle.py` had been silently broken since 0.5.0** (still reading
+  an environment variable the solver no longer honored) and, on its first
+  working run this cycle, overwrote one of the 14 irreplaceable oracle
+  fixtures with its own failure record before the bug was caught. Restored
+  from git; the script now refuses to overwrite a fixture that already holds
+  a successful capture without an explicit `--force`.
+
+## [0.5.0] — 2026-08-10
+
+The ETL rewrite. The app no longer reads DDOBuilderV2's XML at runtime, at
+all, on any platform — a dev-only pipeline now compiles it once into a single
+SQLite `catalog.db` that ships inside the app. Full writeup:
+`docs/0.5.0/RETROSPECTIVE_AND_HANDOFF.md`.
+
+### Added
+
+- **`catalog.db`**: a normalized SQLite catalog (18 tables, ~8,500 items,
+  ~44,000 effects) built by a new dev-only `etl/` package
+  (`python -m etl`) from a pinned `data/ddobuilder` git submodule. Every
+  entity gets a UUIDv5 minted **once** and recorded in a checked-in identity
+  registry (`etl/identity_registry.json`, ~19,400 entities) — a later game
+  update that renames something appends to that entity's alias list rather
+  than minting a new identity, which is what lets a saved gearset keep
+  resolving across game patches. An unexplained rename (no clean derivation —
+  not a tier-prefix change, not whitespace/case, not an explicit "version of"
+  relationship) stops the build under `--strict` and writes a drift report
+  instead of guessing.
+- **The catalog ships embedded in the binary** (`go:embed`) and is seeded
+  into the user data directory on first run — no network access, ever, and no
+  `DDOBuilderV2` checkout on the end user's machine at all. `catalog_meta`
+  carries a `catalog_version` (auto-derived from a content hash, so a
+  same-content rebuild doesn't bump it) for a future "update the catalog
+  without updating the app" feature.
+- **`--onedir` PyInstaller packaging** replaces `--onefile`: **3.8 s of
+  per-invocation extraction overhead down to effectively zero.** The old
+  `--onefile` binary re-extracted its entire ~8 MB payload to a temp
+  directory on *every single solve*; `--onedir` extracts the bundled solver
+  tree once into a version-stamped cache directory and reuses it thereafter.
+- **`docs/0.5.0/RETROSPECTIVE_AND_HANDOFF.md`** — what the rewrite cost, four
+  latent bugs the new differential-style gates caught before they shipped,
+  and the invariants a future release must not break.
+
+### Fixed
+
+- **Multi-`<Item>` effect targets silently kept only the first target,
+  dropping the rest** — `XMLEffect.Item` was `string`, not `[]string]`;
+  fixed on the Go side and the catalog's `effect_target` rows are now
+  positional (`position = 0` for first-wins parity with the prior behavior,
+  with the full list available).
+- **A real augment-identity collision surfaced by the ETL's stricter
+  validation**: two distinct `Twilight` augments share a name and a
+  `Cannith Armor Prefix` colour slot, differing only in bonus type. This is
+  genuine upstream data ambiguity, not a bug in the pipeline — resolved
+  deterministically (first in sorted file order wins) and reported on every
+  build rather than silently merged.
+
+### Removed
+
+- **The runtime `DDOBuilderV2` fetch** (`ensureDDOBuilderData`,
+  `ddobuilder_fetch.go`, the "Update External Sources" button) and the Go/
+  Python XML parsers that read it directly at runtime — both fully replaced
+  by the embedded, pre-built catalog. The app's only remaining runtime data
+  dependency is `catalog.db`.
+
+---
+
 ## [0.4.4] — 2026-08-09
 
 ### Fixed
