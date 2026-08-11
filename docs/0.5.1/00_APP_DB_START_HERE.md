@@ -1,6 +1,6 @@
 # 0.5.1 — `app.db` and recalculation
 
-**Status:** spec and plan. Nothing implemented.
+**Status:** shipped. All six phases complete — see [`RETROSPECTIVE_AND_HANDOFF.md`](RETROSPECTIVE_AND_HANDOFF.md).
 
 0.5.0 gave the app a catalog it can trust: stable UUIDs, a schema, and no
 runtime dependency on game XML. 0.5.1 spends that. Two features that look
@@ -191,6 +191,15 @@ Phases 1–3 are storage; 4–5 are the feature; 6 is history. If the release ne
 to be cut short, **1–4 is a coherent shipping point** — builds persist properly
 and recalculation works — with 5 and 6 following. Cutting after 3 is not: it
 moves storage without delivering the feature that justified moving it.
+
+## 5b. Shipped — see the retrospective
+
+0.5.1 is complete. What the work cost, what the differential caught, the two
+places the specified schema turned out to be wrong, and the handoff into 0.5.2
+are in [`RETROSPECTIVE_AND_HANDOFF.md`](RETROSPECTIVE_AND_HANDOFF.md). Read that
+before starting 0.5.2; this document is the plan, not the outcome.
+
+---
 
 ## 6. Explicitly out of scope
 

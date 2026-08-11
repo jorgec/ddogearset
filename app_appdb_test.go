@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"goGearset/internal/appdb"
@@ -173,5 +175,49 @@ func TestAppDBEnvOverrideWins(t *testing.T) {
 	}
 	if got != want {
 		t.Errorf("appDBPathFor() = %q, want %q", got, want)
+	}
+}
+
+func TestFirstRunCreatesAppDBWithNoOverrides(t *testing.T) {
+	// Every other test here points DDO_APP_DB at a scratch file, which means the
+	// path the real app actually takes on first launch — userDataDir() with no
+	// override at all — had never been executed. Redirecting HOME exercises it
+	// for real: os.UserConfigDir() reads HOME on macOS and Linux, so this walks
+	// the same resolution a double-clicked .app does.
+	if runtime.GOOS == "windows" {
+		t.Skip("os.UserConfigDir reads %AppData% on Windows, not HOME")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("DDO_APP_DB", "")
+	t.Setenv("DDO_GEARSET_DIR", "")
+
+	app := NewApp()
+	if err := app.ensureAppDB(); err != nil {
+		t.Fatalf("first run could not create app.db: %v", err)
+	}
+	defer app.appDB.Close()
+
+	if !strings.HasPrefix(app.appDBPath, home) {
+		t.Fatalf("app.db landed at %s, outside the redirected home %s", app.appDBPath, home)
+	}
+	if _, err := os.Stat(app.appDBPath); err != nil {
+		t.Fatalf("app.db was not created on disk: %v", err)
+	}
+	if version, err := appdb.SchemaVersionOf(app.appDB); err != nil || version != appdb.SchemaVersion {
+		t.Errorf("first-run schema = %d (%v), want %d", version, err, appdb.SchemaVersion)
+	}
+
+	// The migration path runs on a clean install too — that is why a fresh file
+	// is created at schema 1 and migrated up rather than built at the current
+	// version. Proven by the run tables existing.
+	var runTables int
+	if err := app.appDB.QueryRow(`SELECT count(*) FROM sqlite_master
+		WHERE type='table' AND name LIKE 'run%'`).Scan(&runTables); err != nil {
+		t.Fatal(err)
+	}
+	if runTables < 5 {
+		t.Errorf("%d run tables after a first run; the migration did not run", runTables)
 	}
 }
