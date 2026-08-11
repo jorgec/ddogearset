@@ -659,6 +659,33 @@ type AlternativesResult struct {
 	ErrorMessage       string             `json:"errorMessage,omitempty"`
 }
 
+// EffectDetail is one contribution to a stat, already parsed.
+//
+// The solver has always had these three fields structured and flattened them
+// into a display string on the way out; `parseEffectSource` pulled them back
+// with a regex until 0.5.1 Phase 5. They travel as data now.
+type EffectDetail struct {
+	// Stat is carried per entry because this travels as a FLAT list: Wails
+	// generates invalid TypeScript for map[string][]Struct (it writes
+	// `EffectDetail[]` where a value belongs). Entries stay grouped by stat in
+	// emission order, so filtering by stat matches AllEffects[stat] index for
+	// index — which is how the UI pairs them.
+	Stat       string  `json:"stat"`
+	Value      float64 `json:"value"`
+	BonusType  string  `json:"bonusType"`
+	SourceName string  `json:"sourceName"`
+	// item | augment | filigree | set
+	SourceKind string `json:"sourceKind,omitempty"`
+}
+
+// GearsetWarning is one thing `validate_physical_rules` noticed. Warnings never
+// stop the numbers coming back — see python/rules/evaluate.py.
+type GearsetWarning struct {
+	Kind    string `json:"kind"`
+	Slot    string `json:"slot,omitempty"`
+	Message string `json:"message"`
+}
+
 type ResultPayload struct {
 	Success       bool                   `json:"success"`
 	TimeTaken     float64                `json:"timeTaken"`
@@ -667,6 +694,25 @@ type ResultPayload struct {
 	ActiveSets    []string               `json:"activeSets,omitempty"`
 	Filigrees     map[string][]string    `json:"filigrees,omitempty"`
 	AllEffects    map[string]interface{} `json:"allEffects,omitempty"`
+
+	// --- 0.5.1 recalculation additions ---
+	//
+	// DECLARED, not merely produced. encoding/json silently discards any field
+	// the target struct does not have, so a value Python emits and this struct
+	// omits reaches neither the frontend nor run history — it simply vanishes at
+	// the boundary, with nothing anywhere reporting a problem. That is exactly
+	// what happened to all three of these: the solver emitted them, the UI
+	// rendered empty rows, and every test passed because none of them crossed
+	// this line.
+
+	// OtherStats is everything the gear grants beyond what the user asked for.
+	// RealizedStats holds the asked-for ones, spelled the user's way.
+	OtherStats map[string]float64 `json:"otherStats,omitempty"`
+	// AllEffectsDetail is AllEffects, structured — same entries, same order,
+	// flat rather than grouped. See EffectDetail.Stat.
+	AllEffectsDetail []EffectDetail `json:"allEffectsDetail,omitempty"`
+	// Warnings describe an odd gearset without refusing to evaluate it.
+	Warnings []GearsetWarning `json:"warnings,omitempty"`
 	// Slots is the authoritative per-slot detail (item, location, augments,
 	// filigrees, set bonus contributions) — see docs/PHASE9_PLAN.md Phase 9.2.
 	// The frontend calculator/Summary should read from this instead of

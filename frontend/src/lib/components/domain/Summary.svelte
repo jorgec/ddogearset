@@ -87,9 +87,11 @@
   // Red Dragon (2 Piece))" — a parser for a format the solver had in structured
   // form all along and flattened on the way out. `allEffectsDetail` carries the
   // three fields directly, in the same order as `allEffects`.
-  function effectDetails(stat: string): Array<{ value: number, bonusType: string, sourceName: string | null }> {
-      const detail = ($resultStore as any)?.allEffectsDetail?.[stat];
-      return Array.isArray(detail) ? detail : [];
+  function effectDetails(stat: string): main.EffectDetail[] {
+      // Flat list, filtered by stat — see EffectDetail.Stat in app.go for why it
+      // is not a map. Emission order is preserved, so the nth entry for a stat
+      // is the nth string in allEffects[stat].
+      return ($resultStore?.allEffectsDetail ?? []).filter((e) => e.stat === stat);
   }
 
   $: duplicatedStats = Object.entries($resultStore?.allEffects || {})

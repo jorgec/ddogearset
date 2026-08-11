@@ -476,43 +476,31 @@ func (a *App) catalogCommit() string {
 
 // runOutcomeFrom pulls the recordable parts out of a result payload.
 //
-// Reads `allEffectsDetail` — the structured form — rather than re-parsing the
-// display strings. The regex that used to do that is gone (0.5.1 Phase 5) and
-// reintroducing one here would put it straight back.
+// Reads the typed fields directly. It used to re-marshal the struct to JSON and
+// fish for `otherStats` / `allEffectsDetail` / `warnings` by name — which found
+// nothing, because those fields were not declared on ResultPayload and had been
+// discarded when the solver's output was unmarshaled. Re-serialising a value
+// cannot recover what was dropped on the way in.
 func runOutcomeFrom(result ResultPayload) *appdb.RunOutcome {
 	outcome := &appdb.RunOutcome{
 		RealizedStats: numericMap(result.RealizedStats),
+		OtherStats:    result.OtherStats,
 		ActiveSets:    result.ActiveSets,
 		EffectDetail:  map[string][]map[string]interface{}{},
 	}
-
-	raw, err := json.Marshal(result)
-	if err != nil {
-		return outcome
+	for _, e := range result.AllEffectsDetail {
+		outcome.EffectDetail[e.Stat] = append(outcome.EffectDetail[e.Stat],
+			map[string]interface{}{
+				"value":      e.Value,
+				"bonusType":  e.BonusType,
+				"sourceName": e.SourceName,
+				"sourceKind": e.SourceKind,
+			})
 	}
-	var full map[string]interface{}
-	if err := json.Unmarshal(raw, &full); err != nil {
-		return outcome
-	}
-	if other, ok := full["otherStats"].(map[string]interface{}); ok {
-		outcome.OtherStats = numericMap(other)
-	}
-	if detail, ok := full["allEffectsDetail"].(map[string]interface{}); ok {
-		for stat, entries := range detail {
-			list, _ := entries.([]interface{})
-			for _, e := range list {
-				if m, ok := e.(map[string]interface{}); ok {
-					outcome.EffectDetail[stat] = append(outcome.EffectDetail[stat], m)
-				}
-			}
-		}
-	}
-	if warnings, ok := full["warnings"].([]interface{}); ok {
-		for _, w := range warnings {
-			if m, ok := w.(map[string]interface{}); ok {
-				outcome.Warnings = append(outcome.Warnings, m)
-			}
-		}
+	for _, w := range result.Warnings {
+		outcome.Warnings = append(outcome.Warnings, map[string]interface{}{
+			"kind": w.Kind, "slot": w.Slot, "message": w.Message,
+		})
 	}
 	return outcome
 }

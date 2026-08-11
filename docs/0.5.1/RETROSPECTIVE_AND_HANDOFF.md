@@ -33,6 +33,7 @@ functions that could always have answered the question.
 | A gearset with two same-base filigrees | **refused** | evaluated, with warnings |
 | Optimize → Save writing an empty gearset | possible | structurally impossible |
 | Release build (`./build-mac.sh`) | — | 27 s, `codesign --verify` passes |
+| Bugs found by launching it once | — | **two** (§3.6, §3.7), both silent-drop boundaries |
 
 Code: 27 files, +6,405 / −222 (excluding binaries and generated bindings).
 `internal/appdb` is 3,252 lines; `python/rules/evaluate.py` — the thing that
@@ -158,7 +159,35 @@ They went red the moment it was fixed. A test whose premise is that the thing
 under test is broken is worse than no test, and neither of them said out loud
 what it was depending on.
 
-### 3.7 Smaller ones
+### 3.7 The same class again: a boundary that drops what it is not told about
+
+The second thing the first real launch found. "Duplicated Stat Sources" showed
+`0` and *"Location unavailable"* for every row.
+
+`encoding/json` **silently discards any field the target struct does not
+declare**. `otherStats`, `allEffectsDetail` and `warnings` were emitted by the
+solver and absent from Go's `ResultPayload`, so all three vanished the moment
+the result was unmarshaled — never reaching the frontend, and never reaching run
+history either, because `runOutcomeFrom` re-marshaled the struct and searched
+for fields that had already been thrown away. **Re-serialising a value cannot
+recover what was dropped on the way in.**
+
+Every test passed. The Python tests compare the solver's JSON directly; the Go
+tests built `ResultPayload` by hand. Nothing crossed the line where the loss
+happened — which is the same shape as §3.6, where nothing ran the extracted
+binary.
+
+**The generalisation worth keeping: a boundary that silently drops unknown data
+needs a test that crosses it with real data.** Not a test on either side.
+
+Two smaller things fell out. Wails' binding generator emits invalid TypeScript
+for `map[string][]Struct` — it writes the type where a value belongs — so
+`allEffectsDetail` travels as a flat list carrying its own `stat`. And the test
+that catches all of this caught something else immediately: it failed against a
+*bundled* solver that predated the Python change, which is exactly what a test
+running the shipped artefact is for.
+
+### 3.8 Smaller ones
 
 - **A test I could not write honestly.** Phase 2's "a failed save does not
   destroy the previous build" first used an out-of-range priority tier — which

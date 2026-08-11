@@ -536,3 +536,91 @@ func TestSolveModeNormalizesForTheRunConstraint(t *testing.T) {
 		}
 	}
 }
+
+func TestSolverFieldsSurviveTheGoBoundary(t *testing.T) {
+	// The test this class of bug needed. encoding/json DISCARDS any field the
+	// target struct does not declare, silently — so a value Python emits and
+	// ResultPayload omits reaches neither the frontend nor run history, with
+	// nothing reporting a problem anywhere.
+	//
+	// It happened to all three of otherStats / allEffectsDetail / warnings: the
+	// solver emitted them, the UI rendered "Location unavailable" for every
+	// duplicated stat, and every test passed — because the Python tests compare
+	// the solver's JSON directly and the Go tests built ResultPayload by hand.
+	// Nothing crossed the line where the loss occurred.
+	app := newTestApp(t)
+	if err := app.extractSolver(); err != nil {
+		t.Skipf("no bundled solver: %v", err)
+	}
+
+	result, err := app.RecalculateGearset(RecalculationRequestFrom(samplePayload()))
+	if err != nil {
+		t.Fatalf("RecalculateGearset: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("recalculation failed: %s", result.ErrorMessage)
+	}
+
+	if len(result.AllEffects) == 0 {
+		t.Fatal("allEffects is empty; this fixture should produce effects")
+	}
+	if len(result.AllEffectsDetail) == 0 {
+		t.Error("allEffectsDetail did not survive the Go boundary — the UI cannot " +
+			"show where any number came from")
+	}
+
+	// Same stats, same counts: the structured form must line up with the display
+	// form index for index, because the frontend pairs them positionally after
+	// filtering the flat list by stat.
+	byStat := map[string][]EffectDetail{}
+	for _, d := range result.AllEffectsDetail {
+		byStat[d.Stat] = append(byStat[d.Stat], d)
+	}
+	for stat, display := range result.AllEffects {
+		list, _ := display.([]interface{})
+		detail := byStat[stat]
+		if len(detail) != len(list) {
+			t.Errorf("%s: %d display strings but %d structured entries",
+				stat, len(list), len(detail))
+		}
+		for _, d := range detail {
+			if d.SourceName == "" {
+				t.Errorf("%s: a structured effect has no source name — this is what "+
+					"renders as \"Location unavailable\"", stat)
+				break
+			}
+		}
+	}
+}
+
+func TestRunHistoryRecordsEffectsFromARealResult(t *testing.T) {
+	// runOutcomeFrom used to re-marshal ResultPayload and fish for fields by
+	// name, which found nothing once they had been dropped on the way in.
+	// Re-serialising a value cannot recover what was discarded.
+	app := newTestApp(t)
+	if err := app.extractSolver(); err != nil {
+		t.Skipf("no bundled solver: %v", err)
+	}
+	if _, err := app.SaveGearset(samplePayload(), ResultPayload{Success: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := app.RecalculateGearset(RecalculationRequestFrom(samplePayload())); err != nil {
+		t.Fatalf("RecalculateGearset: %v", err)
+	}
+
+	buildUUID := app.BuildIDForCurrentConfig("Round Trip")
+	runs, err := app.ListRuns(buildUUID)
+	if err != nil || len(runs) == 0 {
+		t.Fatalf("no run recorded: %v", err)
+	}
+	var effects int
+	if err := app.appDB.QueryRow("SELECT count(*) FROM run_effect WHERE run_uuid = ?",
+		runs[0].UUID).Scan(&effects); err != nil {
+		t.Fatal(err)
+	}
+	if effects == 0 {
+		t.Error("the run recorded no effects; runOutcomeFrom is not seeing the result's detail")
+	}
+	t.Logf("recorded %d effect rows from a real recalculation", effects)
+}

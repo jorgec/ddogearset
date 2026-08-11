@@ -349,6 +349,26 @@ export namespace main {
 	        this.duplicateSources = source["duplicateSources"];
 	    }
 	}
+	export class EffectDetail {
+	    stat: string;
+	    value: number;
+	    bonusType: string;
+	    sourceName: string;
+	    sourceKind?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EffectDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stat = source["stat"];
+	        this.value = source["value"];
+	        this.bonusType = source["bonusType"];
+	        this.sourceName = source["sourceName"];
+	        this.sourceKind = source["sourceKind"];
+	    }
+	}
 	export class GearsetChecksumResult {
 	    hasChecksum: boolean;
 	    valid: boolean;
@@ -361,6 +381,22 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.hasChecksum = source["hasChecksum"];
 	        this.valid = source["valid"];
+	    }
+	}
+	export class GearsetWarning {
+	    kind: string;
+	    slot?: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GearsetWarning(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.slot = source["slot"];
+	        this.message = source["message"];
 	    }
 	}
 	export class OptimizationPayload {
@@ -610,6 +646,9 @@ export namespace main {
 	    activeSets?: string[];
 	    filigrees?: Record<string, string[]>;
 	    allEffects?: Record<string, any>;
+	    otherStats?: Record<string, number>;
+	    allEffectsDetail?: EffectDetail[];
+	    warnings?: GearsetWarning[];
 	    slots?: Record<string, any>;
 	    errorMessage?: string;
 	    tierReport?: TierReport;
@@ -632,6 +671,9 @@ export namespace main {
 	        this.activeSets = source["activeSets"];
 	        this.filigrees = source["filigrees"];
 	        this.allEffects = source["allEffects"];
+	        this.otherStats = source["otherStats"];
+	        this.allEffectsDetail = this.convertValues(source["allEffectsDetail"], EffectDetail);
+	        this.warnings = this.convertValues(source["warnings"], GearsetWarning);
 	        this.slots = source["slots"];
 	        this.errorMessage = source["errorMessage"];
 	        this.tierReport = this.convertValues(source["tierReport"], TierReport);

@@ -182,5 +182,8 @@ def test_effects_are_reported_structurally_as_well_as_for_display():
         [("Helmet", item("Hat", [("Charisma", "Enhancement", 4.0)]))],
         [PriorityEntry("Charisma", 1, None, 0)])
     assert result["allEffects"]["Charisma"] == ["4.0 Enhancement (Hat)"]
-    assert result["allEffectsDetail"]["Charisma"] == [
-        {"value": 4.0, "bonusType": "Enhancement", "sourceName": "Hat", "sourceKind": "item"}]
+    # A flat list carrying its own stat — see rules/evaluate.py for why it is
+    # not a map (Wails cannot generate bindings for map[string][]Struct).
+    assert result["allEffectsDetail"] == [
+        {"stat": "Charisma", "value": 4.0, "bonusType": "Enhancement",
+         "sourceName": "Hat", "sourceKind": "item"}]

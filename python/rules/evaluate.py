@@ -161,7 +161,13 @@ def evaluate_gearset(equipped, augments_by_slot, fil_weapon, fil_artifact, sets,
     # source whose variable won), so this is the established meaning of the
     # field, not a new one.
     all_effects = {}
-    all_effects_detail = {}
+    # A FLAT list carrying its own stat, not a map of lists. Wails' binding
+    # generator emits invalid TypeScript for map[string][]Struct — it writes
+    # the type where a value belongs — and a shape the frontend cannot
+    # compile is not a shape worth having. Grouped emission order is
+    # preserved, so filtering by stat gives the same order as
+    # allEffects[stat].
+    all_effects_detail = []
     for (stat, b_type), rows in contrib.items():
         if _is_stacking(b_type):
             reaching = rows
@@ -177,8 +183,8 @@ def evaluate_gearset(equipped, augments_by_slot, fil_weapon, fil_artifact, sets,
             # side had in structured form all along and flattened on the way
             # out. `allEffects` stays exactly as it was so the oracle
             # differential keeps comparing it.
-            all_effects_detail.setdefault(stat, []).append({
-                "value": value, "bonusType": b_type,
+            all_effects_detail.append({
+                "stat": stat, "value": value, "bonusType": b_type,
                 "sourceName": source_name, "sourceKind": origin,
             })
 
