@@ -44,6 +44,8 @@ export function ImportLegacyGearsets():Promise<Array<appdb.ImportOutcome>>;
 
 export function ListBuilds():Promise<Array<appdb.BuildSummary>>;
 
+export function ListRuns(arg1:string):Promise<Array<appdb.RunRecord>>;
+
 export function LoadBuild(arg1:string):Promise<main.LoadedBuildPayload>;
 
 export function LoadTroveInventory(arg1:string):Promise<main.TroveInventoryResult>;

@@ -451,3 +451,76 @@ func TestNarrowingDropsRestrictionsAndKeepsTheGearset(t *testing.T) {
 		t.Error("the request carries its own mode; RecalculateGearset sets it")
 	}
 }
+
+// --- Phase 6: run history --------------------------------------------------
+
+func TestRunHistoryIsRecordedWithTheCatalogRevision(t *testing.T) {
+	app := newTestApp(t)
+	if _, err := app.SaveGearset(samplePayload(), ResultPayload{Success: true}); err != nil {
+		t.Fatal(err)
+	}
+	buildUUID := app.BuildIDForCurrentConfig("Round Trip")
+
+	app.recordRun(samplePayload(), "recalculate", ResultPayload{
+		Success:       true,
+		RealizedStats: map[string]interface{}{"Charisma": 8.0},
+		ActiveSets:    []string{"Lunar Magic (2-piece)", "Lunar Magic (3-piece)"},
+	}, 0.7, nil)
+
+	runs, err := app.ListRuns(buildUUID)
+	if err != nil {
+		t.Fatalf("ListRuns: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("%d runs, want 1", len(runs))
+	}
+	if !runs[0].Succeeded || runs[0].Mode != "recalculate" {
+		t.Errorf("run = %+v", runs[0])
+	}
+	// The point of the column: which game data produced these numbers.
+	if runs[0].CatalogCommit == "" {
+		t.Error("the run did not record which catalog produced it")
+	}
+	t.Logf("recorded run against catalog %s", runs[0].CatalogCommit)
+}
+
+func TestAFailedSolveIsStillRecorded(t *testing.T) {
+	app := newTestApp(t)
+	if _, err := app.SaveGearset(samplePayload(), ResultPayload{Success: true}); err != nil {
+		t.Fatal(err)
+	}
+	buildUUID := app.BuildIDForCurrentConfig("Round Trip")
+
+	// No solver has been extracted, so this fails before producing anything.
+	if _, err := app.RunOptimization(samplePayload()); err == nil {
+		t.Fatal("expected the optimize to fail with no solver available")
+	}
+
+	runs, err := app.ListRuns(buildUUID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("%d runs after a failed solve, want 1 — a failure is exactly "+
+			"what history is for", len(runs))
+	}
+	if runs[0].Succeeded || runs[0].ErrorMessage == "" {
+		t.Errorf("the failure was recorded as %+v", runs[0])
+	}
+}
+
+func TestSolveModeNormalizesForTheRunConstraint(t *testing.T) {
+	// run.mode's CHECK admits three values; an empty or legacy mode must
+	// normalize rather than abort the record over a reporting detail.
+	if got := solveMode(OptimizationPayload{}); got != "optimize" {
+		t.Errorf("empty mode = %q, want optimize", got)
+	}
+	if got := solveMode(OptimizationPayload{CalculateOnly: true}); got != "recalculate" {
+		t.Errorf("calculate_only = %q, want recalculate", got)
+	}
+	for _, mode := range []string{"recalculate", "alternatives"} {
+		if got := solveMode(OptimizationPayload{Mode: mode}); got != mode {
+			t.Errorf("%s = %q", mode, got)
+		}
+	}
+}

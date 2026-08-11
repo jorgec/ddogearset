@@ -82,6 +82,10 @@ export function ListBuilds() {
   return window['go']['main']['App']['ListBuilds']();
 }
 
+export function ListRuns(arg1) {
+  return window['go']['main']['App']['ListRuns'](arg1);
+}
+
 export function LoadBuild(arg1) {
   return window['go']['main']['App']['LoadBuild'](arg1);
 }

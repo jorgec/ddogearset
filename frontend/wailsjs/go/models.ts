@@ -86,6 +86,35 @@ export namespace appdb {
 		    return a;
 		}
 	}
+	
+	export class RunRecord {
+	    uuid: string;
+	    buildUuid: string;
+	    mode: string;
+	    ranAt: string;
+	    appVersion: string;
+	    catalogCommit?: string;
+	    seconds: number;
+	    succeeded: boolean;
+	    errorMessage?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uuid = source["uuid"];
+	        this.buildUuid = source["buildUuid"];
+	        this.mode = source["mode"];
+	        this.ranAt = source["ranAt"];
+	        this.appVersion = source["appVersion"];
+	        this.catalogCommit = source["catalogCommit"];
+	        this.seconds = source["seconds"];
+	        this.succeeded = source["succeeded"];
+	        this.errorMessage = source["errorMessage"];
+	    }
+	}
 
 }
 

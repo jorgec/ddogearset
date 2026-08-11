@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"goGearset/internal/appdb"
 	"goGearset/internal/catalog"
@@ -357,8 +358,11 @@ func (a *App) RecalculateGearset(request RecalculationRequest) (ResultPayload, e
 		"pre_filled_filigrees": request.PreFilledFiligrees,
 	}
 
+	started := time.Now()
 	raw, err := a.runSolver(payload)
 	if err != nil {
+		a.recordRun(configFor(request), "recalculate", ResultPayload{},
+			time.Since(started).Seconds(), err)
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
 	var result ResultPayload
@@ -370,9 +374,25 @@ func (a *App) RecalculateGearset(request RecalculationRequest) (ResultPayload, e
 		return result, nil
 	}
 	result.Success = true
-	// A recalculation proposes nothing, so it never records a suggestion — see
-	// shouldRecordSuggestion. Nothing to do here beyond returning the numbers.
+	// A recalculation proposes nothing, so it never records a SUGGESTION (see
+	// shouldRecordSuggestion) — but it absolutely records a RUN. "What did my
+	// gear total to on the 11th, against catalog f91af4e6" is the question run
+	// history exists for.
+	a.recordRun(configFor(request), "recalculate", result, time.Since(started).Seconds(), nil)
 	return result, nil
+}
+
+// configFor widens a recalculation request back to the config shape recordRun
+// needs to find the build. Only the identifying fields — nothing here can put a
+// restriction back.
+func configFor(request RecalculationRequest) OptimizationPayload {
+	return OptimizationPayload{
+		GearsetName:    request.GearsetName,
+		BuildType:      request.BuildType,
+		MaxLevel:       request.MaxLevel,
+		StatPriorities: request.StatPriorities,
+		PreEquipped:    request.PreEquipped,
+	}
 }
 
 // RecalculationRequestFrom narrows a full configuration down to what a
@@ -388,4 +408,129 @@ func RecalculationRequestFrom(config OptimizationPayload) RecalculationRequest {
 		PreFilledAugments:  config.PreFilledAugments,
 		PreFilledFiligrees: config.PreFilledFiligrees,
 	}
+}
+
+// recordRun writes a run to history. Best-effort and never fatal: a result the
+// user is looking at must not be withheld because the historian failed.
+//
+// The catalog revision goes on the row deliberately. Six weeks after a catalog
+// update, "did my gear change or did the data?" is otherwise unanswerable — and
+// it is the question that makes someone distrust every number the app shows.
+func (a *App) recordRun(config OptimizationPayload, mode string, result ResultPayload,
+	seconds float64, runErr error) {
+	if a.appDB == nil {
+		return
+	}
+	resolver, closeCatalog, err := a.nameResolver()
+	if err != nil {
+		return
+	}
+	buildUUID, err := a.ensureBuildFor(config, resolver)
+	closeCatalog()
+	if err != nil {
+		a.addLog("Could not record this run: " + err.Error())
+		return
+	}
+
+	record := appdb.RunRecord{
+		BuildUUID:     buildUUID,
+		Mode:          mode,
+		AppVersion:    AppVersion,
+		CatalogCommit: a.catalogCommit(),
+		Seconds:       seconds,
+		Succeeded:     runErr == nil && result.Success,
+	}
+	if runErr != nil {
+		record.ErrorMessage = runErr.Error()
+	} else if !result.Success {
+		record.ErrorMessage = result.ErrorMessage
+	}
+
+	var outcome *appdb.RunOutcome
+	if record.Succeeded {
+		outcome = runOutcomeFrom(result)
+	}
+	if _, err := appdb.RecordRun(a.appDB, record, outcome); err != nil {
+		a.addLog("Could not record this run: " + err.Error())
+	}
+}
+
+// catalogCommit reads catalog_meta.ddobuilder_commit — which game data produced
+// these numbers.
+func (a *App) catalogCommit() string {
+	path := a.catalogDBPath
+	if path == "" {
+		path = catalogPath()
+	}
+	db, err := catalog.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+	meta, err := catalog.ReadMeta(db)
+	if err != nil {
+		return ""
+	}
+	return meta.DDOBuilderCommit
+}
+
+// runOutcomeFrom pulls the recordable parts out of a result payload.
+//
+// Reads `allEffectsDetail` — the structured form — rather than re-parsing the
+// display strings. The regex that used to do that is gone (0.5.1 Phase 5) and
+// reintroducing one here would put it straight back.
+func runOutcomeFrom(result ResultPayload) *appdb.RunOutcome {
+	outcome := &appdb.RunOutcome{
+		RealizedStats: numericMap(result.RealizedStats),
+		ActiveSets:    result.ActiveSets,
+		EffectDetail:  map[string][]map[string]interface{}{},
+	}
+
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return outcome
+	}
+	var full map[string]interface{}
+	if err := json.Unmarshal(raw, &full); err != nil {
+		return outcome
+	}
+	if other, ok := full["otherStats"].(map[string]interface{}); ok {
+		outcome.OtherStats = numericMap(other)
+	}
+	if detail, ok := full["allEffectsDetail"].(map[string]interface{}); ok {
+		for stat, entries := range detail {
+			list, _ := entries.([]interface{})
+			for _, e := range list {
+				if m, ok := e.(map[string]interface{}); ok {
+					outcome.EffectDetail[stat] = append(outcome.EffectDetail[stat], m)
+				}
+			}
+		}
+	}
+	if warnings, ok := full["warnings"].([]interface{}); ok {
+		for _, w := range warnings {
+			if m, ok := w.(map[string]interface{}); ok {
+				outcome.Warnings = append(outcome.Warnings, m)
+			}
+		}
+	}
+	return outcome
+}
+
+func numericMap(in map[string]interface{}) map[string]float64 {
+	out := map[string]float64{}
+	for k, v := range in {
+		if f, ok := v.(float64); ok {
+			out[k] = f
+		}
+	}
+	return out
+}
+
+// ListRuns returns a build's run history, newest first.
+func (a *App) ListRuns(buildUUID string) ([]appdb.RunRecord, error) {
+	if a.appDB == nil {
+		return nil, fmt.Errorf("user data is unavailable")
+	}
+	return appdb.ListRuns(a.appDB, buildUUID, 50)
 }

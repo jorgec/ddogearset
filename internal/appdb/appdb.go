@@ -39,15 +39,20 @@ func nowRFC3339() string { return time.Now().UTC().Format(time.RFC3339) }
 // version cannot be migrated, only guessed at, and this one is expected to
 // outlive many app versions. Same reasoning as catalog_meta's versioning
 // (schema §5.1.1), applied to the database that actually matters.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // DDL mirrors docs/0.5.0/01_CATALOG_AND_APP_SCHEMA.md §5.2. Where this and the
 // document disagree, the document is the spec and this is the bug.
 //
-// Tables in this first release cover builds and gearsets only. The run_* tables
-// are Phase 6 — see the plan — and are deliberately absent rather than created
-// empty: unlike catalog.db's item_upgrade, nothing here benefits from a table
-// that exists before anything writes to it, and a migration adds them cleanly.
+// This is the schema-1 baseline. Later versions are reached by appending to
+// `migrations` (migrations.go), never by editing this string — a file created
+// by an older build has to arrive at the same place a fresh one does, and it
+// can only do that by running the same steps.
+//
+// A fresh database therefore runs this DDL and then every migration, rather
+// than being created at the current version directly. Slightly more work on
+// first launch, and worth it: the migration path is exercised on every clean
+// install instead of only on the machines that happen to have an old file.
 const DDL = `
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
@@ -205,13 +210,14 @@ func migrate(db *sql.DB, appVersion string) error {
 		if _, err := db.Exec(DDL); err != nil {
 			return fmt.Errorf("creating app database schema: %w", err)
 		}
-		_, err := db.Exec(
-			"INSERT INTO app_meta (id, schema_version, created_at, created_by) VALUES (1, ?, ?, ?)",
-			SchemaVersion, nowRFC3339(), appVersion)
-		if err != nil {
+		// Stamped at 1 — the baseline DDL's version — and then migrated up, so
+		// a brand-new file walks the same path an upgraded one does.
+		if _, err := db.Exec(
+			"INSERT INTO app_meta (id, schema_version, created_at, created_by) VALUES (1, 1, ?, ?)",
+			nowRFC3339(), appVersion); err != nil {
 			return fmt.Errorf("stamping app database schema version: %w", err)
 		}
-		return nil
+		return applyMigrations(db, 1)
 	}
 
 	var found int
@@ -228,13 +234,20 @@ func migrate(db *sql.DB, appVersion string) error {
 				"one write to it — an older build can silently drop data a newer "+
 				"one stored", found, SchemaVersion)
 	default:
-		// No migrations exist yet because no released schema precedes 1. The
-		// first one lands here, and this must never become a silent no-op:
-		// leaving an old file unmigrated and writing to it anyway is how the
-		// data gets corrupted.
-		return fmt.Errorf(
-			"app.db is at schema %d and this build needs %d, but no migration "+
-				"is implemented for that step", found, SchemaVersion)
+		if err := applyMigrations(db, found); err != nil {
+			return err
+		}
+		// Re-read rather than assume: a migration that ran but did not stamp
+		// would otherwise leave the file quietly mislabelled.
+		if err := db.QueryRow("SELECT schema_version FROM app_meta WHERE id = 1").Scan(&found); err != nil {
+			return fmt.Errorf("re-reading schema version after migration: %w", err)
+		}
+		if found != SchemaVersion {
+			return fmt.Errorf(
+				"app.db is at schema %d after migrating; this build needs %d",
+				found, SchemaVersion)
+		}
+		return nil
 	}
 }
 

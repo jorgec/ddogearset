@@ -834,8 +834,10 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 		config.Mode = "calculate"
 	}
 
+	started := time.Now()
 	raw, err := a.runSolver(config)
 	if err != nil {
+		a.recordRun(config, solveMode(config), ResultPayload{}, time.Since(started).Seconds(), err)
 		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
 	}
 
@@ -846,6 +848,7 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 
 	if !richResult.Success && richResult.ErrorMessage != "" {
 		// Solver explicitly returned a failure JSON payload.
+		a.recordRun(config, solveMode(config), richResult, time.Since(started).Seconds(), nil)
 		return richResult, nil
 	}
 	richResult.Success = true
@@ -857,7 +860,23 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 	if shouldRecordSuggestion(config, richResult) {
 		a.recordSuggestion(config, richResult)
 	}
+	a.recordRun(config, solveMode(config), richResult, time.Since(started).Seconds(), nil)
 	return richResult, nil
+}
+
+// solveMode is the mode a run is recorded under. `run.mode`'s CHECK constraint
+// admits optimize/recalculate/alternatives only, so an empty or legacy value
+// normalizes here rather than aborting the record for a reporting detail.
+func solveMode(config OptimizationPayload) string {
+	switch config.Mode {
+	case "recalculate", "alternatives":
+		return config.Mode
+	default:
+		if config.CalculateOnly {
+			return "recalculate"
+		}
+		return "optimize"
+	}
 }
 
 // shouldRecordSuggestion decides whether a solve's output is a PROPOSAL worth
