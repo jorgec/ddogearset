@@ -62,7 +62,7 @@ var packMappingsJSON []byte
 // anywhere in this codebase) — this MUST be kept in sync by hand with
 // wails.json's "version"/"productVersion" on every version bump. There is no
 // automated check for drift between the two.
-const AppVersion = "0.5.2"
+const AppVersion = "0.5.3"
 
 // GetAppVersion returns the running app's release version (see AppVersion).
 func (a *App) GetAppVersion() string {

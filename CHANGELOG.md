@@ -7,6 +7,39 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.5.3] — 2026-08-12
+
+### Fixed
+
+- **Every filigree slot rendered "Empty" once Filigrees became a tab.** A build
+  loaded from `app.db` showed none of its filigrees, though all of them were
+  stored. The data was intact at every layer below the UI — the `.ddogearset`
+  file, the `gearset_filigree` rows, and `LoadBuild` itself all returned the
+  full set — because the bug was reactivity, not storage.
+
+  `getSlotDisplay()` read `$configStore`/`$resultStore` off the closure and was
+  called from a `{@const display = getSlotDisplay(idx, …)}` inside the each
+  block. Svelte cannot see through a function call: the compiled
+  `get_each_context` depends on `getSlotDisplay` and `idx` only. Confirmed
+  against the compiled output — `$configStore` sits at ctx index 14 (dirty bit
+  `16384`) while the each blocks re-run their context on masks `8063`/`8191`
+  (bits 0–12), and `$resultStore` isn't in the ctx at all. The values were
+  computed once at mount and never recomputed.
+
+  This was latent the whole time and [0.5.2]'s Filigrees-into-a-tab change
+  exposed it: inside the drawer's `{#if $drawerOpen}` the component was
+  destroyed and recreated on every open, so it always remounted with current
+  data. As a permanently-mounted tab toggled by `class:hidden`, it never
+  remounts, so the staleness became permanent.
+
+  Fixed by deriving `artifactDisplays`/`weaponDisplays` in `$:` statements that
+  name both stores explicitly, and iterating those arrays directly; the update
+  block now recomputes on mask `98304` = `$configStore` + `$resultStore`.
+  Verified by mounting the real component against a real saved build and
+  updating the store *after* mount — the exact sequence that broke — and by
+  reverting the fix under the identical harness to confirm the check genuinely
+  fails without it.
+
 ## [0.5.2] — 2026-08-11
 
 UI/UX pass over the app.db-backed workflow, plus three bugs found by actually

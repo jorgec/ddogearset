@@ -6,11 +6,11 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "info": {
     "companyName": "Jorge Cosgayon",
     "productName": "DDO Gearset Optimizer",
-    "productVersion": "0.5.2",
+    "productVersion": "0.5.3",
     "copyright": "Copyright © 2026 Jorge Cosgayon",
     "comments": "Mathematically optimal gear solver for Dungeons and Dragons Online"
   },
