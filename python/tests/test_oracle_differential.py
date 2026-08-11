@@ -74,13 +74,23 @@ TIMING_KEYS = ("elapsedSeconds", "totalElapsedSeconds", "budgetSeconds")
 #                         semantics — no slot index changes what a filigree does
 #   slots.<slot>.filigrees  the same membership, per slot
 #
-# `slots.<slot>.augments` is deliberately NOT here: it did not reorder, so if it
-# ever does, that is a signal worth failing on.
+# `slots.<slot>.augments` joined them in Phase 4, and the way it did is worth
+# recording. Phase 0 left it out with the note "it did not reorder, so if it
+# ever does, that is a signal worth failing on" — and in Phase 4 it fired, on
+# every caster fixture at once. The signal was read: `recalculate` enumerates a
+# slot's augments in the order the saved gearset lists them, where the solve
+# path emitted them in the order its `y` variables happened to iterate. Same
+# augments, same colours, same buffs. A slot's augments are a set of
+# colour→augment assignments; nothing reads meaning into their sequence.
+#
+# The check did its job — it made a real implementation change announce itself
+# instead of passing silently.
 UNORDERED_PATHS = (
     ("activeSets",),
     ("allEffects", "*"),
     ("filigrees", "*"),
     ("slots", "*", "filigrees"),
+    ("slots", "*", "augments"),
 )
 
 
@@ -378,3 +388,155 @@ def test_only_the_documented_lists_may_be_reordered():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+# ── recalculate (0.5.1 Phase 4) ────────────────────────────────────────────
+
+# Fields `recalculate` ADDS. The oracle predates them, so they are compared
+# against nothing — but they are listed rather than glossed, and a new one
+# appearing without being added here fails `test_recalculate_adds_only_known_fields`.
+RECALCULATE_ADDED_FIELDS = frozenset({
+    "success",     # explicit, where the solve path implied it by structure
+    "otherStats",  # everything the gear grants beyond what was asked for
+    "warnings",    # validate_physical_rules — warns, never refuses
+})
+
+# Fields where the two implementations answer DIFFERENT QUESTIONS, and
+# recalculate's answer is the better one. Excluded from the comparison, with the
+# reason spelled out, because pretending they should match would mean putting
+# the candidate pool back into an evaluation.
+#
+# Both trace to a single root cause: "does anything grant this stat?"
+#   calculate    asked its restricted candidate POOL. A stat that exists in the
+#                game but was filtered out (ML window, armor, excluded packs)
+#                was indistinguishable from a typo.
+#   recalculate  asks the CATALOG. There is no pool to ask.
+#
+# Measured on Test_CasterDualCaster_20260810053044: "exceptional spell focus
+# mastery" is grantable in the game but was absent from that solve's pool, so
+# the oracle calls it unmatched and therefore never counts it as an unmet tier-4
+# priority. Recalculate calls it matched — and then correctly reports that the
+# equipped gear grants nothing toward it.
+RECALCULATE_EXPLAINED_DIFFERENCES = frozenset({
+    "unmatchedPriorities",
+    "unmetTier4",
+})
+
+
+def _recalculate_payload(fixture_payload):
+    """The fixture's own payload, made into a recalculation request.
+
+    Search restrictions are STRIPPED rather than passed: recalculate rejects
+    them outright (see solver.restrictions_present), and that rejection is the
+    feature. Stripping them is also what makes this differential meaningful —
+    any divergence it surfaces is a restriction that had been shaping an
+    evaluation, which is the finding the whole 0.5.x direction exists to expose.
+    """
+    import solver
+    payload = {k: v for k, v in fixture_payload.items()
+               if k not in solver.SEARCH_RESTRICTION_FIELDS}
+    payload["mode"] = "recalculate"
+    payload.pop("calculate_only", None)
+    return payload
+
+
+@pytest.fixture(scope="session")
+def recalculate_replays(tmp_path_factory):
+    catalog = _catalog_path()
+    if not catalog.exists():
+        pytest.fail(f"No catalog at {catalog}; the recalculate differential cannot run.")
+
+    env = _solver_env()
+    root = tmp_path_factory.mktemp("recalculate")
+
+    jobs = []
+    for path in _fixtures():
+        data = json.loads(path.read_text())
+        if data.get("empty_gearset") or not data.get("payload", {}).get("pre_equipped"):
+            continue
+        jobs.append((_fixture_id(path), _recalculate_payload(data["payload"])))
+
+    def replay(job):
+        name, payload = job
+        return name, _run_solver(payload, root / name, env)
+
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_SOLVES) as pool:
+        return dict(pool.map(replay, jobs))
+
+
+def _recalculable_fixtures():
+    out = []
+    for path in _fixtures():
+        data = json.loads(path.read_text())
+        if data.get("empty_gearset") or not data.get("payload", {}).get("pre_equipped"):
+            continue
+        out.append(path)
+    return out
+
+
+@pytest.mark.parametrize("fixture_path", _recalculable_fixtures(), ids=_fixture_id)
+def test_recalculate_reproduces_the_oracle(fixture_path, recalculate_replays):
+    """The Phase 4 gate: the same gearset, evaluated with no ILP, totals the same.
+
+    Includes the fixture today's `calculate` mode REFUSES
+    (known_deltas.yaml `unevaluatable_today`) — recalculate has no candidate
+    pool and therefore no `<= 1 filigree per base name` constraint to be
+    unsatisfiable against, so it must return numbers where the old path returned
+    an error.
+    """
+    data = _load(fixture_path)
+    name = _fixture_id(fixture_path)
+    result, error = recalculate_replays[name]
+
+    assert error is None, f"{name} failed to recalculate: {error}"
+
+    if data.get("capture_failed"):
+        # The headline fixture. `calculate` cannot evaluate it at all; the whole
+        # point of the release is that this one now works.
+        assert result.get("gearSet"), f"{name} recalculated to an empty gearset"
+        assert result.get("realizedStats"), f"{name} recalculated to no stats"
+        return
+
+    expected = canonical(data["result"])
+    actual = canonical(result)
+    for key in RECALCULATE_ADDED_FIELDS | RECALCULATE_EXPLAINED_DIFFERENCES:
+        actual.pop(key, None)
+        expected.pop(key, None)
+
+    assert actual == expected, f"{name}: recalculate did not reproduce the oracle"
+
+
+def test_recalculate_adds_only_known_fields(recalculate_replays):
+    """A new field is fine; a new field nobody declared is not.
+
+    Without this, adding one to the result would silently shrink what the
+    differential above compares.
+    """
+    sample = _load(ORACLE_DIR / f"{SAMPLE}.oracle.json")
+    result, error = recalculate_replays[SAMPLE]
+    assert error is None, error
+
+    added = set(result) - set(sample["result"])
+    assert added == RECALCULATE_ADDED_FIELDS, (
+        f"recalculate's result gained {sorted(added - RECALCULATE_ADDED_FIELDS)} "
+        f"and lost {sorted(RECALCULATE_ADDED_FIELDS - added)}")
+    missing = set(sample["result"]) - set(result)
+    assert not missing, f"recalculate dropped fields the oracle has: {sorted(missing)}"
+
+
+def test_recalculate_refuses_a_search_restriction():
+    """Unrepresentable, not merely unused — the guarantee carried from the
+    deprecated spec. A restriction that is accepted-and-ignored is one that
+    starts being honoured again the moment somebody edits a default."""
+    import solver
+    fixture = _load(ORACLE_DIR / f"{SAMPLE}.oracle.json")
+
+    offending = solver.restrictions_present(fixture["payload"])
+    assert offending, "this fixture was expected to carry search restrictions"
+
+    stripped = _recalculate_payload(fixture["payload"])
+    assert not solver.restrictions_present(stripped)
+
+    # ...and a sentinel "no restriction" value must NOT trip it, or every
+    # legitimately saved gearset is refused.
+    assert not solver.restrictions_present({"raid_item_limit": -1, "excluded_packs": []})

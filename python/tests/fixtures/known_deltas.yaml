@@ -150,3 +150,67 @@ unevaluatable_today:
       question. Two filigrees sharing a base name are two pieces of the same
       named set, and set bonuses need several pieces — so the heuristic may be
       wrong for the solver too. Not touched by 0.5.0.
+
+# ---------------------------------------------------------------------------
+# Deltas between the oracle and `mode: "recalculate"` (0.5.1 Phase 4).
+# ---------------------------------------------------------------------------
+recalculate_vs_oracle:
+  observed: 2026-08-11
+  scope: all 12 replayable fixtures
+  headline: >
+    Every number matches. realizedStats, gearSet, activeSets, filigrees,
+    allEffects, slots, priorityTiers and tierReport are identical across all 12,
+    with no ILP, no candidate pool and no glpsol anywhere in the path. The
+    thirteenth fixture — the one today's calculate mode REFUSES — recalculates
+    in 0.69s with full numbers plus warnings.
+
+  # Fields recalculate ADDS. The oracle predates them, so nothing compares.
+  added_fields:
+    success: explicit, where the solve path implied it structurally
+    otherStats: everything the gear grants beyond what was asked for
+    warnings: validate_physical_rules output — warns, never refuses
+
+  explained_differences:
+    - fields: [unmatchedPriorities, unmetTier4]
+      cause: >
+        One root cause, two symptoms: "does anything grant this stat?" was
+        answered by the restricted candidate POOL and is now answered by the
+        CATALOG. A stat that exists in the game but was filtered out of a solve's
+        pool (ML window, armor, excluded packs) used to be indistinguishable
+        from a typo.
+      example: >
+        "exceptional spell focus mastery" is grantable in the game but was absent
+        from Test_CasterDualCaster_20260810053044's pool. The oracle therefore
+        calls it unmatched and never counts it as an unmet tier-4 priority;
+        recalculate calls it matched and correctly reports that the equipped gear
+        grants nothing toward it.
+      resolution: >
+        Excluded from the comparison as RECALCULATE_EXPLAINED_DIFFERENCES in
+        test_oracle_differential.py. Not reconciled: making recalculate reproduce
+        the pool-scoped answer would mean putting a candidate pool back inside an
+        evaluation, which is the thing this release removes.
+
+  fixed_during_the_phase:
+    - symptom: recalculate reported 6 unmatched priorities where the oracle reported 2
+      cause: >
+        The catalog-wide check tested every stat against one hardcoded bonus
+        type, so every bonus-type-prefixed priority ("insightful spell focus
+        mastery") could never match. Bonus type is part of the question.
+      caught_by: the differential, on its first run
+    - symptom: allEffects listed contributions the oracle did not
+      cause: >
+        Every contribution was listed, including non-stacking sources overridden
+        by a larger source of the same bonus type — e.g. "Legendary Inevitable
+        Balance (2 Piece)" grants both a Stacking and an Artifact bonus to
+        Doublestrike, and the Artifact one loses to a bigger Artifact source.
+        Listing it reads as additive and inflates what the gear appears to do.
+      resolution: >
+        allEffects now lists only contributions that reach the total — the same
+        filter _resolve_totals applies. Totals were identical either way.
+    - symptom: slots.<slot>.augments differed on every caster fixture
+      cause: >
+        Enumeration order only. recalculate lists a slot's augments in the order
+        the saved gearset records them; the solve path emitted them in `y`
+        variable order. Phase 0 deliberately left this path OUT of
+        UNORDERED_PATHS with the note that a reorder would be "a signal worth
+        failing on" — it fired, was read, and the path was added.

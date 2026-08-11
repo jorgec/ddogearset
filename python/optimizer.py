@@ -1966,7 +1966,7 @@ def _assign_augments_greedy(item, augments, used_names, base_contrib, marginal):
     current_max = {}
     for key, entries in base_contrib.items():
         if not _is_stacking(key[1]) and entries:
-            current_max[key] = max(v for v, _o in entries)
+            current_max[key] = max(v for v, _o, _n in entries)
 
     for color in item.get('augments', []) or []:
         best_idx = None
@@ -2011,7 +2011,7 @@ def _candidate_penalty(item, aug_list, contrib):
     for key, entries in contrib.items():
         if _is_stacking(key[1]):
             continue
-        credited[key] = max((v for v, _o in entries), default=0.0)
+        credited[key] = max((v for v, _o, _n in entries), default=0.0)
     own = list(item['buffs']) if item is not None else []
     for aug in aug_list:
         own.extend(aug['buffs'])

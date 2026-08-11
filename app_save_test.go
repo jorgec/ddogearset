@@ -354,10 +354,13 @@ func TestShouldRecordSuggestionGuardsBothCases(t *testing.T) {
 		t.Error("an optimize that proposed a gearset was not recorded")
 	}
 
-	calculate := samplePayload()
-	calculate.Mode = "calculate"
-	if shouldRecordSuggestion(calculate, withGear) {
-		t.Error("calculate mode recorded a suggestion")
+	for _, mode := range []string{"calculate", "recalculate"} {
+		evaluating := samplePayload()
+		evaluating.Mode = mode
+		if shouldRecordSuggestion(evaluating, withGear) {
+			t.Errorf("%s mode recorded a suggestion; it evaluates gear you already "+
+				"have and proposes nothing", mode)
+		}
 	}
 
 	legacy := samplePayload()

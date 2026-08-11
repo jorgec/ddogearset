@@ -863,17 +863,17 @@ func (a *App) RunOptimization(config OptimizationPayload) (ResultPayload, error)
 // shouldRecordSuggestion decides whether a solve's output is a PROPOSAL worth
 // storing as origin='suggested'.
 //
-// Two things disqualify a run. `calculate` evaluates gear the user already has
-// and proposes nothing, so recording it would replace a pending suggestion with
-// the very thing it was being compared against. And a run that produced no
-// gearset has nothing to propose — storing an empty suggestion would put a
-// one-click gearset-eraser behind the Accept All button.
+// Two things disqualify a run. `calculate` and `recalculate` both EVALUATE gear
+// the user already has and propose nothing, so recording either would replace a
+// pending suggestion with the very thing it was being compared against. And a
+// run that produced no gearset has nothing to propose — storing an empty
+// suggestion would put a one-click gearset-eraser behind the Accept All button.
 //
 // A predicate rather than an inline condition because it is the guard the
 // two-node model rests on, and a guard that cannot be tested without a
 // tens-of-seconds solve is a guard nobody checks.
 func shouldRecordSuggestion(config OptimizationPayload, result ResultPayload) bool {
-	if config.Mode == "calculate" || config.CalculateOnly {
+	if config.Mode == "calculate" || config.Mode == "recalculate" || config.CalculateOnly {
 		return false
 	}
 	return result.Success && len(result.GearSet) > 0

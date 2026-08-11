@@ -26,22 +26,35 @@ def _is_stacking(b_type):
 
 def _collect_contributions(equipped, aug_list, fil_weapon, fil_artifact, sets):
     """Direct arithmetic against a fixed gearset — the same computation
-    calculate_only mode performs. Returns {(stat, b_type): [(val, origin)]}."""
+    calculate_only mode performs.
+
+    Returns `{(stat, b_type): [(val, origin, source_name)]}`.
+
+    The source NAME is carried alongside the value because recalculation has to
+    report provenance ("23.0 Enhancement (Melancholic Force Spell Critical
+    Damage)"), and the ILP path only had it because it kept a parallel
+    `sources_tracking` structure beside the model. Recording it here instead
+    means one collector answers both "what does this gearset total" and "where
+    did each part of that come from" — a second walk over the same gear to
+    recover names is exactly how two answers drift apart.
+
+    Callers that only want values ignore the third element.
+    """
     contrib = collections.defaultdict(list)
 
     for slot, item in equipped:
         for stat, b_type, val in item['buffs']:
             if b_type == WEAPON_BASE_BONUS_TYPE and slot != WEAPON_BASE_SLOT:
                 continue
-            contrib[(stat, b_type)].append((val, 'item'))
+            contrib[(stat, b_type)].append((val, 'item', item['name']))
 
     for aug in aug_list:
         for stat, b_type, val in aug['buffs']:
-            contrib[(stat, b_type)].append((val, 'augment'))
+            contrib[(stat, b_type)].append((val, 'augment', aug['name']))
 
     for f in list(fil_weapon) + list(fil_artifact):
         for stat, b_type, val in f['buffs']:
-            contrib[(stat, b_type)].append((val, 'filigree'))
+            contrib[(stat, b_type)].append((val, 'filigree', f['name']))
 
     # Set bonuses recomputed with the candidate substituted.
     piece_counts = collections.Counter()
@@ -57,7 +70,7 @@ def _collect_contributions(equipped, aug_list, fil_weapon, fil_artifact, sets):
         for m, buffs in tiers.items():
             if pieces >= m:
                 for stat, b_type, val in buffs:
-                    contrib[(stat, b_type)].append((val, 'set'))
+                    contrib[(stat, b_type)].append((val, 'set', f'{k} ({m} Piece)'))
 
     return contrib
 
@@ -66,7 +79,7 @@ def _resolve_totals(contrib, exclude_filigrees=False):
     """Sum for stacking bonus types, max for non-stacking — the DDO rule."""
     totals = collections.defaultdict(float)
     for (stat, b_type), entries in contrib.items():
-        vals = [v for v, o in entries if not (exclude_filigrees and o == 'filigree')]
+        vals = [v for v, o, _name in entries if not (exclude_filigrees and o == 'filigree')]
         if not vals:
             continue
         totals[stat] += sum(vals) if _is_stacking(b_type) else max(vals)

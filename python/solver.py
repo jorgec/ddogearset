@@ -4,9 +4,57 @@ import os
 import re
 import catalog_source
 import optimizer
+from rules import evaluate
 from optimizer import PriorityEntry
 
-VALID_MODES = ("optimize", "calculate", "alternatives", "stat_search")
+VALID_MODES = ("optimize", "calculate", "recalculate", "alternatives", "stat_search")
+
+# Fields that shape a SEARCH: which items the solver is allowed to propose.
+# `recalculate` evaluates gear the user already has, so none of them mean
+# anything to it — and rather than accept-and-ignore them, it REFUSES a payload
+# that carries one.
+#
+# That refusal is the point. "Passed but ignored" is precisely how a restriction
+# creeps back into an evaluation: the field sits there looking honoured until
+# someone edits a default. If it cannot be expressed, it cannot be silently
+# reinstated (docs/0.5.0/00_ETL_START_HERE.md §7).
+SEARCH_RESTRICTION_FIELDS = (
+    "armor_restriction",
+    "excluded_packs",
+    "owned_item_names",
+    "raid_item_limit",
+    "weapon_style",
+    "offhand_style",
+    "weapon_damage_type",
+    "reserved_minor_artifact_slot",
+    "caster_restrict_weapon_families",
+    "exclude_gem_of_many_facets",
+    "is_dino_artifact",
+    "max_search_time",
+)
+
+
+def restrictions_present(parsed_data):
+    """Search-restriction fields carrying a meaningful value.
+
+    Absent, null, empty and the documented "no restriction" sentinels all count
+    as unset — an old saved gearset legitimately carries `raid_item_limit: -1`
+    and an empty `excluded_packs`, and refusing those would make recalculation
+    unusable on exactly the files it exists to evaluate.
+    """
+    found = []
+    for field in SEARCH_RESTRICTION_FIELDS:
+        if field not in parsed_data:
+            continue
+        value = parsed_data[field]
+        # Falsy covers absent, null, "", [], {} and False in one test — and
+        # `in {…}` cannot be used here because a list is unhashable.
+        if not value:
+            continue
+        if field == "raid_item_limit" and value == -1:
+            continue
+        found.append(field)
+    return found
 
 # §2.6 — every validation message starts with this literal prefix.
 VALIDATION_PREFIX = "Stat priority validation failed: "
@@ -441,6 +489,130 @@ def run_alternatives(parsed_data, entries, items, sets, augments, filigrees,
     return result
 
 
+def run_recalculate(parsed_data, entries, priority_names, sets, catalog_conn,
+                    pre_equipped, pre_filled_augments, pre_filled_filigrees):
+    """`mode: "recalculate"` — evaluate the gearset the user already has.
+
+    No candidate pool, no ILP, no glpsol. Resolve each equipped name against the
+    catalog, then hand the gear to rules.evaluate, which is pure arithmetic over
+    `_collect_contributions` + `_resolve_totals` — the two functions that could
+    always have answered this question directly.
+
+    Names that resolve to nothing are reported as warnings and contribute
+    nothing. Refusing the whole gearset over one removed trinket is what the
+    outgoing implementation effectively did, and is the reason a real saved
+    gearset could not be evaluated at all.
+    """
+    offending = restrictions_present(parsed_data)
+    if offending:
+        return {
+            "success": False,
+            "errorMessage": VALIDATION_PREFIX + (
+                "recalculate evaluates gear you already have, so it cannot accept "
+                "search restrictions. Remove: " + ", ".join(sorted(offending)) + "."),
+        }
+
+    equipped_names = [n for n in (pre_equipped or {}).values() if (n or '').strip()]
+    if not equipped_names:
+        return {
+            "success": False,
+            "errorMessage": VALIDATION_PREFIX + "there is no equipped gear to recalculate.",
+        }
+
+    unresolved = []
+
+    items_by_name, missing_items = catalog_source.resolve_equipped_items(
+        catalog_conn, equipped_names, priority_names)
+    for name in missing_items:
+        unresolved.append({"kind": "item", "name": name, "slot": None})
+
+    equipped = []
+    for slot, name in sorted((pre_equipped or {}).items()):
+        item = items_by_name.get(name)
+        if item is not None:
+            equipped.append((slot, item))
+
+    # slot -> [augment], carrying the colour a saved gearset recorded so an
+    # ambiguous name (the catalog has two "Deathblock") resolves to the one
+    # actually slotted rather than whichever loaded first.
+    wanted_augments = optimizer.flatten_pre_filled_augment_names(pre_filled_augments)
+    augments_by_name, missing_augments = catalog_source.resolve_equipped_augments(
+        catalog_conn, wanted_augments, priority_names)
+    for name in missing_augments:
+        unresolved.append({"kind": "augment", "name": name, "slot": None})
+
+    augments_by_slot = {}
+    for slot, entry in (pre_filled_augments or {}).items():
+        pairs = []
+        if isinstance(entry, dict):
+            pairs = [(colour, name) for colour, name in entry.items()]
+        elif isinstance(entry, list):
+            pairs = [(None, name) for name in entry]
+        chosen = []
+        for colour, name in pairs:
+            if not (name or '').strip():
+                continue
+            matches = augments_by_name.get(name) or []
+            if not matches:
+                continue
+            pick = matches[0]
+            if colour:
+                for m in matches:
+                    if (m.get('type') or '').strip().lower() == colour.strip().lower():
+                        pick = m
+                        break
+            chosen.append(pick)
+        if chosen:
+            augments_by_slot[slot] = chosen
+
+    filigree_names = []
+    for bucket in ("weapon", "artifact"):
+        filigree_names.extend((pre_filled_filigrees or {}).get(bucket) or [])
+    fil_by_name, filigree_sets, missing_filigrees = catalog_source.resolve_equipped_filigrees(
+        catalog_conn, filigree_names, priority_names)
+    for name in missing_filigrees:
+        unresolved.append({"kind": "filigree", "name": name, "slot": None})
+
+    # Filigree set tiers merge into the top-level ones exactly as the solve
+    # path merges them, so a filigree set contributes the same bonus either way.
+    merged_sets = dict(sets)
+    for name, tiers in filigree_sets.items():
+        if name not in merged_sets:
+            merged_sets[name] = tiers
+        else:
+            merged = dict(merged_sets[name])
+            merged.update(tiers)
+            merged_sets[name] = merged
+
+    def bucket_filigrees(bucket):
+        # Every slotted entry, INCLUDING repeats. A filigree slotted twice is
+        # invalid and is warned about, but dropping the duplicate here would
+        # change the numbers to hide the problem.
+        out = []
+        for name in (pre_filled_filigrees or {}).get(bucket) or []:
+            if not (name or '').strip():
+                out.append({'name': name or '', 'buffs': [], 'set': None})
+                continue
+            f = fil_by_name.get(name)
+            if f is not None:
+                out.append(f)
+        return out
+
+    fil_weapon = bucket_filigrees("weapon")
+    fil_artifact = bucket_filigrees("artifact")
+
+    print(f"Recalculating {len(equipped)} equipped item(s), "
+          f"{sum(len(v) for v in augments_by_slot.values())} augment(s), "
+          f"{len(fil_weapon) + len(fil_artifact)} filigree(s)...")
+
+    result = evaluate.evaluate_gearset(
+        equipped, augments_by_slot, fil_weapon, fil_artifact, merged_sets,
+        entries, unresolved=unresolved)
+    result["unmatchedPriorities"] = catalog_source.priorities_with_no_source(
+        catalog_conn, priority_names)
+    return result
+
+
 def main():
     if len(sys.argv) > 1:
         with open(sys.argv[1], 'r') as f:
@@ -464,7 +636,9 @@ def main():
     # resolved, but that's called from inside _solve()'s broad except, which
     # would otherwise turn a missing/misconfigured GLPK into a generic "no
     # feasible solution" instead of this specific, actionable message.
-    if optimizer.resolve_glpsol_path() is None:
+    # recalculate is exempt: it runs no ILP, so requiring GLPK would make the
+    # one mode that needs no solver refuse to start without one.
+    if mode != "recalculate" and optimizer.resolve_glpsol_path() is None:
         fail("GLPK (glpsol) could not be found. This build's bundled glpsol may be "
              "missing or failed to extract; set GLPSOL_PATH, or install GLPK so "
              "'glpsol' is on PATH, to run the solver directly.")
@@ -532,6 +706,17 @@ def main():
     print(f"\nParsing Sets from {catalog_db_path}...")
     sets = catalog_source.parse_sets(catalog_conn, priority_names)
     print(f"Loaded {len(sets)} sets.")
+
+    if mode == "recalculate":
+        # Returns before ANY candidate pool exists. That ordering is the
+        # feature: recalculation never builds one, so no restriction can reach
+        # it even by accident, and the work is a handful of name lookups
+        # instead of an ILP.
+        result = run_recalculate(parsed_data, entries, priority_names, sets,
+                                 catalog_conn, pre_equipped, pre_filled_augments,
+                                 pre_filled_filigrees)
+        print(f"JSON_RESULT:{json.dumps(result)}")
+        return
 
     filename = parsed_data.get('output_filename', 'gearset_output.json')
     if not filename.endswith('.json'):

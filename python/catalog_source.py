@@ -375,3 +375,137 @@ def known_adventure_pack_names(catalog) -> set:
     finally:
         if not isinstance(catalog, sqlite3.Connection):
             conn.close()
+
+
+# --- Recalculation: resolve a gearset the user already has -------------------
+#
+# 0.5.1 Phase 4. Everything above answers "what COULD go in this slot" and is
+# shaped by the search restrictions that question needs. These answer "what IS
+# in this slot", which needs none of them — no ML window, no armor filter, no
+# excluded packs, no owned-items list, no candidate pool at all.
+#
+# That is the whole reason recalculation moved: a restriction is a statement
+# about what the solver may PROPOSE, and applying one while evaluating gear the
+# user already owns is how `mode: "calculate"` ended up refusing to answer for a
+# real gearset (see python/tests/fixtures/known_deltas.yaml). Here there is
+# nowhere to put one.
+
+def resolve_equipped_items(catalog, names, priorities):
+    """Items by exact name. `WHERE name IN (...)` — no glob, no XML, no pool.
+
+    Returns (by_name, missing). A name with no row is REPORTED, not fatal: a
+    gearset saved two game updates ago can legitimately reference an item that
+    has since been removed, and the other thirteen slots still have answers.
+    """
+    conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
+    try:
+        wanted = [n for n in dict.fromkeys(names) if (n or '').strip()]
+        if not wanted:
+            return {}, []
+        wanted_weapon_stats = wanted_weapon_stats_for(priorities)
+
+        raw_items = _load_items(conn)
+        by_name = {}
+        for it in raw_items.values():
+            if it['name'] not in wanted:
+                continue
+            buffs = []
+            for raw_type, raw_target, bonus_type, value in it['raw_buffs']:
+                b = _buff(raw_type, raw_target, bonus_type, value, priorities,
+                          wanted_weapon_stats=wanted_weapon_stats)
+                if b:
+                    buffs.append(b)
+            by_name[it['name']] = {
+                'name': it['name'], 'file': it['file'], 'slots': list(it['slots']),
+                'buffs': buffs, 'sets': it['sets'], 'augments': it['augments'],
+                'minor': it['minor'], 'is_raid': it['is_raid'], 'pack': it['pack'],
+                'ml': it['ml'], 'weapon_type': it['weapon_type'],
+                'damage_type': it['damage_type'],
+                'craftable_family': it['craftable_family'],
+            }
+        missing = [n for n in wanted if n not in by_name]
+        return by_name, missing
+    finally:
+        if not isinstance(catalog, sqlite3.Connection):
+            conn.close()
+
+
+def resolve_equipped_augments(catalog, names, priorities):
+    """Augments by exact name, with no ML window.
+
+    Name alone is ambiguous for a handful of augments (the catalog has two
+    called "Deathblock", in different colour slots — see etl/transform.py). A
+    saved gearset records the colour it was slotted in, so a caller that has one
+    should prefer it; this returns every match keyed by name and lets the caller
+    disambiguate, rather than silently picking one.
+    """
+    conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
+    try:
+        wanted = {n for n in names if (n or '').strip()}
+        if not wanted:
+            return {}, []
+        out = {}
+        for aug in parse_augments(conn, 999, priorities, pre_filled_augment_names=list(wanted),
+                                  min_ml=0):
+            if aug['name'] in wanted:
+                out.setdefault(aug['name'], []).append(aug)
+        missing = sorted(n for n in wanted if n not in out)
+        return out, missing
+    finally:
+        if not isinstance(catalog, sqlite3.Connection):
+            conn.close()
+
+
+def resolve_equipped_filigrees(catalog, names, priorities):
+    """Filigrees by exact name, plus the set tiers they can activate."""
+    conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
+    try:
+        fils, filigree_sets = parse_filigrees(conn, priorities)
+        by_name = {f['name']: f for f in fils}
+        wanted = [n for n in names if (n or '').strip()]
+        missing = sorted({n for n in wanted if n not in by_name})
+        return by_name, filigree_sets, missing
+    finally:
+        if not isinstance(catalog, sqlite3.Connection):
+            conn.close()
+
+
+def priorities_with_no_source(catalog, priorities):
+    """Priority names that nothing in the CATALOG grants.
+
+    The solve path answered this from its candidate pool, so a stat that existed
+    but had been filtered out looked identical to a typo. Asking the catalog
+    instead makes it the question it was always meant to be: does anything in
+    the game grant this at all?
+
+    Bonus type is part of the question, not decoration. A priority like
+    "insightful spell focus mastery" names a stat AND the bonus type that has to
+    carry it, so testing every stat against one hardcoded bonus type reports
+    every bonus-type-prefixed priority as unmatched — which is exactly what a
+    first version of this did, and what the oracle differential caught.
+    """
+    conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
+    try:
+        wanted_weapon_stats = wanted_weapon_stats_for(priorities)
+        remaining = list(priorities)
+        matched = set()
+        for raw_type, raw_target, bonus_type in conn.execute("""
+            SELECT DISTINCT s.raw_type, s.raw_target, e.bonus_type
+              FROM effect_target t
+              JOIN stat s   ON s.uuid = t.stat_uuid
+              JOIN effect e ON e.uuid = t.effect_uuid
+        """):
+            if not remaining:
+                break
+            still = []
+            for p in remaining:
+                if _buff(raw_type, raw_target, bonus_type, 1.0, [p],
+                         wanted_weapon_stats=wanted_weapon_stats):
+                    matched.add(p)
+                else:
+                    still.append(p)
+            remaining = still
+        return [p for p in priorities if p not in matched]
+    finally:
+        if not isinstance(catalog, sqlite3.Connection):
+            conn.close()
