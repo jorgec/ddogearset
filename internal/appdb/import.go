@@ -197,18 +197,30 @@ func BuildUUIDForFile(content []byte) string {
 // because the row may have been edited in the app since it was imported and the
 // file cannot know that. Re-import is not a sync.
 func ImportFile(app *sql.DB, catalog Catalog, path, appVersion string) ImportOutcome {
-	out := ImportOutcome{SourceFile: path, Status: StatusFailed}
-
 	content, err := os.ReadFile(path)
 	if err != nil {
-		out.Error = fmt.Sprintf("reading %s: %v", path, err)
-		return out
+		return ImportOutcome{SourceFile: path, Status: StatusFailed,
+			Error: fmt.Sprintf("reading %s: %v", path, err)}
 	}
+	return ImportContent(app, catalog, content, path, appVersion)
+}
+
+// ImportContent is ImportFile for callers that already hold the bytes.
+//
+// The frontend is one: its file picker is a browser <input type="file">, which
+// yields content and never a filesystem path. `sourceLabel` is recorded as the
+// provenance and is a filename in that case rather than a path — it is for
+// telling a human where a build came from, not for reading anything back.
+func ImportContent(app *sql.DB, catalog Catalog, content []byte,
+	sourceLabel, appVersion string) ImportOutcome {
+	out := ImportOutcome{SourceFile: sourceLabel, Status: StatusFailed}
+
 	var saved savedGearset
 	if err := json.Unmarshal(content, &saved); err != nil {
-		out.Error = fmt.Sprintf("%s is not a readable .ddogearset: %v", path, err)
+		out.Error = fmt.Sprintf("%s is not a readable .ddogearset: %v", sourceLabel, err)
 		return out
 	}
+	path := sourceLabel
 
 	out.BuildUUID = BuildUUIDForFile(content)
 	out.BuildName = buildName(saved, path)
@@ -230,7 +242,7 @@ func ImportFile(app *sql.DB, catalog Catalog, path, appVersion string) ImportOut
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
 
-	orphans, err := insertBuild(tx, catalog, saved, out.BuildUUID, out.BuildName, path, appVersion)
+	orphans, err := writeBuild(tx, catalog, saved, out.BuildUUID, out.BuildName, path, appVersion, "")
 	if err != nil {
 		out.Error = err.Error()
 		return out
@@ -261,18 +273,33 @@ func buildName(saved savedGearset, path string) string {
 	return strings.TrimSuffix(base, ".ddogearset")
 }
 
-func insertBuild(tx *sql.Tx, catalog Catalog, saved savedGearset,
-	buildUUID, name, path, appVersion string) ([]Orphan, error) {
+// writeBuild inserts a build and everything hanging off it.
+//
+// The single writer for BOTH entry points — ImportFile and SaveBuild. They
+// differ only in where the content came from and what identity it gets; the
+// mapping from a config map to rows is one implementation on purpose, because
+// two would drift and the drift would show up as an export that no longer
+// round-trips.
+//
+// `importedFrom` is the source path for an import and nil for a save.
+func writeBuild(tx *sql.Tx, catalog Catalog, saved savedGearset,
+	buildUUID, name string, importedFrom interface{}, appVersion, createdAt string) ([]Orphan, error) {
 
 	cfg := saved.Config
 	if cfg == nil {
 		cfg = map[string]interface{}{}
 	}
-	savedAt := saved.SavedAt
+	savedAt := createdAt
+	if savedAt == "" {
+		savedAt = saved.SavedAt
+	}
 	if savedAt == "" {
 		savedAt = nowRFC3339()
 	}
 	fileAppVersion := saved.AppVersion
+	if fileAppVersion == "" {
+		fileAppVersion = appVersion
+	}
 	if fileAppVersion == "" {
 		fileAppVersion = "unknown"
 	}
@@ -286,7 +313,7 @@ func insertBuild(tx *sql.Tx, catalog Catalog, saved savedGearset,
 			caster_restrict_weapon_families, max_search_time)
 		VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?, ?,?)`,
 		buildUUID, name, savedAt, savedAt, fileAppVersion,
-		path,
+		importedFrom,
 		intOr(cfg, "max_level", 34), stringOr(cfg, "build_type", ""),
 		nullString(stringOr(cfg, "weapon_style", "")),
 		nullString(stringOr(cfg, "offhand_style", "")),

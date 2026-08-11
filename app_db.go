@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,7 +47,14 @@ func appDBPathFor() (string, error) {
 // They are an EXPORT format now, not storage (schema §8 Q3) — a file can be
 // sent to someone, a database cannot, so the feature stays while the source of
 // truth moves to app.db.
+//
+// DDO_GEARSET_DIR overrides it, completing the set alongside DDO_CATALOG_DB and
+// DDO_APP_DB. Needed by this project's own tests, which must not write into the
+// real user data directory to check that exporting works.
 func gearsetExportDir() (string, error) {
+	if p := os.Getenv("DDO_GEARSET_DIR"); p != "" {
+		return p, nil
+	}
 	dir, err := userDataDir()
 	if err != nil {
 		return "", err
@@ -113,6 +121,114 @@ func legacyGearsetFiles() []string {
 		}
 	}
 	return found
+}
+
+// ListBuilds returns every stored build, most recently updated first.
+func (a *App) ListBuilds() ([]appdb.BuildSummary, error) {
+	if a.appDB == nil {
+		return nil, fmt.Errorf("user data is unavailable")
+	}
+	return appdb.ListBuilds(a.appDB)
+}
+
+// LoadBuild reads one stored build back into a solve configuration.
+//
+// Returns the configuration and any unresolved references, and NO stats. That
+// is the shape of the release: app.db records what you configured and what you
+// have equipped, and the numbers come from recalculating it. A stored total
+// would be a second answer that goes stale the moment the catalog updates.
+func (a *App) LoadBuild(buildUUID string) (LoadedBuildPayload, error) {
+	var out LoadedBuildPayload
+	if a.appDB == nil {
+		return out, fmt.Errorf("user data is unavailable")
+	}
+	loaded, err := appdb.LoadBuild(a.appDB, buildUUID)
+	if err != nil {
+		return out, err
+	}
+	raw, err := loaded.ConfigJSON()
+	if err != nil {
+		return out, fmt.Errorf("reading build %s: %w", buildUUID, err)
+	}
+	var config OptimizationPayload
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return out, fmt.Errorf("reading build %s: %w", buildUUID, err)
+	}
+	return LoadedBuildPayload{
+		UUID:    loaded.UUID,
+		Name:    loaded.Name,
+		Config:  config,
+		Orphans: loaded.Orphans,
+	}, nil
+}
+
+// LoadedBuildPayload is LoadBuild's wire shape — the generic config map from
+// appdb, unmarshaled into the same OptimizationPayload the frontend already
+// binds to, so nothing downstream learns a second config type.
+type LoadedBuildPayload struct {
+	UUID    string              `json:"uuid"`
+	Name    string              `json:"name"`
+	Config  OptimizationPayload `json:"config"`
+	Orphans []appdb.Orphan      `json:"orphans,omitempty"`
+}
+
+// DeleteBuild removes a stored build and everything belonging to it.
+func (a *App) DeleteBuild(buildUUID string) error {
+	if a.appDB == nil {
+		return fmt.Errorf("user data is unavailable")
+	}
+	if err := appdb.DeleteBuild(a.appDB, buildUUID); err != nil {
+		return err
+	}
+	a.addLog("Deleted build " + buildUUID)
+	return nil
+}
+
+// ImportGearsetFile imports one .ddogearset chosen by the user.
+//
+// This is what the Load button became. The file is read, not moved or deleted —
+// import copies it in, and the file stays wherever the user keeps it.
+func (a *App) ImportGearsetFile(path string) (appdb.ImportOutcome, error) {
+	if a.appDB == nil {
+		return appdb.ImportOutcome{}, fmt.Errorf("user data is unavailable")
+	}
+	resolver, closeCatalog, err := a.nameResolver()
+	if err != nil {
+		return appdb.ImportOutcome{}, err
+	}
+	defer closeCatalog()
+
+	outcome := appdb.ImportFile(a.appDB, resolver, path, AppVersion)
+	if outcome.Status == appdb.StatusFailed {
+		return outcome, fmt.Errorf("%s", outcome.Error)
+	}
+	a.addLog(fmt.Sprintf("Imported %s: %s (%d unresolved reference(s)).",
+		filepath.Base(path), outcome.Status, len(outcome.Orphans)))
+	return outcome, nil
+}
+
+// ImportGearsetContent imports a .ddogearset the frontend already read.
+//
+// The UI's file picker is a browser <input type="file">, which hands back
+// content and never a path, so this is the entry point the Load button uses.
+// `filename` is recorded as provenance only.
+func (a *App) ImportGearsetContent(filename, content string) (appdb.ImportOutcome, error) {
+	if a.appDB == nil {
+		return appdb.ImportOutcome{}, fmt.Errorf("user data is unavailable")
+	}
+	resolver, closeCatalog, err := a.nameResolver()
+	if err != nil {
+		return appdb.ImportOutcome{}, err
+	}
+	defer closeCatalog()
+
+	outcome := appdb.ImportContent(a.appDB, resolver, []byte(content), filename, AppVersion)
+	if outcome.Status == appdb.StatusFailed {
+		return outcome, fmt.Errorf("%s", outcome.Error)
+	}
+	a.addLog(fmt.Sprintf("Imported %s: %s (%d unresolved reference(s)).",
+		filename, outcome.Status, len(outcome.Orphans)))
+	return outcome, nil
 }
 
 // ImportLegacyGearsets imports every .ddogearset this machine can find into

@@ -1,5 +1,33 @@
 export namespace appdb {
 	
+	export class BuildSummary {
+	    uuid: string;
+	    name: string;
+	    buildType: string;
+	    weaponStyle: string;
+	    maxLevel: number;
+	    updatedAt: string;
+	    importedFrom?: string;
+	    slotCount: number;
+	    orphanCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BuildSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uuid = source["uuid"];
+	        this.name = source["name"];
+	        this.buildType = source["buildType"];
+	        this.weaponStyle = source["weaponStyle"];
+	        this.maxLevel = source["maxLevel"];
+	        this.updatedAt = source["updatedAt"];
+	        this.importedFrom = source["importedFrom"];
+	        this.slotCount = source["slotCount"];
+	        this.orphanCount = source["orphanCount"];
+	    }
+	}
 	export class Orphan {
 	    kind: string;
 	    slot?: string;
@@ -388,6 +416,43 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class LoadedBuildPayload {
+	    uuid: string;
+	    name: string;
+	    config: OptimizationPayload;
+	    orphans?: appdb.Orphan[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LoadedBuildPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uuid = source["uuid"];
+	        this.name = source["name"];
+	        this.config = this.convertValues(source["config"], OptimizationPayload);
+	        this.orphans = this.convertValues(source["orphans"], appdb.Orphan);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class ReconciliationReport {
 	    status: string;
 	    elapsedSeconds: number;

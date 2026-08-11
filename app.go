@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"goGearset/internal/appdb"
 	"goGearset/internal/catalog"
 	"goGearset/internal/models"
 	"goGearset/internal/services"
@@ -122,12 +123,6 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.logs = make([]string, 0)
 
-	// Seed catalog.db into the user data directory before loading caches from
-	// it — on a fresh install nothing is there yet, so this is what makes a
-	// freshly unzipped/installed app self-sufficient with no manual setup
-	// step and no network access (docs/0.5.0/00_ETL_START_HERE.md Phase 6).
-	// Runs in the same background goroutine as loadCaches so startup()
-	// itself returns immediately.
 	// app.db first, and NOT in the goroutine below: it is the user's own data,
 	// every RPC that persists anything needs the handle, and opening it is a
 	// local file operation measured in milliseconds — there is nothing to
@@ -137,6 +132,11 @@ func (a *App) startup(ctx context.Context) {
 		a.addLog("Warning: user data unavailable, nothing will be saved: " + err.Error())
 	}
 
+	// Seed catalog.db into the user data directory before loading caches from
+	// it — on a fresh install nothing is there yet, so this is what makes a
+	// freshly unzipped/installed app self-sufficient with no manual setup
+	// step and no network access (docs/0.5.0/00_ETL_START_HERE.md Phase 6).
+	// Runs in a background goroutine so startup() itself returns immediately.
 	go func() {
 		path, err := a.ensureCatalogSeeded()
 		if err != nil {
@@ -697,6 +697,56 @@ func (a *App) ParseMetadata(filePath string) error {
 // runSolver marshals payload, writes it to a UNIQUE temp file, invokes the
 // bundled solver, and returns the raw JSON from the captured JSON_RESULT line.
 //
+// solverCommand builds the solver invocation: binary, payload path, working
+// directory and environment.
+//
+// Split out of runSolver so the properties that are easy to get wrong and
+// invisible at runtime — a working directory the app cannot write to, a missing
+// environment variable — can be asserted without running a solve.
+func (a *App) solverCommand(payloadPath string) *exec.Cmd {
+	cmd := exec.Command(a.solverPath, payloadPath)
+
+	// The solver writes gearset_output.txt (a human-readable dump of the run)
+	// relative to ITS working directory, which it inherits from this process.
+	// That is the same defect 0.5.1 fixed in SaveGearset: for a double-clicked
+	// .app the working directory is not the user's home, and on a read-only
+	// volume the write fails outright — it has only ever worked because the app
+	// gets launched from the repo during development. Pointing it at the user
+	// data directory makes the file both writable and findable.
+	//
+	// Nothing reads this file back; it exists for a human to look at.
+	if dir, err := userDataDir(); err == nil {
+		if err := os.MkdirAll(dir, 0755); err == nil {
+			cmd.Dir = dir
+		}
+	}
+
+	// GLPSOL_PATH tells optimizer.py's _glpk_cmd() exactly which bundled
+	// glpsol to run instead of a hardcoded install path (see
+	// docs/PHASE10_HANDOFF.md). LD_LIBRARY_PATH/DYLD_LIBRARY_PATH are set
+	// unconditionally as a cross-platform fallback so glpsol's shared
+	// libraries (co-extracted into a.solverDir) resolve even if a build's
+	// dynamic-linker patching step (macOS's install_name_tool, see
+	// build-mac.sh) was skipped or is incomplete for a given platform;
+	// they're harmless no-ops on platforms/binaries that don't need them.
+	// DDO_CATALOG_DB gives solver.py the same seeded catalog path Go's own
+	// caches read (a.catalogDBPath, set once by ensureCatalogSeeded() in
+	// startup() — see catalog_seed.go). Python no longer depends on
+	// inheriting the Go process's working directory, or on DDOBuilderV2
+	// existing on disk at all (docs/0.5.0/00_ETL_START_HERE.md Phase 6).
+	catalogAbsPath, absErr := filepath.Abs(a.catalogDBPath)
+	if absErr != nil {
+		catalogAbsPath = a.catalogDBPath
+	}
+	cmd.Env = append(os.Environ(),
+		"GLPSOL_PATH="+a.glpsolPath,
+		"LD_LIBRARY_PATH="+a.solverDir,
+		"DYLD_LIBRARY_PATH="+a.solverDir,
+		"DDO_CATALOG_DB="+catalogAbsPath,
+	)
+	return cmd
+}
+
 // Two behaviors that matter (docs/PHASE10_PLAN.md §2.7, §7.2):
 //
 //  1. The payload file is created with os.CreateTemp rather than a hardcoded
@@ -736,30 +786,7 @@ func (a *App) runSolver(payload any) (json.RawMessage, error) {
 	}
 
 	a.addLog("Invoking solver...")
-	cmd := exec.Command(a.solverPath, tmpFile)
-	// GLPSOL_PATH tells optimizer.py's _glpk_cmd() exactly which bundled
-	// glpsol to run instead of a hardcoded install path (see
-	// docs/PHASE10_HANDOFF.md). LD_LIBRARY_PATH/DYLD_LIBRARY_PATH are set
-	// unconditionally as a cross-platform fallback so glpsol's shared
-	// libraries (co-extracted into a.solverDir) resolve even if a build's
-	// dynamic-linker patching step (macOS's install_name_tool, see
-	// build_releases.sh) was skipped or is incomplete for a given platform;
-	// they're harmless no-ops on platforms/binaries that don't need them.
-	// DDO_CATALOG_DB gives solver.py the same seeded catalog path Go's own
-	// caches read (a.catalogDBPath, set once by ensureCatalogSeeded() in
-	// startup() — see catalog_seed.go). Python no longer depends on
-	// inheriting the Go process's working directory, or on DDOBuilderV2
-	// existing on disk at all (docs/0.5.0/00_ETL_START_HERE.md Phase 6).
-	catalogAbsPath, absErr := filepath.Abs(a.catalogDBPath)
-	if absErr != nil {
-		catalogAbsPath = a.catalogDBPath
-	}
-	cmd.Env = append(os.Environ(),
-		"GLPSOL_PATH="+a.glpsolPath,
-		"LD_LIBRARY_PATH="+a.solverDir,
-		"DYLD_LIBRARY_PATH="+a.solverDir,
-		"DDO_CATALOG_DB="+catalogAbsPath,
-	)
+	cmd := a.solverCommand(tmpFile)
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = cmd.Stdout
 
@@ -1010,8 +1037,91 @@ func (a *App) OpenFile(filePath string) error {
 	return exec.Command("open", absPath).Start()
 }
 
-// SaveGearset writes the payload and result to a .ddogearset file in the gearsets/ directory
+// SaveGearset persists a build and writes a .ddogearset export of it.
+//
+// Both, on purpose. app.db is the storage from 0.5.1 on (schema §8 Q3), but a
+// file is the only thing you can hand to somebody else, so exporting stays —
+// same format, same version "1.2", same checksum, byte-for-byte what 0.5.0
+// wrote. Whichever the user thinks they pressed, they get both.
+//
+// The database write is the one that must not be silently skipped: a save
+// reported as successful that only produced a file would look identical from
+// the UI and lose the build on the next launch. The export is best-effort by
+// comparison — it is a copy.
 func (a *App) SaveGearset(payload OptimizationPayload, result ResultPayload) (string, error) {
+	if err := a.persistBuild(payload); err != nil {
+		return "", err
+	}
+	return a.exportGearsetFile(payload, result)
+}
+
+// persistBuild upserts the configuration and equipped gearset into app.db.
+func (a *App) persistBuild(payload OptimizationPayload) error {
+	if a.appDB == nil {
+		return fmt.Errorf("user data is unavailable, so this build cannot be saved")
+	}
+	config, err := payloadAsMap(payload)
+	if err != nil {
+		return err
+	}
+	resolver, closeCatalog, err := a.nameResolver()
+	if err != nil {
+		return err
+	}
+	defer closeCatalog()
+
+	saved, err := appdb.SaveBuild(a.appDB, resolver, config, AppVersion)
+	if err != nil {
+		return err
+	}
+	verb := "Updated"
+	if saved.Created {
+		verb = "Saved"
+	}
+	a.addLog(fmt.Sprintf("%s build %q (%d unresolved reference(s)).",
+		verb, saved.Name, len(saved.Orphans)))
+	return nil
+}
+
+// payloadAsMap round-trips the payload through JSON so appdb sees exactly the
+// field names the .ddogearset format uses — which is what lets a save and an
+// import share one writer.
+func payloadAsMap(payload OptimizationPayload) (map[string]interface{}, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("serializing the build: %w", err)
+	}
+	var config map[string]interface{}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return nil, fmt.Errorf("serializing the build: %w", err)
+	}
+	return config, nil
+}
+
+// nameResolver opens the catalog for the duration of one operation and returns
+// a closer. Names resolve to UUIDs at write time; nothing keeps the catalog
+// open for it.
+func (a *App) nameResolver() (appdb.Catalog, func(), error) {
+	path := a.catalogDBPath
+	if path == "" {
+		path = catalogPath()
+	}
+	catalogDB, err := catalog.Open(path)
+	if err != nil {
+		return nil, func() {}, fmt.Errorf("cannot resolve item names without the catalog: %w", err)
+	}
+	resolver, err := appdb.NewSQLCatalog(catalogDB)
+	if err != nil {
+		catalogDB.Close()
+		return nil, func() {}, err
+	}
+	return resolver, func() { catalogDB.Close() }, nil
+}
+
+// exportGearsetFile writes the .ddogearset. Unchanged in format from 0.5.0 —
+// only the DIRECTORY moved, out of the process working directory and into the
+// user data directory (see gearsetExportDir).
+func (a *App) exportGearsetFile(payload OptimizationPayload, result ResultPayload) (string, error) {
 	timestamp := time.Now().Format("20060102150405")
 	bt := strings.ReplaceAll(payload.BuildType, " ", "")
 	ws := strings.ReplaceAll(payload.WeaponStyle, " ", "")
@@ -1024,8 +1134,13 @@ func (a *App) SaveGearset(payload OptimizationPayload, result ResultPayload) (st
 		filename = fmt.Sprintf("%s%s_%s.ddogearset", bt, ws, timestamp)
 	}
 
-	dir := "gearsets"
-	os.MkdirAll(dir, 0755)
+	dir, err := gearsetExportDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("creating the export directory: %w", err)
+	}
 
 	path := filepath.Join(dir, filename)
 

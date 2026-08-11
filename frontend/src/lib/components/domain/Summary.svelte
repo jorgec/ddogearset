@@ -1,6 +1,13 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
-  import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus } from '../../../../wailsjs/go/main/App';
+  import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus,
+           ListBuilds, LoadBuild, ImportGearsetContent } from '../../../../wailsjs/go/main/App';
+  import { onMount } from 'svelte';
+  import type { appdb } from '../../../../wailsjs/go/models';
+  // Imported as a VALUE (not `import type`) because createFrom is a static
+  // method on the generated class, and the type-only import above cannot
+  // reach it.
+  import { main as mainModels } from '../../../../wailsjs/go/models';
   import TierReport from './TierReport.svelte';
   import Accordion from '../ui/Accordion.svelte';
   import { migrateLegacyCasterFields } from '$lib/data/statPriorities';
@@ -225,6 +232,59 @@
   })();
   $: loadSetTierMax(activeSetRows.map((r) => r.name));
 
+  // Stored builds (app.db). The .ddogearset file is an EXPORT format from
+  // 0.5.1 on — storage is the database, so this list, not the file picker, is
+  // the normal way back to a gearset. Refreshed after every save and import
+  // rather than kept live: saves are rare and a stale list is confusing.
+  let builds: appdb.BuildSummary[] = [];
+  let selectedBuild = '';
+
+  async function refreshBuilds() {
+      try {
+          builds = await ListBuilds();
+      } catch (e) {
+          // Storage being unavailable is survivable — the app still solves.
+          // Logged, not surfaced: an error toast on every mount for something
+          // the user cannot act on is noise.
+          console.error('Failed to list saved builds', e);
+          builds = [];
+      }
+  }
+  onMount(refreshBuilds);
+
+  async function openBuild(uuid: string) {
+      if (!uuid) return;
+      $isOptimizing = true;
+      try {
+          const loaded = await LoadBuild(uuid);
+          // createFrom, not a spread: the generated bindings are CLASSES, and a
+          // plain object literal is not assignable to one. The file-picker path
+          // below gets away with a spread only because JSON.parse gives it `any`.
+          $configStore = migrateLegacyConfig(mainModels.OptimizationPayload.createFrom(
+              { ...$configStore, ...loaded.config, calculate_only: false }));
+          if (loaded.orphans?.length) {
+              const names = loaded.orphans.map((o) => o.name).join(', ');
+              showToast(
+                  `This build references ${loaded.orphans.length} item(s) that are no longer ` +
+                  `in the catalog: ${names}. Everything else loaded normally.`,
+                  'info'
+              );
+          }
+      } catch (e) {
+          console.error(e);
+          showToast('Failed to load build: ' + e, 'error');
+          $isOptimizing = false;
+          return;
+      }
+      // A stored build carries no stats by design — app.db records what you
+      // configured and what you have equipped, and the numbers come from
+      // recalculating them.
+      $resultStore = null as any;
+      $isOptimizing = false;
+      await calculateStats();
+      await refreshBuilds();
+  }
+
   function loadGearset() {
       const input = document.createElement('input');
       input.type = 'file';
@@ -256,6 +316,21 @@
                       }
                   } catch (e) {
                       console.error('Failed to verify gearset checksum', e);
+                  }
+
+                  // Loading a file is now an IMPORT: the build lands in
+                  // app.db so it survives without the file, and the file stays
+                  // exactly where the user keeps it. Failure here is reported
+                  // but does not stop the load — being unable to persist should
+                  // not stop someone looking at their own gearset.
+                  try {
+                      const outcome = await ImportGearsetContent(file.name, rawText);
+                      if (outcome.status === 'imported') {
+                          await refreshBuilds();
+                      }
+                  } catch (e) {
+                      console.error('Failed to import gearset into storage', e);
+                      showToast('Loaded, but could not save this to your builds: ' + e, 'error');
                   }
 
                   const data = JSON.parse(rawText);
@@ -347,7 +422,8 @@
   async function saveGearset() {
       try {
           const path = await SaveGearset($configStore, $resultStore);
-          showToast('Saved successfully to ' + path, 'success');
+          await refreshBuilds();
+          showToast('Saved. Exported a copy to ' + path, 'success');
       } catch (e) {
           console.error(e);
           showToast('Failed to save gearset: ' + e, 'error');
@@ -363,6 +439,17 @@
             <input id="gearset-name-input" type="text" bind:value={$configStore.gearset_name}
                    class="w-32 rounded border border-carved bg-void/50 px-2 py-1 text-xs text-vellum placeholder:text-steel/50 focus:outline-none focus:ring-1 focus:ring-ring"
                    placeholder="Gearset name" />
+            {#if builds.length}
+              <select bind:value={selectedBuild} disabled={$isOptimizing}
+                      on:change={() => openBuild(selectedBuild)}
+                      title="Open a saved build"
+                      class="w-36 rounded border border-carved bg-void/50 px-2 py-1 text-[11px] text-vellum focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="">Saved builds…</option>
+                {#each builds as b (b.uuid)}
+                  <option value={b.uuid}>{b.name}{b.orphanCount ? ' (!)' : ''}</option>
+                {/each}
+              </select>
+            {/if}
             <button on:click={loadGearset} disabled={$isOptimizing}
                     class="px-2 py-1 text-[11px] rounded border border-carved bg-carved/60 text-vellum hover:bg-carved hover:shadow-press transition-all disabled:opacity-50 flex items-center gap-1">
                 {#if $isOptimizing}

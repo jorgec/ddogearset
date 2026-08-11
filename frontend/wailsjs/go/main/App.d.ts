@@ -4,6 +4,8 @@ import {models} from '../models';
 import {main} from '../models';
 import {appdb} from '../models';
 
+export function DeleteBuild(arg1:string):Promise<void>;
+
 export function GetAppVersion():Promise<string>;
 
 export function GetAugmentByName(arg1:string):Promise<models.XMLAugment>;
@@ -28,7 +30,15 @@ export function GetSystemLogs():Promise<Array<string>>;
 
 export function GetTroveOwnedItems(arg1:string):Promise<main.TroveOwnedItemsResult>;
 
+export function ImportGearsetContent(arg1:string,arg2:string):Promise<appdb.ImportOutcome>;
+
+export function ImportGearsetFile(arg1:string):Promise<appdb.ImportOutcome>;
+
 export function ImportLegacyGearsets():Promise<Array<appdb.ImportOutcome>>;
+
+export function ListBuilds():Promise<Array<appdb.BuildSummary>>;
+
+export function LoadBuild(arg1:string):Promise<main.LoadedBuildPayload>;
 
 export function LoadTroveInventory(arg1:string):Promise<main.TroveInventoryResult>;
 
