@@ -296,12 +296,22 @@
       return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
+  // Confirmation goes through the app's own toast actions, NOT window.confirm.
+  //
+  // Wails' webview does not implement the JavaScript dialog delegates, so
+  // `confirm()` returns false without ever showing anything — the Delete button
+  // silently did nothing. It was the only `confirm()` in the codebase, which was
+  // the tell: this app has always asked with an action toast.
   async function deleteBuild(b: appdb.BuildSummary) {
-      // Deleting a build takes its gearset and its whole run history with it
-      // (ON DELETE CASCADE), and nothing here can undo that.
-      if (!confirm(`Delete "${b.name}"? This removes the build, its gearset and its run history. This cannot be undone.`)) {
-          return;
-      }
+      showToast(
+          `Delete "${b.name}"? This removes the build, its gearset and its run ` +
+          `history, and cannot be undone.`,
+          'error',
+          [{ label: 'Delete', onClick: () => confirmDeleteBuild(b) }]
+      );
+  }
+
+  async function confirmDeleteBuild(b: appdb.BuildSummary) {
       try {
           await DeleteBuild(b.uuid);
           await refreshBuilds();

@@ -275,6 +275,7 @@ not start.
 | "Failed to load Python shared library" | Symlink manifest missing or stale — §5.3 |
 | Frontend types disagree with Go | Run `wails generate module` after every Go struct change |
 | `codesign` fails on macOS | Anaconda's `install_name_tool` shadowing Apple's; the build scripts use absolute `/usr/bin` paths for exactly this reason |
+| A button silently does nothing | Something reached for `window.confirm`/`alert`/`prompt`. Wails' webview never shows them and `confirm` returns false, so the guarded code never runs. Use `showToast(text, kind, [{label, onClick}])`; `TestFrontendUsesNoNativeDialogs` enforces it |
 
 `wails generate module` is worth repeating: `frontend/tsconfig.json` excludes
 `wailsjs/`, so stale bindings type-check clean and misbehave at runtime.

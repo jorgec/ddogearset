@@ -283,14 +283,25 @@
   //
   // Confirmed first, because it discards work that is only recoverable if it
   // happened to be saved.
+  // Asks with an action toast, not window.confirm — Wails' webview never shows
+  // the latter and returns false, which would make this button silently do
+  // nothing (exactly what happened to Delete).
   function startNew() {
       const hasWork = Object.keys($configStore.pre_equipped ?? {}).length > 0 ||
                       ($configStore.stat_priorities?.length ?? 0) > 0;
-      if (hasWork && !confirm(
-          'Start a new build? This clears your priorities, settings and equipped gear. ' +
-          'Anything you have saved stays in the database.')) {
+      if (!hasWork) {
+          resetToNewBuild();
           return;
       }
+      showToast(
+          'Start a new build? This clears your priorities, settings and equipped ' +
+          'gear. Anything you have saved stays in the database.',
+          'info',
+          [{ label: 'Start New', onClick: resetToNewBuild }]
+      );
+  }
+
+  function resetToNewBuild() {
       $configStore = defaultConfig();
       $resultStore = null as unknown as main.ResultPayload;
       selectedItemDetails = null;
@@ -298,7 +309,7 @@
       availableItems = [];
       alternativesSlot = null;
       inventoryChecked = false;
-      showToast('Started a new build.', 'info');
+      showToast('Started a new build.', 'success');
   }
 
   // Clears the GEARSET only — never the parameters.
