@@ -1049,6 +1049,49 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         if weapon1_vars:
             prob += pulp.lpSum(weapon1_vars) == 1, "Weapon1_Always_Required"
 
+    # BUG FIX — Handwraps occupy both hands. weapon_style's twf_weapons list
+    # (solver.py) legitimately includes 'handwraps' — a monk's unarmed attack
+    # chain IS a two-weapon-fighting style for feat/enhancement purposes — so
+    # it is eligible for either Weapon1 OR Weapon2 exactly like a dagger or
+    # kukri, and BOTH slots draw from the same twf_weapons pool. But it is not
+    # one-handed: wherever it lands, the OTHER weapon slot must stay empty,
+    # the same way Two Handed Fighting's w2_list=['none'] already keeps
+    # Weapon2 empty for great swords/mauls/etc. Nothing upstream enforces that
+    # for handwraps specifically, because weapon_style narrows the CANDIDATE
+    # POOL for a slot, not what a particular chosen item implies about the
+    # other slot.
+    #
+    # Symmetric on purpose — a first version only checked handwraps-in-
+    # Weapon1, and the model duly moved handwraps INTO Weapon2 instead to
+    # keep collecting a same-slot-pool offhand's value in Weapon1 (caught by
+    # test_handwraps_lock_out_weapon2, which puts both items in
+    # ["Weapon1", "Weapon2"] to make exactly that escape route reachable).
+    #
+    # Modeled as two implications, not a slot removal, because they must hold
+    # regardless of which weapon_style produced the candidate pool (Two
+    # Weapon Fighting, or Single Weapon Fighting's non-swashbuckling
+    # fallback, both route through twf_weapons): if the model puts ANY
+    # handwraps item in one weapon slot, the other slot's own sum is forced
+    # to 0. Each weapon slot is capped at exactly one item
+    # (Weapon1_Always_Required, above, and the general per-slot <=1), so
+    # each handwraps-in-slot indicator is always 0 or 1 — no big-M needed.
+    handwraps_in_w1 = [x[(i, 'Weapon1')] for i, item in enumerate(items)
+                       if (item.get('weapon_type') or '').lower() == 'handwraps'
+                       and (i, 'Weapon1') in x]
+    handwraps_in_w2 = [x[(i, 'Weapon2')] for i, item in enumerate(items)
+                       if (item.get('weapon_type') or '').lower() == 'handwraps'
+                       and (i, 'Weapon2') in x]
+    if handwraps_in_w1:
+        weapon2_vars = [x[(i, 'Weapon2')] for i in range(len(items)) if (i, 'Weapon2') in x]
+        if weapon2_vars:
+            prob += (pulp.lpSum(weapon2_vars) <=
+                     1 - pulp.lpSum(handwraps_in_w1)), "Handwraps_In_W1_Locks_Weapon2"
+    if handwraps_in_w2:
+        weapon1_vars = [x[(i, 'Weapon1')] for i in range(len(items)) if (i, 'Weapon1') in x]
+        if weapon1_vars:
+            prob += (pulp.lpSum(weapon1_vars) <=
+                     1 - pulp.lpSum(handwraps_in_w2)), "Handwraps_In_W2_Locks_Weapon1"
+
     if require_weapon2 and 'Weapon2' in required_slots:
         weapon2_vars = [x[(i, 'Weapon2')] for i in range(len(items)) if (i, 'Weapon2') in x]
         if weapon2_vars:

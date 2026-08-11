@@ -1507,6 +1507,108 @@ def test_weapon2_not_forced_when_flag_unset():
     assert "Weapon1_Always_Required" in model.prob.constraints
 
 
+def test_handwraps_lock_out_weapon2():
+    # Bug: handwraps occupy both hands. weapon_style's twf_weapons list
+    # (solver.py) legitimately makes handwraps eligible for either Weapon1 OR
+    # Weapon2 — a monk's unarmed chain IS a two-weapon-fighting style for
+    # feat/enhancement purposes — so nothing upstream stopped the model from
+    # also filling Weapon2 once handwraps landed in Weapon1.
+    #
+    # Stacking bonus type on the offhand candidate, deliberately: a Stacking
+    # source always adds strictly positive objective value regardless of
+    # what else is equipped, unlike Enhancement (non-stacking — max, not sum
+    # — which would make the model drop an unused offhand on its OWN merits
+    # and pass this test for the wrong reason, proving nothing about the new
+    # constraint). If Weapon2 stays empty here, it is because
+    # Handwraps_Locks_Weapon2 forced it, not because the item was worthless.
+    handwraps = make_weapon_item(
+        "Fists of Iron", ["Weapon1", "Weapon2"],
+        [("melee power", "Enhancement", 20.0)], weapon_type="Handwraps")
+    offhand_dagger = make_weapon_item(
+        "Plain Dagger", ["Weapon1", "Weapon2"],
+        [("melee power", "Stacking", 5.0)], weapon_type="Dagger")
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+
+    result, _log = solve([handwraps, offhand_dagger], entries)
+
+    assert result["gearSet"].get("Weapon1") == "Fists of Iron", (
+        "setup: the higher-value item should win Weapon1 on Tier 1 score")
+    assert "Weapon2" not in result["gearSet"], (
+        "Weapon2 must stay empty when handwraps occupy Weapon1, even though "
+        "a legal-looking offhand candidate was available and would have "
+        "scored strictly higher"
+    )
+
+
+def test_handwraps_do_not_lock_weapon2_when_not_equipped():
+    # The constraint must be conditional on handwraps actually WINNING
+    # Weapon1, not a blanket ban on Weapon2 whenever a handwraps item merely
+    # exists in the candidate pool.
+    #
+    # Stacking bonus type on the offhand buff, deliberately: two Enhancement
+    # sources to the same stat are NON-stacking (max, not sum) in DDO, so a
+    # same-type offhand buff contributes nothing extra regardless of this
+    # constraint — the model's OWN consolidation stage already drops a
+    # non-load-bearing item, and a first version of this test tripped on
+    # exactly that, independent of handwraps entirely.
+    handwraps = make_weapon_item(
+        "Fists of Iron", ["Weapon1", "Weapon2"], [], weapon_type="Handwraps")
+    main_hand = make_weapon_item(
+        "Plain Longsword", ["Weapon1"],
+        [("melee power", "Enhancement", 20.0)], weapon_type="Longsword")
+    offhand = make_weapon_item(
+        "Plain Dagger", ["Weapon2"],
+        [("melee power", "Stacking", 5.0)], weapon_type="Dagger")
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+
+    result, _log = solve([handwraps, main_hand, offhand], entries)
+
+    assert result["gearSet"].get("Weapon1") == "Plain Longsword"
+    assert result["gearSet"].get("Weapon2") == "Plain Dagger", (
+        "an unused handwraps candidate must not lock out a real offhand")
+
+
+def test_handwraps_lock_out_weapon1_if_placed_in_weapon2():
+    # The other direction. Both slots draw from the same twf_weapons pool
+    # (solver.py), so the model is equally free to place handwraps in Weapon2
+    # while something else takes Weapon1 — physically the same violation
+    # (handwraps in either hand fills both), so it must be blocked the same
+    # way. In practice Weapon1_Always_Required (a separate, pre-existing hard
+    # constraint) already keeps this combination from ever winning, since it
+    # demands Weapon1 be filled unconditionally; this test pins that the two
+    # constraints agree rather than silently relying on one to save the other.
+    handwraps = make_weapon_item(
+        "Fists of Iron", ["Weapon1", "Weapon2"],
+        [("melee power", "Stacking", 20.0)], weapon_type="Handwraps")
+    main_hand = make_weapon_item(
+        "Plain Longsword", ["Weapon1", "Weapon2"],
+        [("melee power", "Enhancement", 5.0)], weapon_type="Longsword")
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+
+    result, _log = solve([handwraps, main_hand], entries)
+
+    if result["gearSet"].get("Weapon2") == "Fists of Iron":
+        assert "Weapon1" not in result["gearSet"], (
+            "handwraps in Weapon2 must lock out Weapon1 too"
+        )
+
+
+def test_handwraps_in_weapon2_pool_do_not_block_weapon1_alone():
+    # A handwraps item sitting only in the Weapon1 slot's OWN eligibility
+    # (i.e. not chosen) must not trip Handwraps_Locks_Weapon2 at build time —
+    # confirms the constraint reads the SOLVED assignment, not raw pool
+    # membership. create_model must build without error and without the
+    # constraint ever binding when no handwraps item is present at all.
+    items = [make_weapon_item("Plain Longsword", ["Weapon1"], [], weapon_type="Longsword")]
+    entries = [PriorityEntry("melee power", 1, None, 0)]
+    model = optimizer.create_model(items, {}, [], [], entries, 4, ["Weapon1", "Weapon2"])
+    assert "Handwraps_In_W1_Locks_Weapon2" not in model.prob.constraints, (
+        "no handwraps item exists in this pool at all — the constraint "
+        "should not even be added"
+    )
+    assert "Handwraps_In_W2_Locks_Weapon1" not in model.prob.constraints
+
+
 # ---------------------------------------------------------------------------
 # §7 — alternatives
 # ---------------------------------------------------------------------------
