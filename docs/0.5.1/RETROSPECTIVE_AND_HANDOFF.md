@@ -1,8 +1,8 @@
 # 0.5.1 — Retrospective and handoff
 
-**Status:** shipped. Phases 0–6 complete on `major/0.5.0`, 8 commits, working
+**Status:** shipped. Phases 0–6 complete on `major/0.5.0`, 10 commits, working
 tree clean, unpushed. A real `./build-mac.sh` release was built and exercised
-after the last phase landed.
+after the last phase landed — which is how §3.6 was found.
 
 Same shape as [0.5.0's retrospective](../0.5.0/RETROSPECTIVE_AND_HANDOFF.md):
 the first half is what happened and what it taught, the second is what somebody
@@ -128,7 +128,7 @@ not have been stored — and those are the ones most worth recording.
 Both were written down carefully, reviewed, and wrong. Checking a schema against
 the data it will hold is not the same activity as reading it.
 
-### 3.7 The packaged app had never started — and neither had two of its tests
+### 3.6 The packaged app had never started — and neither had two of its tests
 
 The first time the `.app` was actually launched, the solver died with
 *"Failed to load Python shared library"*. **`go:embed` silently skips symbolic
@@ -158,7 +158,7 @@ They went red the moment it was fixed. A test whose premise is that the thing
 under test is broken is worse than no test, and neither of them said out loud
 what it was depending on.
 
-### 3.8 Smaller ones
+### 3.7 Smaller ones
 
 - **A test I could not write honestly.** Phase 2's "a failed save does not
   destroy the previous build" first used an out-of-range priority tier — which
@@ -263,7 +263,7 @@ all of which still hold.
   larger: `app.db`'s path resolution, the migration, and the whole storage layer
   have only ever run on macOS. `TestFirstRunCreatesAppDBWithNoOverrides` skips
   on Windows because `os.UserConfigDir` reads `%AppData%` rather than `HOME`.
-- **The packaged `.app` was launched, and it was broken.** See §3.7 — the first
+- **The packaged `.app` was launched, and it was broken.** See §3.6 — the first
   real launch found that `go:embed` silently drops symlinks, so the extracted
   solver had been unable to start since the `--onedir` switch in 0.5.0. Fixed,
   with the extraction now verified by running the extracted binary. What is
@@ -300,7 +300,7 @@ all of which still hold.
   no GLPK involved, recalculated the gearset the old implementation refused:
   14 slots, 12 realized stats, two warnings, `allEffectsDetail` present, in
   **0.55–0.66 s** warm.
-- After the symlink fix (§3.7), the full path was exercised end to end: extract
+- After the symlink fix (§3.6), the full path was exercised end to end: extract
   the embedded bundle exactly as launch does, run the extracted solver, and
   recalculate through `RecalculateGearset` — producing a stored run stamped with
   catalog `f91af4e6`.
