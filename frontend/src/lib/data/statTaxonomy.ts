@@ -215,7 +215,12 @@ export const STAT_TAXONOMY: StatTaxonomyCategory[] = [
         children: [
             {
                 label: 'Pact Dice',
-                stat: 'pact dice',
+                stat: 'power in pact',
+                note: 'Use instead of, not alongside, traditional spellpower/DC for Eldritch Blast builds.',
+            },
+            {
+                label: 'Eldritch Blast',
+                stat: 'eldritch blast',
                 note: 'Use instead of, not alongside, traditional spellpower/DC for Eldritch Blast builds.',
             },
         ],
