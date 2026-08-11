@@ -24,6 +24,38 @@
 version: 1
 
 # ---------------------------------------------------------------------------
+# The one delta between `result` and the CURRENT implementation, found the
+# first time the oracle was ever actually replayed (0.5.1 Phase 0).
+# ---------------------------------------------------------------------------
+list_ordering_changed_by_the_catalog_migration:
+  observed: 2026-08-11
+  scope: all 12 replayable fixtures
+  finding: >
+    Every value is identical — realizedStats, gearSet, tierScores,
+    priorityTiers, slots' items and augments, all of it. Four lists come back
+    in a different ORDER: activeSets, allEffects.<stat>, filigrees.<bucket>,
+    and slots.<slot>.filigrees. Same multisets, no additions, no removals.
+  cause: >
+    0.5.0 moved Python from iterating XML files to iterating SQL rows. The
+    reshuffle is deterministic — verified identical across PYTHONHASHSEED 0, 1
+    and 12345 — and is a one-time consequence of the source change, not
+    nondeterminism.
+  why_no_gate_caught_it: >
+    The parser snapshot canonicalises (sorts) before hashing, so ordering is
+    invisible to it, and the oracle differential did not exist until now. The
+    0.5.0 plan asserted Phase 4's gate covered the oracle; what it actually
+    covered was the parser snapshot.
+  accepted: >
+    Not fixed. Both orders are arbitrary, and churning the fixtures to bless
+    one would spend the pre-catalog reference for nothing. The four paths are
+    listed as UNORDERED_PATHS in test_oracle_differential.py, which compares
+    them as multisets and every other list in order.
+  consequence_for_0_5_1: >
+    gearset_filigree.position (schema §5.2) is storage, not semantics. Nothing
+    may treat a filigree's index as meaningful — this finding is the proof that
+    the index already moved once without changing a single number.
+
+# ---------------------------------------------------------------------------
 # Fixtures whose stored stats are NOT a valid reference at all.
 # ---------------------------------------------------------------------------
 untrustworthy_stored_stats:

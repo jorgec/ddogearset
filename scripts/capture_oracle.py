@@ -206,6 +206,10 @@ def run_solver(payload, workdir, env):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="substring filter on filename")
+    ap.add_argument("--force", action="store_true",
+                    help="allow a failed capture to overwrite a fixture that "
+                         "currently holds a successful one (see the guard in "
+                         "the failure branch below)")
     ap.add_argument("--app-version", default="0.4.4",
                     help="version stamp recorded in each capture")
     args = ap.parse_args()
@@ -214,8 +218,17 @@ def main():
         sys.exit(f"python venv not found at {PYTHON}")
 
     env = dict(os.environ)
-    env["DDO_DATA_PATH"] = str(REPO / "DDOBuilderV2" / "Output" / "DataFiles")
     bundle = REPO / "bundled" / "darwin-arm64"
+    # DDO_CATALOG_DB, not the DDO_DATA_PATH this used to set: 0.5.0 Phase 6
+    # switched solver.py to read catalog.db and stopped reading DDO_DATA_PATH
+    # entirely, which left this script silently unable to capture anything —
+    # every run failed with "Catalog not found" and, before the guard below
+    # existed, wrote that failure over the fixture it was replaying.
+    catalog = Path(os.environ.get("DDO_CATALOG_DB") or (bundle / "catalog.db"))
+    if not catalog.exists():
+        sys.exit(f"no catalog at {catalog}; build one with `python -m etl` "
+                 "or set DDO_CATALOG_DB")
+    env["DDO_CATALOG_DB"] = str(catalog.resolve())
     if (bundle / "glpsol").exists():
         env["GLPSOL_PATH"] = str(bundle / "glpsol")
         env["DYLD_LIBRARY_PATH"] = str(bundle)
@@ -235,6 +248,12 @@ def main():
         payload, notes = build_payload(data)
         stem = path.stem
         out_path = OUT_DIR / f"{stem}.oracle.json"
+        existing_result = None
+        if out_path.exists():
+            try:
+                existing_result = json.loads(out_path.read_text()).get("result")
+            except (ValueError, OSError):
+                existing_result = None
 
         if not payload["pre_equipped"]:
             record = {
@@ -263,6 +282,18 @@ def main():
             msg = (result or {}).get("errorMessage") or f"rc={rc} {stderr[-200:]}"
             print(f" FAILED after {elapsed}s: {msg}")
             failed += 1
+            # NEVER let a failure destroy a good capture. These fixtures cannot
+            # be regenerated once mode:"calculate" is deleted (0.5.1 Phase 5),
+            # and a failed run is far more often a broken environment than a
+            # real finding — a stale env var here silently replaced a
+            # successful capture with `capture_failed: true` on its first run
+            # after Phase 6. Recording a genuine new failure is what --force is
+            # for, and it should be a decision, not a side effect.
+            if existing_result and not args.force:
+                print(f"        REFUSING to overwrite {out_path.name}, which "
+                      "holds a successful capture. Re-run with --force if this "
+                      "failure is the thing you meant to record.")
+                continue
             record = {
                 "source_file": path.name,
                 "source_version": data.get("version"),
