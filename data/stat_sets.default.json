@@ -80,7 +80,8 @@
       "description": "Pact dice scaling. Deliberately omits Spell DC and elemental spellpower.",
       "notes": "Do not add traditional Spell DC. Spellpower is Tier 5 here because it only affects personal buff spells.",
       "priorities": [
-        { "stat": "pact dice", "tier": 1 },
+        { "stat": "power in pact", "tier": 1 },
+        { "stat": "eldritch blast", "tier": 1 },
         { "stat": "fire spelllore", "tier": 1 },
         { "stat": "fire spellcriticaldamage", "tier": 2 },
         { "stat": "spell points", "tier": 4 },
