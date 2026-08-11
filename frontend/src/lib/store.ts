@@ -1,7 +1,14 @@
 import { writable } from 'svelte/store';
 import type { main } from '../../wailsjs/go/models';
 
-export const configStore = writable<main.OptimizationPayload>(({
+// defaultConfig is the ONE definition of a fresh build's parameters.
+//
+// A factory, not a shared constant: the New button assigns the result straight
+// into the store, and a shared object would let one reset's edits leak into the
+// next. Returning a new object each call also keeps the nested pre_* containers
+// from being aliased across resets.
+export function defaultConfig(): main.OptimizationPayload {
+    return ({
     gearset_name: "",
     max_level: 34,
     build_type: "Melee",
@@ -37,7 +44,10 @@ export const configStore = writable<main.OptimizationPayload>(({
     pre_filled_augments: {} as Record<string, Record<string, string>>,
     pre_filled_filigrees: { weapon: [], artifact: [] } as { weapon: string[], artifact: string[] },
     calculate_only: false
-}) as unknown as main.OptimizationPayload);
+} as unknown as main.OptimizationPayload);
+}
+
+export const configStore = writable<main.OptimizationPayload>(defaultConfig());
 
 export interface ResultPayload {
     success: boolean;

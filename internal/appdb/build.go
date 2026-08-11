@@ -34,6 +34,7 @@ type BuildSummary struct {
 	BuildType    string `json:"buildType"`
 	WeaponStyle  string `json:"weaponStyle"`
 	MaxLevel     int    `json:"maxLevel"`
+	CreatedAt    string `json:"createdAt"`
 	UpdatedAt    string `json:"updatedAt"`
 	ImportedFrom string `json:"importedFrom,omitempty"`
 	SlotCount    int    `json:"slotCount"`
@@ -136,16 +137,20 @@ func saveBuildAs(db *sql.DB, catalog Catalog, config map[string]interface{},
 	return out, nil
 }
 
-// ListBuilds returns every stored build, most recently updated first.
+// ListBuilds returns every stored build, newest first.
+//
+// Ordered by created_at, not updated_at: the list is how someone finds a build
+// they made, and a build's position should not move because they opened it.
+// updated_at is still returned, for showing when it last changed.
 func ListBuilds(db *sql.DB) ([]BuildSummary, error) {
 	rows, err := db.Query(`
 		SELECT b.uuid, b.name, b.build_type, COALESCE(b.weapon_style, ''),
-		       b.max_level, b.updated_at, COALESCE(b.imported_from, ''),
+		       b.max_level, b.created_at, b.updated_at, COALESCE(b.imported_from, ''),
 		       (SELECT count(*) FROM gearset_slot s
 		         WHERE s.build_uuid = b.uuid AND s.origin = 'equipped'),
 		       (SELECT count(*) FROM orphan_reference o WHERE o.build_uuid = b.uuid)
 		  FROM build b
-		 ORDER BY b.updated_at DESC, b.name ASC`)
+		 ORDER BY b.created_at DESC, b.name ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("listing builds: %w", err)
 	}
@@ -157,7 +162,8 @@ func ListBuilds(db *sql.DB) ([]BuildSummary, error) {
 	for rows.Next() {
 		var b BuildSummary
 		if err := rows.Scan(&b.UUID, &b.Name, &b.BuildType, &b.WeaponStyle,
-			&b.MaxLevel, &b.UpdatedAt, &b.ImportedFrom, &b.SlotCount, &b.OrphanCount); err != nil {
+			&b.MaxLevel, &b.CreatedAt, &b.UpdatedAt, &b.ImportedFrom,
+			&b.SlotCount, &b.OrphanCount); err != nil {
 			return nil, fmt.Errorf("reading build row: %w", err)
 		}
 		out = append(out, b)

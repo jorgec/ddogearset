@@ -6,6 +6,7 @@ export namespace appdb {
 	    buildType: string;
 	    weaponStyle: string;
 	    maxLevel: number;
+	    createdAt: string;
 	    updatedAt: string;
 	    importedFrom?: string;
 	    slotCount: number;
@@ -22,6 +23,7 @@ export namespace appdb {
 	        this.buildType = source["buildType"];
 	        this.weaponStyle = source["weaponStyle"];
 	        this.maxLevel = source["maxLevel"];
+	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	        this.importedFrom = source["importedFrom"];
 	        this.slotCount = source["slotCount"];

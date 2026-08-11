@@ -357,3 +357,52 @@ func mustJSON(t *testing.T, v interface{}) string {
 	}
 	return string(raw)
 }
+
+func TestListBuildsIsOrderedByCreationNewestFirst(t *testing.T) {
+	// The build browser is how someone finds a build they made, so position is
+	// by CREATION. Ordering by updated_at would move a build in the list simply
+	// because it was opened, which is the opposite of findable.
+	db, _ := openTestDB(t)
+
+	for _, name := range []string{"First", "Second", "Third"} {
+		config := sampleConfig()
+		config["gearset_name"] = name
+		if _, err := SaveBuild(db, newFakeCatalog(), config, testAppVersion); err != nil {
+			t.Fatal(err)
+		}
+		// created_at is second-resolution RFC3339; without a distinct value the
+		// tie-break is by name and this asserts nothing.
+		if _, err := db.Exec("UPDATE build SET created_at = ? WHERE name = ?",
+			map[string]string{"First": "2026-01-01T00:00:00Z",
+				"Second": "2026-02-01T00:00:00Z",
+				"Third":  "2026-03-01T00:00:00Z"}[name], name); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	builds, err := ListBuilds(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{builds[0].Name, builds[1].Name, builds[2].Name}
+	want := []string{"Third", "Second", "First"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("order = %v, want %v", got, want)
+		}
+	}
+	if builds[0].CreatedAt == "" {
+		t.Error("createdAt is empty; the browser has nothing to show in its Created column")
+	}
+
+	// Re-saving the OLDEST build must not move it to the top.
+	config := sampleConfig()
+	config["gearset_name"] = "First"
+	if _, err := SaveBuild(db, newFakeCatalog(), config, testAppVersion); err != nil {
+		t.Fatal(err)
+	}
+	builds, _ = ListBuilds(db)
+	if builds[0].Name != "Third" {
+		t.Errorf("re-saving a build moved it in the list: now %q is first", builds[0].Name)
+	}
+}

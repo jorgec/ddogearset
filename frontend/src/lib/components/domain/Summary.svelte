@@ -1,7 +1,7 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
   import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus,
-           ListBuilds, LoadBuild, ImportGearsetContent, AcceptAll, BuildIDForCurrentConfig,
+           ListBuilds, LoadBuild, DeleteBuild, ImportGearsetContent, AcceptAll, BuildIDForCurrentConfig,
            RecalculateGearset } from '../../../../wailsjs/go/main/App';
   import { onMount } from 'svelte';
   import type { appdb } from '../../../../wailsjs/go/models';
@@ -279,6 +279,39 @@
   }
   onMount(refreshBuilds);
 
+  // The build browser REPLACES the summary body rather than opening a modal:
+  // this panel is the only place wide enough for a table, and a dialog over a
+  // scroll of stats would hide the thing you are choosing between.
+  let showBuildBrowser = false;
+
+  async function toggleBuildBrowser() {
+      showBuildBrowser = !showBuildBrowser;
+      if (showBuildBrowser) await refreshBuilds();
+  }
+
+  function formatWhen(iso: string): string {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  async function deleteBuild(b: appdb.BuildSummary) {
+      // Deleting a build takes its gearset and its whole run history with it
+      // (ON DELETE CASCADE), and nothing here can undo that.
+      if (!confirm(`Delete "${b.name}"? This removes the build, its gearset and its run history. This cannot be undone.`)) {
+          return;
+      }
+      try {
+          await DeleteBuild(b.uuid);
+          await refreshBuilds();
+          showToast(`Deleted "${b.name}".`, 'info');
+      } catch (e) {
+          console.error(e);
+          showToast('Could not delete that build: ' + e, 'error');
+      }
+  }
+
   async function openBuild(uuid: string) {
       if (!uuid) return;
       $isOptimizing = true;
@@ -308,6 +341,7 @@
       // recalculating them.
       $resultStore = null as any;
       $isOptimizing = false;
+      showBuildBrowser = false;
       await calculateStats();
       await refreshBuilds();
   }
@@ -481,17 +515,12 @@
             <input id="gearset-name-input" type="text" bind:value={$configStore.gearset_name}
                    class="w-32 rounded border border-carved bg-void/50 px-2 py-1 text-xs text-vellum placeholder:text-steel/50 focus:outline-none focus:ring-1 focus:ring-ring"
                    placeholder="Gearset name" />
-            {#if builds.length}
-              <select bind:value={selectedBuild} disabled={$isOptimizing}
-                      on:change={() => openBuild(selectedBuild)}
-                      title="Open a saved build"
-                      class="w-36 rounded border border-carved bg-void/50 px-2 py-1 text-[11px] text-vellum focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="">Saved builds…</option>
-                {#each builds as b (b.uuid)}
-                  <option value={b.uuid}>{b.name}{b.orphanCount ? ' (!)' : ''}</option>
-                {/each}
-              </select>
-            {/if}
+            <button on:click={toggleBuildBrowser} disabled={$isOptimizing}
+                    title="Browse the builds saved in your database"
+                    class="px-2 py-1 text-[11px] rounded border border-carved transition-all disabled:opacity-50
+                           {showBuildBrowser ? 'bg-gold/20 text-gold' : 'bg-carved/60 text-vellum hover:bg-carved hover:shadow-press'}">
+              {showBuildBrowser ? 'Close DB' : 'Open DB'}
+            </button>
             <button on:click={loadGearset} disabled={$isOptimizing}
                     class="px-2 py-1 text-[11px] rounded border border-carved bg-carved/60 text-vellum hover:bg-carved hover:shadow-press transition-all disabled:opacity-50 flex items-center gap-1">
                 {#if $isOptimizing}
@@ -512,7 +541,51 @@
       <div class="gold-rule my-3"></div>
   </div>
 
-  {#if !$resultStore || !$resultStore.success || !Object.keys($resultStore.gearSet || {}).length}
+  {#if showBuildBrowser}
+      <div class="flex-1 min-h-0">
+          {#if builds.length === 0}
+              <div class="flex flex-col items-center justify-center h-64 text-center">
+                  <h3 class="text-lg font-medium text-foreground">No saved builds</h3>
+                  <p class="text-sm text-muted-foreground max-w-sm mt-1">
+                      Press Save to store the current build, or Load to import a .ddogearset file.
+                  </p>
+              </div>
+          {:else}
+              <table class="w-full text-left text-xs">
+                  <thead class="text-[10px] uppercase tracking-wider text-steel/70">
+                      <tr class="border-b border-carved">
+                          <th class="py-1.5 pr-2 font-medium">Name</th>
+                          <th class="py-1.5 pr-2 font-medium">Created</th>
+                          <th class="py-1.5 pr-2 font-medium">Build</th>
+                          <th class="py-1.5 pr-2 font-medium text-right">Slots</th>
+                          <th class="py-1.5 font-medium text-right">Actions</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {#each builds as b (b.uuid)}
+                          <tr class="border-b border-carved/40 hover:bg-carved/30">
+                              <td class="py-1.5 pr-2 text-vellum">
+                                  {b.name}
+                                  {#if b.orphanCount}
+                                      <span class="ml-1 text-blood" title="{b.orphanCount} item(s) are no longer in the catalog">(!)</span>
+                                  {/if}
+                              </td>
+                              <td class="py-1.5 pr-2 text-steel">{formatWhen(b.createdAt)}</td>
+                              <td class="py-1.5 pr-2 text-steel">{b.buildType}{b.weaponStyle ? ` · ${b.weaponStyle}` : ''}</td>
+                              <td class="py-1.5 pr-2 text-steel text-right">{b.slotCount}</td>
+                              <td class="py-1.5 text-right whitespace-nowrap">
+                                  <button on:click={() => openBuild(b.uuid)} disabled={$isOptimizing}
+                                          class="px-2 py-0.5 rounded border border-carved bg-carved/60 text-vellum hover:bg-carved transition-all disabled:opacity-50">Load</button>
+                                  <button on:click={() => deleteBuild(b)} disabled={$isOptimizing}
+                                          class="ml-1 px-2 py-0.5 rounded border border-transparent text-steel hover:text-blood hover:border-carved transition-colors disabled:opacity-50">Delete</button>
+                              </td>
+                          </tr>
+                      {/each}
+                  </tbody>
+              </table>
+          {/if}
+      </div>
+  {:else if !$resultStore || !$resultStore.success || !Object.keys($resultStore.gearSet || {}).length}
       <div class="flex flex-col items-center justify-center h-64 text-center">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground mb-4 opacity-50"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
           <h3 class="text-lg font-medium text-foreground">No Gearset Computed</h3>

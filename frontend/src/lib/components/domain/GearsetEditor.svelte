@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
+  import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast,
+           troveImportStore, defaultConfig } from '$lib/store';
   import { GetAvailableItems, GetItemDetails, RunOptimization, GetAvailableFiligrees } from '../../../../wailsjs/go/main/App';
   import type { models, main } from '../../../../wailsjs/go/models';
   import ItemDetail from './ItemDetail.svelte';
@@ -235,6 +236,77 @@
       $configStore.pre_filled_filigrees = {...$configStore.pre_filled_filigrees};
   }
 
+  // --- Check Inventory (docs/0.5.0/UI_CHANGES_0_5_0.md §3) -----------------
+  //
+  // Badges every socketed item against the loaded Trove CSV. The comparison is
+  // EXACT and CASE-SENSITIVE on purpose: that is precisely what the solver does
+  // (`name not in owned_names`), and anything looser — trimming, case-folding,
+  // fuzzy matching — would badge an item green that the solver then refuses to
+  // use when "restrict to owned" is on. The button would be lying about the one
+  // thing it exists to tell you.
+  let inventoryChecked = false;
+
+  $: inventoryLoaded = ($troveImportStore.ownedNames?.length ?? 0) > 0;
+
+  // Badges clear themselves if the CSV is unloaded. A stale green dot pointing
+  // at an inventory that is no longer loaded is worse than no dot.
+  $: if (!inventoryLoaded && inventoryChecked) inventoryChecked = false;
+
+  // Reactive, so swapping an item re-badges it without pressing the button
+  // again.
+  $: ownedNameSet = new Set($troveImportStore.ownedNames ?? []);
+
+  function ownershipOf(itemName: string | undefined): 'owned' | 'missing' | null {
+      if (!inventoryChecked || !itemName) return null;
+      return ownedNameSet.has(itemName) ? 'owned' : 'missing';
+  }
+
+  function checkInventory() {
+      if (!inventoryLoaded) return;
+      inventoryChecked = true;
+      const equipped = baseSlots
+          .map((slot) => $resultStore?.gearSet?.[slot])
+          .filter((n): n is string => !!n);
+      const owned = equipped.filter((n) => ownedNameSet.has(n)).length;
+      showToast(
+          `${owned} of ${equipped.length} equipped item(s) are in ${$troveImportStore.fileName || 'your inventory'}.`,
+          owned === equipped.length ? 'success' : 'info'
+      );
+  }
+
+  // --- New ------------------------------------------------------------------
+  //
+  // Resets the BUILD: parameters, gear, and the last result. Deliberately does
+  // NOT unload the Trove inventory — that is a file the user loaded, not part
+  // of the build, and making them re-import it to start a second gearset would
+  // be its own annoyance.
+  //
+  // Confirmed first, because it discards work that is only recoverable if it
+  // happened to be saved.
+  function startNew() {
+      const hasWork = Object.keys($configStore.pre_equipped ?? {}).length > 0 ||
+                      ($configStore.stat_priorities?.length ?? 0) > 0;
+      if (hasWork && !confirm(
+          'Start a new build? This clears your priorities, settings and equipped gear. ' +
+          'Anything you have saved stays in the database.')) {
+          return;
+      }
+      $configStore = defaultConfig();
+      $resultStore = null as unknown as main.ResultPayload;
+      selectedItemDetails = null;
+      selectedSlot = null;
+      availableItems = [];
+      alternativesSlot = null;
+      inventoryChecked = false;
+      showToast('Started a new build.', 'info');
+  }
+
+  // Clears the GEARSET only — never the parameters.
+  //
+  // Priorities, build type, level cap, armour restriction and the rest survive,
+  // because the common use is "keep what I am solving for, let the solver fill
+  // the slots again". Wiping those too is what New is for, and conflating the
+  // two would make the safer button the destructive one.
   function clearAll() {
       $resultStore = { success: true, timeTaken: 0, gearSet: {}, realizedStats: {}, activeSets: [], filigrees: {} } as unknown as main.ResultPayload;
       $configStore.pre_equipped = {};
@@ -345,10 +417,25 @@
           Calculate
         </button>
         <button
+          on:click={checkInventory}
+          disabled={$isOptimizing || !inventoryLoaded}
+          class="px-2 py-1 text-[11px] rounded bg-carved text-vellum hover:bg-carved/70 hover:shadow-press border border-carved transition-all disabled:opacity-40"
+          title={inventoryLoaded
+            ? 'Badge each socketed item against your loaded Trove inventory'
+            : 'Load a Trove inventory CSV first'}
+        >Check Inventory</button>
+        <button
           on:click={clearAll}
-          class="px-2 py-1 text-[11px] rounded text-steel hover:text-blood hover:bg-carved transition-colors border border-transparent hover:border-carved"
-          title="Clear every socket"
+          disabled={$isOptimizing}
+          class="px-2 py-1 text-[11px] rounded text-steel hover:text-blood hover:bg-carved transition-colors border border-transparent hover:border-carved disabled:opacity-50"
+          title="Clear every socket — your priorities and settings are kept"
         >Clear</button>
+        <button
+          on:click={startNew}
+          disabled={$isOptimizing}
+          class="px-2 py-1 text-[11px] rounded text-steel hover:text-vellum hover:bg-carved transition-colors border border-transparent hover:border-carved disabled:opacity-50"
+          title="Start a new build — clears priorities, settings and gear"
+        >New</button>
       </div>
     </div>
     <div class="gold-rule mt-2"></div>
@@ -360,6 +447,7 @@
       {@const itemName = $resultStore?.gearSet?.[slot]}
       {@const detail = $resultStore?.slots?.[slot]}
       {@const ml = detail?.item?.ml ?? 0}
+      {@const owned = ownershipOf(itemName)}
       <div class="group relative flex items-center gap-2 px-2 py-1.5 transition-colors
                   {itemName ? 'socket-filled' : 'socket'}
                   {selectedSlot === slot ? 'ring-1 ring-gold/60' : ''}">
@@ -371,8 +459,18 @@
         </svg>
 
         <div class="min-w-0 flex-1">
-          <div class="text-[10px] uppercase tracking-wider text-steel/70 leading-none">
-            {slot.replace('_1', ' 1').replace('_2', ' 2')}
+          <div class="text-[10px] uppercase tracking-wider text-steel/70 leading-none flex items-center gap-1.5">
+            <span>{slot.replace('_1', ' 1').replace('_2', ' 2')}</span>
+            {#if owned}
+              <span class="inline-flex items-center gap-1 normal-case tracking-normal
+                           {owned === 'owned' ? 'text-emerald-400' : 'text-blood'}"
+                    title={owned === 'owned'
+                      ? 'In your loaded Trove inventory'
+                      : 'NOT in your loaded Trove inventory'}>
+                <span class="h-1.5 w-1.5 rounded-full {owned === 'owned' ? 'bg-emerald-400' : 'bg-blood'}"></span>
+                {owned === 'owned' ? 'owned' : 'not owned'}
+              </span>
+            {/if}
           </div>
           {#if itemName}
             <button
