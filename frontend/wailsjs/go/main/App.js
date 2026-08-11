@@ -98,6 +98,10 @@ export function ParseMetadata(arg1) {
   return window['go']['main']['App']['ParseMetadata'](arg1);
 }
 
+export function RecalculateGearset(arg1) {
+  return window['go']['main']['App']['RecalculateGearset'](arg1);
+}
+
 export function RunOptimization(arg1) {
   return window['go']['main']['App']['RunOptimization'](arg1);
 }

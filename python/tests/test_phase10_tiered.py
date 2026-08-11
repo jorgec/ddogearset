@@ -156,7 +156,13 @@ def test_ac8_priority_names_contain_every_tier():
 
 
 def test_ac9_mode_normalization():
-    assert solver.normalize_mode({"calculate_only": True}) == ("calculate", None)
+    # `calculate_only` now normalizes to recalculate: every .ddogearset saved
+    # before 0.5.1 carries the flag, and it was always asking "evaluate this
+    # gearset" — which is what recalculate does, without an ILP.
+    assert solver.normalize_mode({"calculate_only": True}) == ("recalculate", None)
+    assert solver.normalize_mode({"mode": "recalculate"}) == ("recalculate", None)
+    mode, err = solver.normalize_mode({"mode": "calculate"})
+    assert mode is None and "mode 'calculate'" in err
     assert solver.normalize_mode({"mode": "alternatives"}) == ("alternatives", None)
     assert solver.normalize_mode({}) == ("optimize", None)
     mode, err = solver.normalize_mode({"mode": "foo"})
@@ -608,20 +614,6 @@ def test_ac26_set_bonuses_survive_consolidation():
 
     assert result["activeSets"] == ["Legendary (2-piece)"]
     assert any("Stacking" in e for e in result["allEffects"]["A"])
-
-
-def test_ec12_calculate_mode_skips_every_tier_stage():
-    items = [make_item("Hat", ["Helmet"], [("A", "Enhancement", 10.0)]),
-             make_item("Cape", ["Cloak"], [("A", "Enhancement", 12.0)])]
-    entries = [PriorityEntry("A", 1, None, 0)]
-    result, _log = solve(items, entries, mode="calculate",
-                         pre_equipped={"Helmet": "Hat"})
-
-    assert result["tierReport"]["stages"] == []
-    assert result["gearSet"] == {"Helmet": "Hat"}
-    # display truth comes from the reconciliation LP even with no goal in the
-    # objective at any point
-    assert result["realizedStats"]["A"] == 10.0
 
 
 def test_ec2_single_priority_in_tier3_produces_one_stage():
@@ -2027,49 +2019,9 @@ def test_calculate_only_credits_pre_filled_augment_in_a_colorless_slot():
     assert result["realizedStats"]["Charisma"] == 2.0
 
 
-def test_calculate_only_allows_the_same_augment_name_in_two_slots():
-    # Augments like Solar/Lunar Gems are craftable/purchasable in multiple
-    # copies — no bind-unique restriction — so the same augment name can
-    # legally appear in two different slots of a saved gearset.
-    armor = make_item("Plate", ["Armor"], [], augments=["Sun"])
-    cloak = make_item("Cape", ["Cloak"], [], augments=["Sun"])
-    augments = [make_augment("Solar Gem of Charisma", "Sun", [("Charisma", "Stacking", 4.0)])]
-    entries = [PriorityEntry("Charisma", 1, None, 0)]
-
-    result, _ = solve(
-        [armor, cloak], entries, augments=augments,
-        pre_equipped={"Armor": "Plate", "Cloak": "Cape"},
-        pre_filled_augments={
-            "Armor": {"Sun": "Solar Gem of Charisma"},
-            "Cloak": {"Sun": "Solar Gem of Charisma"},
-        },
-        mode="calculate")
-
-    # Both Artifact/Insightful-style non-stacking bonuses would collapse to
-    # the max of the two (correct DDO rule) and wouldn't prove the fix, so
-    # this augment uses a Stacking bonus type: both copies must be credited.
-    assert result.get("errorMessage") is None
-    assert result["realizedStats"]["Charisma"] == 8.0
-
-
-def test_calculate_only_ignores_raid_item_limit():
-    raid_item = make_item("Raid Trinket", ["Trinket"], [("Charisma", "Stacking", 5.0)])
-    raid_item["is_raid"] = True
-    other_raid_item = make_item("Raid Belt", ["Belt"], [("Charisma", "Stacking", 5.0)])
-    other_raid_item["is_raid"] = True
-    entries = [PriorityEntry("Charisma", 1, None, 0)]
-
-    result, _ = solve(
-        [raid_item, other_raid_item], entries,
-        pre_equipped={"Trinket": "Raid Trinket", "Belt": "Raid Belt"},
-        raid_item_limit=1, mode="calculate")
-
-    assert result.get("errorMessage") is None
-    assert result["realizedStats"]["Charisma"] == 10.0
-
-
 def test_optimize_mode_still_enforces_raid_item_limit():
-    # The calculate_only bypass above must not weaken the search-mode cap.
+    # The search-mode cap is unconditional now that the calculate_only bypass
+    # is gone (0.5.1 Phase 5) — this is what proves it still binds.
     raid_item = make_item("Raid Trinket", ["Trinket"], [("Charisma", "Insightful", 5.0)])
     raid_item["is_raid"] = True
     other_raid_item = make_item("Raid Belt", ["Belt"], [("Charisma", "Insightful", 5.0)])

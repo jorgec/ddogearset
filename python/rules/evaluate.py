@@ -161,15 +161,26 @@ def evaluate_gearset(equipped, augments_by_slot, fil_weapon, fil_artifact, sets,
     # source whose variable won), so this is the established meaning of the
     # field, not a new one.
     all_effects = {}
+    all_effects_detail = {}
     for (stat, b_type), rows in contrib.items():
         if _is_stacking(b_type):
             reaching = rows
         else:
             best = max(value for value, _o, _n in rows)
             reaching = [r for r in rows if r[0] == best]
-        for value, _origin, source_name in reaching:
+        for value, origin, source_name in reaching:
             all_effects.setdefault(stat, []).append(
                 f"{value} {b_type} ({source_name})")
+            # The same information, already parsed. The frontend used to pull
+            # the value, bonus type and source back OUT of the string above with
+            # a regex (`parseEffectSource`), which is a parser for a format this
+            # side had in structured form all along and flattened on the way
+            # out. `allEffects` stays exactly as it was so the oracle
+            # differential keeps comparing it.
+            all_effects_detail.setdefault(stat, []).append({
+                "value": value, "bonusType": b_type,
+                "sourceName": source_name, "sourceKind": origin,
+            })
 
     # --- active sets ------------------------------------------------------
     active_tiers = _active_set_tiers(equipped, fil_weapon, fil_artifact, sets)
@@ -242,6 +253,7 @@ def evaluate_gearset(equipped, augments_by_slot, fil_weapon, fil_artifact, sets,
             "artifact": [f['name'] for f in fil_artifact],
         },
         "allEffects": all_effects,
+        "allEffectsDetail": all_effects_detail,
         "slots": slots_out,
         "priorityTiers": {e.stat: e.tier for e in entries},
         "unmetTier4": unmet_tier4,

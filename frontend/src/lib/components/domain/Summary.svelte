@@ -1,7 +1,8 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
   import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus,
-           ListBuilds, LoadBuild, ImportGearsetContent, AcceptAll, BuildIDForCurrentConfig } from '../../../../wailsjs/go/main/App';
+           ListBuilds, LoadBuild, ImportGearsetContent, AcceptAll, BuildIDForCurrentConfig,
+           RecalculateGearset } from '../../../../wailsjs/go/main/App';
   import { onMount } from 'svelte';
   import type { appdb } from '../../../../wailsjs/go/models';
   // Imported as a VALUE (not `import type`) because createFrom is a static
@@ -80,32 +81,32 @@
   // Key of the currently expanded effect source (`${statName}::${index}`), or null if none expanded.
   let expandedSourceKey: string | null = null;
 
-  // Extracts value, bonusType, and sourceName from an effect string like
-  // "13.0 Enhancement (The Spring Equinox)" or a set-bonus string with nested
-  // parens like "15.0 Artifact (Legendary Soul of the Red Dragon (2 Piece))".
-  function parseEffectSource(raw: string): { value: number, bonusType: string, sourceName: string | null } {
-      const match = raw.match(/^(-?[\d.]+)\s+([^\s]+)(?:\s+\((.+)\))?$/);
-      if (match) {
-          return {
-              value: parseFloat(match[1]),
-              bonusType: match[2],
-              sourceName: match[3] || null
-          };
-      }
-      return { value: 0, bonusType: 'Unknown', sourceName: null };
+  // parseEffectSource is gone (0.5.1 Phase 5). It pulled the value, bonus type
+  // and source name back OUT of a display string with a regex — including
+  // nested parens for set bonuses like "15.0 Artifact (Legendary Soul of the
+  // Red Dragon (2 Piece))" — a parser for a format the solver had in structured
+  // form all along and flattened on the way out. `allEffectsDetail` carries the
+  // three fields directly, in the same order as `allEffects`.
+  function effectDetails(stat: string): Array<{ value: number, bonusType: string, sourceName: string | null }> {
+      const detail = ($resultStore as any)?.allEffectsDetail?.[stat];
+      return Array.isArray(detail) ? detail : [];
   }
 
   $: duplicatedStats = Object.entries($resultStore?.allEffects || {})
       .filter(([_, sources]) => Array.isArray(sources) && sources.length > 1)
-      .map(([stat, sources]) => {
-          return {
-              stat,
-              sources: (sources as string[]).map((raw: string) => {
-                  const { value, bonusType, sourceName } = parseEffectSource(raw);
-                  return { value, bonusType, sourceName, slot: locateSource(sourceName), raw };
-              })
-          };
-      })
+      .map(([stat, sources]) => ({
+          stat,
+          sources: (sources as string[]).map((raw: string, i: number) => {
+              const d = effectDetails(stat)[i];
+              return {
+                  value: d?.value ?? 0,
+                  bonusType: d?.bonusType ?? '',
+                  sourceName: d?.sourceName ?? null,
+                  slot: locateSource(d?.sourceName ?? null),
+                  raw,
+              };
+          })
+      }))
       .sort((a, b) => b.sources.length - a.sources.length);
 
   // Determines where in the gearset a given source name (item, augment, filigree,
@@ -410,6 +411,21 @@
       input.click();
   }
   
+  // The one place a full configuration is narrowed to what a recalculation may
+  // see. Mirrors Go's RecalculationRequestFrom; kept to one function here for
+  // the same reason it is one function there.
+  function recalculationRequest(config: main.OptimizationPayload): main.RecalculationRequest {
+      return mainModels.RecalculationRequest.createFrom({
+          gearset_name: config.gearset_name,
+          max_level: config.max_level,
+          build_type: config.build_type,
+          stat_priorities: config.stat_priorities,
+          pre_equipped: config.pre_equipped,
+          pre_filled_augments: config.pre_filled_augments,
+          pre_filled_filigrees: config.pre_filled_filigrees,
+      });
+  }
+
   async function calculateStats() {
       $isOptimizing = true;
       try {
@@ -424,11 +440,11 @@
               $configStore.pre_filled_augments = hydrated.pre_filled_augments;
               $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
           }
-          // Calculate mode travels on the request, not on the shared store —
-          // see the matching note in GearsetEditor.calculateGearSet().
-          const res = await RunOptimization(
-              { ...$configStore, mode: 'calculate' } as unknown as main.OptimizationPayload
-          );
+          // A recalculation takes a NARROWED request, not the whole config:
+          // RecalculationRequest has nowhere to put a search restriction, so
+          // none can reach an evaluation of gear the user already has
+          // (0.5.1 Phase 4/5).
+          const res = await RecalculateGearset(recalculationRequest($configStore));
           if (res && res.success) {
               $resultStore = res;
               showToast('Gearset loaded and stats recalculated.', 'success');
@@ -649,7 +665,7 @@
                                       </button>
                                       {#if expandedSourceKey === key}
                                           <div class="ml-4 mt-0.5 text-[11px] text-primary/80 italic">
-                                              {locateSource(parseEffectSource(source).sourceName)}
+                                              {locateSource(effectDetails(statName)[idx]?.sourceName ?? null)}
                                           </div>
                                       {/if}
                                   </li>

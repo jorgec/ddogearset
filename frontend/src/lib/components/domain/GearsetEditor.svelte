@@ -265,7 +265,7 @@
           // Cast mirrors store.ts: the spread drops the wails class's
           // convertValues method, which nothing on this path calls.
           const res = await RunOptimization(
-              { ...$configStore, mode: 'calculate' } as unknown as main.OptimizationPayload
+              { ...$configStore, mode: 'recalculate' } as unknown as main.OptimizationPayload
           );
           if (res && res.success) {
               $resultStore = res;

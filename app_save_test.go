@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -385,4 +386,68 @@ func (a *App) equippedSlots(t *testing.T, buildUUID string) map[string]string {
 		t.Fatalf("LoadBuild: %v", err)
 	}
 	return loaded.Config.PreEquipped
+}
+
+// --- Phase 5: calculate is gone -------------------------------------------
+
+func TestRecalculationRequestCannotCarryARestriction(t *testing.T) {
+	// The type IS the guarantee. solver.py rejects a restriction at runtime;
+	// this makes it unrepresentable a layer earlier, so nothing has to remember
+	// to strip one on the way through — a field removed in transit is a field
+	// somebody re-adds later.
+	forbidden := []string{
+		"ArmorRestriction", "ExcludedPacks", "OwnedItemNames", "RaidItemLimit",
+		"WeaponStyle", "OffhandStyle", "WeaponDamageType",
+		"ReservedMinorArtifactSlot", "CasterRestrictWeaponFamilies",
+		"ExcludeGemOfManyFacets", "IsDinoArtifact", "MaxSearchTime",
+	}
+	typ := reflect.TypeOf(RecalculationRequest{})
+	for _, name := range forbidden {
+		if _, found := typ.FieldByName(name); found {
+			t.Errorf("RecalculationRequest grew a %s field — a search restriction "+
+				"can now reach an evaluation of gear the user already has", name)
+		}
+	}
+
+	// ...and it still carries everything an evaluation genuinely needs.
+	for _, name := range []string{"StatPriorities", "PreEquipped",
+		"PreFilledAugments", "PreFilledFiligrees", "MaxLevel", "BuildType"} {
+		if _, found := typ.FieldByName(name); !found {
+			t.Errorf("RecalculationRequest is missing %s", name)
+		}
+	}
+}
+
+func TestNarrowingDropsRestrictionsAndKeepsTheGearset(t *testing.T) {
+	full := samplePayload()
+	full.ArmorRestriction = "Light"
+	full.ExcludedPacks = []string{"Some Pack"}
+
+	narrowed := RecalculationRequestFrom(full)
+	if narrowed.GearsetName != full.GearsetName ||
+		len(narrowed.PreEquipped) != len(full.PreEquipped) ||
+		len(narrowed.StatPriorities) != len(full.StatPriorities) {
+		t.Errorf("narrowing lost part of the gearset: %+v", narrowed)
+	}
+
+	// Round-tripping through JSON is what actually reaches the solver, so
+	// assert on THAT rather than on the struct: a stray json tag would put a
+	// restriction back on the wire.
+	raw, err := json.Marshal(narrowed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var onTheWire map[string]interface{}
+	if err := json.Unmarshal(raw, &onTheWire); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"armor_restriction", "excluded_packs",
+		"owned_item_names", "raid_item_limit", "weapon_style", "max_search_time"} {
+		if _, present := onTheWire[field]; present {
+			t.Errorf("%q reached the wire in a recalculation request", field)
+		}
+	}
+	if onTheWire["mode"] != nil {
+		t.Error("the request carries its own mode; RecalculateGearset sets it")
+	}
 }

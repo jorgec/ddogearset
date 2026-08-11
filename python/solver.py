@@ -7,7 +7,7 @@ import optimizer
 from rules import evaluate
 from optimizer import PriorityEntry
 
-VALID_MODES = ("optimize", "calculate", "recalculate", "alternatives", "stat_search")
+VALID_MODES = ("optimize", "recalculate", "alternatives", "stat_search")
 
 # Fields that shape a SEARCH: which items the solver is allowed to propose.
 # `recalculate` evaluates gear the user already has, so none of them mean
@@ -197,8 +197,14 @@ def parse_stat_priorities(raw, warnings=None):
 
 
 def normalize_mode(parsed_data):
-    """(mode, error_message). §2.5. `calculate_only` remains accepted as a
-    legacy field and is never read again after normalization."""
+    """(mode, error_message). §2.5.
+
+    `calculate_only` is still accepted and now normalizes to **recalculate**.
+    Every .ddogearset saved before 0.5.1 carries it, and mapping it to the mode
+    that replaced `calculate` is what keeps those files loadable — the flag was
+    always asking "evaluate this gearset", and that is exactly what recalculate
+    does, only without an ILP.
+    """
     mode = parsed_data.get('mode')
     if mode:
         mode = str(mode).strip().lower()
@@ -206,7 +212,7 @@ def normalize_mode(parsed_data):
             return None, VALIDATION_PREFIX + f"unknown mode '{parsed_data.get('mode')}'."
         return mode, None
     if parsed_data.get('calculate_only'):
-        return "calculate", None
+        return "recalculate", None
     return "optimize", None
 
 

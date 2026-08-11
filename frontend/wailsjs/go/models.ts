@@ -453,6 +453,48 @@ export namespace main {
 		}
 	}
 	
+	export class RecalculationRequest {
+	    gearset_name: string;
+	    max_level: number;
+	    build_type: string;
+	    stat_priorities: StatPriorityEntry[];
+	    pre_equipped: Record<string, string>;
+	    pre_filled_augments: Record<string, any>;
+	    pre_filled_filigrees: Record<string, string[]>;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecalculationRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.gearset_name = source["gearset_name"];
+	        this.max_level = source["max_level"];
+	        this.build_type = source["build_type"];
+	        this.stat_priorities = this.convertValues(source["stat_priorities"], StatPriorityEntry);
+	        this.pre_equipped = source["pre_equipped"];
+	        this.pre_filled_augments = source["pre_filled_augments"];
+	        this.pre_filled_filigrees = source["pre_filled_filigrees"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ReconciliationReport {
 	    status: string;
 	    elapsedSeconds: number;

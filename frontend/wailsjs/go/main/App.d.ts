@@ -52,6 +52,8 @@ export function OpenFile(arg1:string):Promise<void>;
 
 export function ParseMetadata(arg1:string):Promise<void>;
 
+export function RecalculateGearset(arg1:main.RecalculationRequest):Promise<main.ResultPayload>;
+
 export function RunOptimization(arg1:main.OptimizationPayload):Promise<main.ResultPayload>;
 
 export function SaveGearset(arg1:main.OptimizationPayload,arg2:main.ResultPayload):Promise<string>;

@@ -826,7 +826,7 @@ def build_ub_sources(items, sets, augments, filigrees, required_slots):
 
 def create_model(items, sets, augments, filigrees, entries, art_slots, required_slots,
                  raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
-                 pre_filled_filigrees=None, calculate_only=False,
+                 pre_filled_filigrees=None,
                  weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False):
     """Build the PuLP model once (INV-5). Sets NO objective — every stage does
     that itself via prob.setObjective().
@@ -1021,13 +1021,6 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
     for slot in required_slots:
         prob += pulp.lpSum([x[(i, s)] for (i, s) in x.keys() if s == slot]) <= 1
 
-    if calculate_only:
-        # Force all unequipped slots to be empty
-        all_possible_slots = set(s for (_, s) in x.keys())
-        for slot in all_possible_slots:
-            if slot not in required_slots:
-                prob += pulp.lpSum([x[(i, s)] for (i, s) in x.keys() if s == slot]) == 0
-
     for i in range(len(items)):
         prob += pulp.lpSum([x[(i, s)] for (item_idx, s) in x.keys() if item_idx == i]) <= 1
 
@@ -1061,13 +1054,13 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         if weapon2_vars:
             prob += pulp.lpSum(weapon2_vars) == 1, "Weapon2_Required"
 
-    # calculate_only is a strict reproduction of a saved/pre_equipped gearset,
-    # not a search — the raid-item cap is a search-time preference, not a fact
-    # about whether that gearset can exist. Enforcing it here means a gearset
-    # saved under an older/looser raid_item_limit (or hand-edited, or saved
-    # before a limit was set) becomes permanently uncalculatable even though
-    # every item in it is individually valid.
-    if not calculate_only and raid_item_limit is not None and raid_item_limit >= 0:
+    # The raid-item cap is a SEARCH preference — a statement about what the
+    # solver may propose. It used to be skipped in calculate mode for exactly
+    # that reason (a gearset saved under a looser limit became permanently
+    # uncalculatable); recalculation has no model to constrain at all, so the
+    # carve-out has nowhere left to live and this is unconditionally a search
+    # constraint again.
+    if raid_item_limit is not None and raid_item_limit >= 0:
         raid_vars = []
         for i, item in enumerate(items):
             if item.get('is_raid'):
@@ -1083,31 +1076,15 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
             if valid_y:
                 prob += pulp.lpSum(valid_y) <= limit * item_is_equipped
 
-    if not calculate_only:
-        # Prevents the search from slotting the identical augment into every
-        # compatible color across the whole gearset. Skipped in calculate_only:
-        # augments like Solar/Lunar Gems are craftable/purchasable in multiple
-        # copies (no bind-unique restriction), so a saved gearset can legally
-        # have the same augment name in two different slots (confirmed against
-        # a real saved .ddogearset — see docs/PHASE10_HANDOFF.md). Enforcing
-        # this here would force pre_filled_augments' two matching `y == 1`
-        # constraints for the same aug_idx to both hold while also capping
-        # their sum at 1 — an unsatisfiable pair that fails calculate_only
-        # outright instead of just under-crediting the duplicate.
-        for a in range(len(augments)):
-            prob += pulp.lpSum([y[(aug_idx, i, c)] for (aug_idx, i, c) in y.keys() if aug_idx == a]) <= 1
-
-    if calculate_only:
-        # To strictly compute what was passed, force sum of y to equal the number
-        # of pre-filled augments that were actually resolved to a real (augment,
-        # item, color) triple above — NOT the raw count of payload entries. An
-        # entry can legitimately fail to resolve (unknown/renamed augment name,
-        # or — historically, before augment_fits_slot existed — any augment in a
-        # Colorless slot); counting those anyway forced the model to place extra
-        # unrelated augments to make the numbers balance, and when no compatible
-        # slot existed for that surplus, the whole calculate-only solve went
-        # infeasible instead of just not crediting the one bad entry.
-        prob += pulp.lpSum(y.values()) == matched_pre_filled_augment_count
+    # Prevents the SEARCH from slotting the identical augment into every
+    # compatible color across the whole gearset. Unconditional now, because
+    # this model only ever searches — augments like Solar/Lunar Gems are
+    # craftable in multiple copies, so a gearset a user actually has can
+    # legitimately carry the same augment name twice, and evaluating one goes
+    # through rules.evaluate, which has no constraints to be unsatisfiable
+    # against (0.5.1 Phase 4).
+    for a in range(len(augments)):
+        prob += pulp.lpSum([y[(aug_idx, i, c)] for (aug_idx, i, c) in y.keys() if aug_idx == a]) <= 1
 
     if filigrees:
         base_name_groups = collections.defaultdict(list)
@@ -1120,12 +1097,6 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
                 prob += pulp.lpSum([fm[idx] for idx in idx_list]) <= 1
 
         prob += pulp.lpSum(fw.values()) <= MAX_WEAPON_FILIGREES
-
-        if calculate_only:
-            total_w_fils = len([f for f in pre_filled_filigrees.get('weapon', []) if f]) if pre_filled_filigrees else 0
-            total_m_fils = len([f for f in pre_filled_filigrees.get('artifact', []) if f]) if pre_filled_filigrees else 0
-            prob += pulp.lpSum(fw.values()) == total_w_fils
-            prob += pulp.lpSum(fm.values()) == total_m_fils
 
         max_fm_slots_expr = []
         for i, item in enumerate(items):
@@ -2306,8 +2277,6 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
                      raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
                      pre_filled_filigrees=None, mode="optimize", max_search_time=DEFAULT_SEARCH_TIME,
                      weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False):
-    calculate_only = (mode == "calculate")
-
     # Required slots based on available items
     available_slots = set()
     for item in items:
@@ -2319,14 +2288,11 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
                 available_slots.add(slot)
 
     base_required = ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring_1', 'Ring_2', 'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2']
-    if calculate_only and pre_equipped:
-        required_slots = [s for s in base_required if s in available_slots and s in pre_equipped]
-    else:
-        required_slots = [s for s in base_required if s in available_slots]
+    required_slots = [s for s in base_required if s in available_slots]
 
     model = create_model(items, sets, augments, filigrees, entries, art_slots, required_slots,
                          raid_item_limit, pre_equipped, pre_filled_augments,
-                         pre_filled_filigrees, calculate_only,
+                         pre_filled_filigrees,
                          weapon1_eligible_types=weapon1_eligible_types,
                          weapon2_eligible_types=weapon2_eligible_types,
                          require_weapon2=require_weapon2)
@@ -2346,42 +2312,17 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
                 "errorMessage": "None of the listed stat priorities matched any item, augment, "
                                 "filigree, or set bonus in the data files."}
 
-    if calculate_only:
-        # §6 shortcut: in calculate mode all equipment is pinned by
-        # construction, so tier goals are irrelevant. Skip every tier stage and
-        # the consolidation stage; one pass to realize the pinned binaries, then
-        # the reconciliation LP.
-        model.prob.setObjective(pulp.lpSum(list(model.z.values())))
-        status = _solve(model.prob, RECONCILE_TMLIM)
-        if status == pulp.LpStatusInfeasible or not _has_incumbent(model.prob):
-            out_file.write("Could not compute the supplied gearset.\n")
-            return {"success": False,
-                    "errorMessage": "The supplied gearset could not be evaluated; some locked "
-                                    "items may be incompatible with each other."}
-        t0 = time.time()
-        rec_ok = reconcile_solution(model)
-        tier_report = {
-            "stages": [],
-            "consolidation": None,
-            "reconciliation": {"status": "optimal" if rec_ok else "failed",
-                               "elapsedSeconds": round(time.time() - t0, 2)},
-            "totalElapsedSeconds": round(time.time() - t0, 2),
-            "degraded": not rec_ok,
-            "notes": list(model.notes),
-        }
-        tier_scores = {}
-    else:
-        result = solve_tiered(model, max_search_time, out_file)
-        if result.get("failed"):
-            out_file.write("Status: Infeasible\n")
-            out_file.write("Could not find a feasible set of gear for this cap/priorities.\n")
-            return {"success": False, "errorMessage": result["reason"]}
-        tier_report = result
-        # Recomputed from the FINAL (reconciled) solution rather than echoed
-        # from the stage records, so `tierScores` describes the gearset that is
-        # actually returned. Every locked tier is guaranteed >= its recorded
-        # V_t - tol because the lock constraint is still in the model.
-        tier_scores = {str(t): round(_goal_value(model.goals[t]), 6) for t in sorted(model.goals)}
+    result = solve_tiered(model, max_search_time, out_file)
+    if result.get("failed"):
+        out_file.write("Status: Infeasible\n")
+        out_file.write("Could not find a feasible set of gear for this cap/priorities.\n")
+        return {"success": False, "errorMessage": result["reason"]}
+    tier_report = result
+    # Recomputed from the FINAL (reconciled) solution rather than echoed
+    # from the stage records, so `tierScores` describes the gearset that is
+    # actually returned. Every locked tier is guaranteed >= its recorded
+    # V_t - tol because the lock constraint is still in the model.
+    tier_scores = {str(t): round(_goal_value(model.goals[t]), 6) for t in sorted(model.goals)}
 
     out_file.write(f"Status: {pulp.LpStatus[model.prob.status]}\n")
 

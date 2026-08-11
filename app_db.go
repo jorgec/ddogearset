@@ -322,3 +322,70 @@ func (a *App) ImportLegacyGearsets() ([]appdb.ImportOutcome, error) {
 	}
 	return outcomes, nil
 }
+
+// RecalculationRequest is everything a recalculation takes — and nothing else.
+//
+// Deliberately NOT OptimizationPayload. That type carries armor_restriction,
+// excluded_packs, weapon_style, raid_item_limit and the rest, and passing it
+// here would mean stripping fields on the way through: a field that is removed
+// in transit is a field somebody re-adds later. This type simply has nowhere to
+// put one, which is the same guarantee solver.py's restriction check makes,
+// stated in the type system instead of at runtime.
+type RecalculationRequest struct {
+	GearsetName        string                 `json:"gearset_name"`
+	MaxLevel           int                    `json:"max_level"`
+	BuildType          string                 `json:"build_type"`
+	StatPriorities     []StatPriorityEntry    `json:"stat_priorities"`
+	PreEquipped        map[string]string      `json:"pre_equipped"`
+	PreFilledAugments  map[string]interface{} `json:"pre_filled_augments"`
+	PreFilledFiligrees map[string][]string    `json:"pre_filled_filigrees"`
+}
+
+// RecalculateGearset evaluates the gear the user has equipped.
+//
+// This is what the Calculate button became. No solver runs: solver.py's
+// recalculate branch returns before any candidate pool exists (0.5.1 Phase 4).
+func (a *App) RecalculateGearset(request RecalculationRequest) (ResultPayload, error) {
+	payload := map[string]interface{}{
+		"mode":                 "recalculate",
+		"gearset_name":         request.GearsetName,
+		"max_level":            request.MaxLevel,
+		"build_type":           request.BuildType,
+		"stat_priorities":      request.StatPriorities,
+		"pre_equipped":         request.PreEquipped,
+		"pre_filled_augments":  request.PreFilledAugments,
+		"pre_filled_filigrees": request.PreFilledFiligrees,
+	}
+
+	raw, err := a.runSolver(payload)
+	if err != nil {
+		return ResultPayload{Success: false, ErrorMessage: err.Error()}, err
+	}
+	var result ResultPayload
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return ResultPayload{Success: false,
+			ErrorMessage: "Could not read the recalculation: " + err.Error()}, err
+	}
+	if !result.Success && result.ErrorMessage != "" {
+		return result, nil
+	}
+	result.Success = true
+	// A recalculation proposes nothing, so it never records a suggestion — see
+	// shouldRecordSuggestion. Nothing to do here beyond returning the numbers.
+	return result, nil
+}
+
+// RecalculationRequestFrom narrows a full configuration down to what a
+// recalculation may see. The one place the narrowing happens, so it is
+// reviewable rather than scattered across call sites.
+func RecalculationRequestFrom(config OptimizationPayload) RecalculationRequest {
+	return RecalculationRequest{
+		GearsetName:        config.GearsetName,
+		MaxLevel:           config.MaxLevel,
+		BuildType:          config.BuildType,
+		StatPriorities:     config.StatPriorities,
+		PreEquipped:        config.PreEquipped,
+		PreFilledAugments:  config.PreFilledAugments,
+		PreFilledFiligrees: config.PreFilledFiligrees,
+	}
+}

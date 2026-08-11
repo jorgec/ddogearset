@@ -16,12 +16,14 @@ only thing that will stand between the old numbers and the new when `calculate`
 goes away.
 
 It replays every fixture through the CURRENT implementation and demands the
-recorded answer back. When Phase 4 lands `mode: "recalculate"`, the same
-comparison points at that mode instead and the fixtures do not change.
+recorded answer back. Phase 4 landed `mode: "recalculate"` and Phase 5 deleted
+`calculate`, so the comparison now points at the replacement — and the fixtures
+did not change, which is the whole reason they were captured as payload +
+answer rather than as prose.
 
-**Cost.** 12 real solves, ~2-6 s each, run once per session and in parallel
-(see `oracle_replays`). Roughly 10 s of wall clock added to the suite. That is
-deliberate: a differential nobody runs is not a differential.
+**Cost.** 12 real recalculations, run once per session and in parallel, ~3 s of
+wall clock. It was ~10 s while the ILP was doing this work. A differential
+nobody runs is not a differential; one this cheap has no excuse.
 """
 
 import copy
@@ -201,93 +203,20 @@ def canonical(value, path=()):
     return value
 
 
-@pytest.fixture(scope="session")
-def oracle_replays(tmp_path_factory):
-    """Every fixture replayed once, in parallel, for the whole session.
-
-    Session-scoped on purpose: the per-fixture tests below exist so a failure
-    names the gearset that broke, not so the solver runs 12 more times.
-    """
-    catalog = _catalog_path()
-    if not catalog.exists():
-        # Deliberately not a skip. A differential that quietly opts out when its
-        # baseline is missing is the failure mode this module was written to
-        # end — it would report green for the rest of 0.5.1 and nobody would
-        # notice until `calculate` was already deleted.
-        pytest.fail(
-            f"No catalog at {catalog}. The oracle differential cannot run "
-            f"without one, and it must not pass without running. Build one "
-            f"(`python -m etl --out {catalog}`) or set DDO_CATALOG_DB.")
-    if not PYTHON.exists():
-        pytest.fail(f"No venv interpreter at {PYTHON}; cannot replay the oracle.")
-
-    env = _solver_env()
-    root = tmp_path_factory.mktemp("oracle")
-
-    jobs = []
-    for path in _fixtures():
-        data = json.loads(path.read_text())
-        if data.get("empty_gearset"):
-            continue  # nothing to solve; asserted separately below
-        jobs.append((_fixture_id(path), data["payload"]))
-
-    def replay(job):
-        name, payload = job
-        result, error = _run_solver(copy.deepcopy(payload), root / name, env)
-        return name, (result, error)
-
-    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_SOLVES) as pool:
-        return dict(pool.map(replay, jobs))
-
+# `oracle_replays` — the session fixture that replayed every gearset through
+# `mode: "calculate"`, and the per-fixture test that compared the results — are
+# gone with the mode itself (0.5.1 Phase 5).
+#
+# What they guaranteed has not gone anywhere. The fixtures ARE the old
+# implementation's answers, frozen at capture, and
+# `test_recalculate_reproduces_the_oracle` below replays them through the mode
+# that replaced it and demands those answers back. That comparison is now the
+# ONLY thing standing between the numbers this app used to produce and the
+# numbers it produces today — exactly the situation Phase 0 built it for, and
+# the reason it was built before anything was allowed to depend on it.
 
 def _load(path: Path) -> dict:
     return json.loads(path.read_text())
-
-
-@pytest.mark.parametrize("fixture_path", _fixtures(), ids=_fixture_id)
-def test_oracle_fixture_reproduces(fixture_path, oracle_replays):
-    """Replaying a fixture's own payload must return the answer it recorded.
-
-    This is the whole point of the corpus. Any divergence here is either a real
-    regression or a deliberate change that needs the fixtures re-captured — and
-    re-capture is only possible while `mode: "calculate"` still exists.
-    """
-    data = _load(fixture_path)
-    name = _fixture_id(fixture_path)
-
-    if data.get("empty_gearset"):
-        # Retained as the empty-gearset regression fixture. There is nothing to
-        # replay, but the fixture must keep saying so — if a future capture
-        # silently gives it gear, the corpus has drifted.
-        assert not data["payload"].get("pre_equipped"), (
-            f"{name} is recorded as the empty-gearset fixture but its payload "
-            "now carries equipped items")
-        assert data["result"] is None
-        return
-
-    result, error = oracle_replays[name]
-
-    if data.get("capture_failed"):
-        # The headline fixture: today's `calculate` REFUSES this gearset (see
-        # known_deltas.yaml `unevaluatable_today` — optimizer.py:1817's
-        # one-filigree-per-base-name rule, a SEARCH heuristic reaching into an
-        # evaluation of gear the user actually owns).
-        #
-        # Asserting the failure is not celebrating it. It pins the exact
-        # behaviour Phase 4 has to change, so that when `recalculate` returns
-        # numbers for this gearset, this test fails and has to be rewritten
-        # deliberately rather than passing by accident.
-        assert result is None, (
-            f"{name} now evaluates, but the fixture records it as unevaluatable.\n"
-            "If this is Phase 4 landing recalculate: that is the goal — move "
-            "this fixture out of `capture_failed` and assert the numbers plus "
-            "the expected warnings instead.")
-        assert error, "expected an error message for a capture_failed fixture"
-        return
-
-    assert error is None, f"{name} failed to replay: {error}"
-    assert canonical(result) == canonical(data["result"]), (
-        f"{name} no longer reproduces its recorded answer")
 
 
 def test_the_corpus_is_intact():
@@ -399,6 +328,12 @@ RECALCULATE_ADDED_FIELDS = frozenset({
     "success",     # explicit, where the solve path implied it by structure
     "otherStats",  # everything the gear grants beyond what was asked for
     "warnings",    # validate_physical_rules — warns, never refuses
+    # allEffects, already parsed. The frontend used to recover the value, bonus
+    # type and source name back OUT of the display string with a regex
+    # (`parseEffectSource`) — a parser for a format this side had structured all
+    # along and flattened on the way out. `allEffects` itself is unchanged, so
+    # the differential keeps comparing it.
+    "allEffectsDetail",
 })
 
 # Fields where the two implementations answer DIFFERENT QUESTIONS, and
