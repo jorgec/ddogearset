@@ -6,6 +6,9 @@
   import { main as mainModels } from '../../../../wailsjs/go/models';
   import ItemDetail from './ItemDetail.svelte';
   import SlotAlternatives from './SlotAlternatives.svelte';
+  import FiligreeEditor from './FiligreeEditor.svelte';
+
+  let editorTab: 'gear' | 'filigrees' = 'gear';
 
   const baseSlots = ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring_1', 'Ring_2', 'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2'];
 
@@ -427,7 +430,18 @@
   <!-- Panel header -->
   <div class="px-3 pt-3 pb-2 shrink-0">
     <div class="flex items-baseline justify-between gap-2">
-      <h2 class="panel-title text-sm">Gear Sockets</h2>
+      <div class="flex items-center gap-1">
+        <button
+          type="button"
+          on:click={() => (editorTab = 'gear')}
+          class="belt-stud px-2.5 py-1 text-xs {editorTab === 'gear' ? 'belt-stud-active' : ''}"
+        >Gear</button>
+        <button
+          type="button"
+          on:click={() => (editorTab = 'filigrees')}
+          class="belt-stud px-2.5 py-1 text-xs {editorTab === 'filigrees' ? 'belt-stud-active' : ''}"
+        >Filigrees</button>
+      </div>
       <div class="flex items-center gap-1.5">
         <button
           on:click={calculateGearSet}
@@ -465,8 +479,11 @@
     <div class="gold-rule mt-2"></div>
   </div>
 
-  <!-- §4.2 — slots presented as physical sockets waiting to be filled. -->
-  <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-1.5">
+  <!-- §4.2 — slots presented as physical sockets waiting to be filled.
+       Both tabs stay mounted; only visibility toggles, matching the
+       drawer/readout convention elsewhere so switching tabs never discards
+       an in-flight filigree search or the socket list's scroll position. -->
+  <div class:hidden={editorTab !== 'gear'} class="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-1.5">
     {#each baseSlots as slot}
       {@const itemName = $resultStore?.gearSet?.[slot]}
       {@const detail = $resultStore?.slots?.[slot]}
@@ -529,6 +546,10 @@
         </div>
       </div>
     {/each}
+  </div>
+
+  <div class:hidden={editorTab !== 'filigrees'} class="flex-1 min-h-0 overflow-y-auto px-3 pb-3">
+    <FiligreeEditor />
   </div>
 </div>
 

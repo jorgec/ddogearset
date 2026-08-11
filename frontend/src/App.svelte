@@ -5,7 +5,6 @@
   import { onMount } from 'svelte';
   import JobConfigurationForm from '$lib/components/domain/JobConfigurationForm.svelte';
   import GearsetEditor from '$lib/components/domain/GearsetEditor.svelte';
-  import FiligreeEditor from '$lib/components/domain/FiligreeEditor.svelte';
   import Summary from '$lib/components/domain/Summary.svelte';
   import ItemSearch from '$lib/components/domain/ItemSearch.svelte';
   import OwnedItems from '$lib/components/domain/OwnedItems.svelte';
@@ -24,8 +23,6 @@
     // magnifier
     { id: 'itemSearch', label: 'Search', icon: 'M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35' },
   ];
-
-  let drawerSection: 'config' | 'filigrees' = 'config';
 
   onMount(async () => {
     $isParsing = true;
@@ -130,29 +127,11 @@
           </svg>
           Configuration &amp; Auto-Solver
         </button>
-
-        {#if $drawerOpen}
-          <div class="flex items-center gap-1 ml-auto py-1">
-            <button
-              type="button"
-              on:click={() => (drawerSection = 'config')}
-              class="belt-stud px-3 py-1 text-xs {drawerSection === 'config' ? 'belt-stud-active' : ''}"
-            >Build &amp; Priorities</button>
-            <button
-              type="button"
-              on:click={() => (drawerSection = 'filigrees')}
-              class="belt-stud px-3 py-1 text-xs {drawerSection === 'filigrees' ? 'belt-stud-active' : ''}"
-            >Filigrees</button>
-          </div>
-        {/if}
       </div>
 
       {#if $drawerOpen}
         <div class="flex-1 min-h-0 overflow-y-auto border-t border-carved p-3">
-          <!-- Same keep-mounted rule as the right column: switching sections
-               must not discard a half-filled configuration. -->
-          <div class:hidden={drawerSection !== 'config'}><JobConfigurationForm /></div>
-          <div class:hidden={drawerSection !== 'filigrees'}><FiligreeEditor /></div>
+          <JobConfigurationForm />
         </div>
       {/if}
     </div>
