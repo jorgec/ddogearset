@@ -3,7 +3,7 @@
 DDO Gearset Optimizer is a desktop application for creating Dungeons & Dragons
 Online gearsets. It uses an integer linear programming solver to select items
 that best match a character's build, equipment restrictions, and weighted stat
-priorities.
+priorities. Purely a math exercise - this app does not know or care about your build, you have to make the decisions about what's important to you.
 
 The application provides:
 
@@ -15,6 +15,8 @@ The application provides:
 - Save and load support for `.ddogearset` files.
 
 For a walkthrough of the application, see the [user guide](docs/USAGE.md).
+
+Find this useful? [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=jorge.cosgayon@gmail.com)
 
 ## DDOBuilderV2 data
 
