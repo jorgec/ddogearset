@@ -1,83 +1,89 @@
 # DDO Gearset Optimizer
 
-DDO Gearset Optimizer is a desktop application for creating Dungeons & Dragons
-Online gearsets. It uses an integer linear programming solver to select items
-that best match a character's build, equipment restrictions, and weighted stat
-priorities. Purely a math exercise - this app does not know or care about your build, you have to make the decisions about what's important to you.
+A desktop app that solves one question for Dungeons & Dragons Online players:
 
-The application provides:
+> Out of every item in the game, which fourteen do I wear?
 
-- Automatic gearset optimization for melee, ranged, caster, and tank builds.
-- Constraints for weapon style, armor, raid items, expansion ownership, minor
-  artifacts, and the Gem of Many Facets.
-- Manual item, augment, and sentient filigree selections.
-- Gearset summaries with active set bonuses and realized stats.
-- Save and load support for `.ddogearset` files.
-
-For a walkthrough of the application, see the [user guide](docs/USAGE.md).
+You say what you want more of. It searches the whole item catalog and returns
+the combination that gives you the most of it.
 
 Find this useful? [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=jorge.cosgayon@gmail.com)
 
-## DDOBuilderV2 data
+## It doesn't know anything about your build
 
-This project uses item, augment, filigree, and related game data from
-[Maetrim/DDOBuilderV2](https://github.com/Maetrim/DDOBuilderV2). The upstream
-repository is included as the `data/ddobuilder` Git submodule and is an
-essential input to the optimizer. Thank you to Maetrim and the DDOBuilderV2
-contributors for maintaining this data.
+This is the important part, and it is a deliberate design choice rather than a
+missing feature.
 
-DDO Gearset Optimizer is an independent project and is not affiliated with
-DDOBuilderV2.
+The optimizer has no opinion about classes, feats, enhancement trees, or what
+"should" go on a Barbarian. It has never heard of your build. What it has is a
+list of items, a list of the numbers those items grant, and the stats *you* said
+matter — and from those it solves a constrained maximization problem.
 
-## Installation
+That means:
 
-### Current distribution status
+- **You supply the judgment.** Deciding that Melee Power matters more than
+  Doublestrike is a D&D question, and it stays yours. The app only answers the
+  arithmetic question that follows.
+- **It will surprise you.** With no preconceptions to protect, it happily
+  proposes an item nobody thinks of as a caster item because the numbers say so.
+  Some of those are genuine finds. Some are artifacts of how you weighted things.
+  Both are useful information.
+- **Garbage in, garbage out.** A vague priority list produces a vague gearset.
+  Tell it precisely what you want and it becomes very good.
 
-There are currently no versioned end-user installers or archives published in
-this repository's GitHub Releases. The files under `build/` are build
-configuration and local build output, not downloads for end users.
+It is a calculator, not an advisor. That's the whole idea: the math is the part
+a computer does better than you, so the app does only that part.
 
-The current bundled solver is a macOS Apple Silicon binary. Windows and Linux
-build configuration exists, but those platforms require a matching native
-solver binary before an optimizer build can be distributed. Do not download or
-run executable files from the source tree as an installation method.
+## How it decides
 
-When signed release assets are published, download them only from the
-[Releases page](https://github.com/jorgec/ddogearset/releases) and follow the
-instructions for your platform below.
+Under the hood this is an **integer linear program**. Every item is a yes/no
+variable, the slot rules and your restrictions are constraints, and your stat
+priorities become the objective function. A solver then proves which assignment
+is best.
 
-### macOS (Apple Silicon)
+"Proves" is meant literally. It isn't sampling promising combinations or
+following a greedy heuristic — within the constraints you set, the answer it
+returns is optimal, and it knows it. Priorities are ranked in **five tiers**:
+everything in Tier 1 is maximized first, and no lower tier is ever allowed to
+cost you a point of a higher one.
 
-1. Download the macOS `.zip` release asset and double-click it to extract the
-   application.
-2. Drag **DDO Gearset Optimizer.app** to **Applications**.
-3. Open it from **Applications**. If macOS displays an unidentified-developer
-   warning, Control-click the application, choose **Open**, then choose
-   **Open** again.
+## What you can do with it
 
-### Windows (64-bit)
+- Solve a full gearset for melee, ranged, caster, or tank builds
+- Rank the stats you care about across five priority tiers, or start from a preset
+- Pin items, augments, and filigrees you already own and let the solver work around them
+- Constrain by weapon style, armor, character level, raid items, and owned expansions
+- Import your Trove inventory to restrict the search to gear you actually have
+- Compare a proposal against your current gear before accepting any of it
+- Save builds to a local database, and export/share them as `.ddogearset` files
 
-1. Download the Windows `-installer.exe` release asset.
-2. Double-click the installer and accept the installation location, or choose
-   another folder.
-3. Start **DDO Gearset Optimizer** from the Start menu or desktop shortcut.
+**[→ Read the user guide](docs/USAGE.md)**
 
-If Windows asks to install the Microsoft Edge WebView2 Runtime, allow the
-installer to do so; Wails uses it to display the application interface.
+## Installing
 
-### Linux (64-bit)
+Grab the release for your platform from the
+[Releases page](https://github.com/jorgec/ddogearset/releases) — the
+[user guide](docs/USAGE.md) covers setup for each. There's nothing to configure
+and nothing to download separately: game data ships inside the app, and it never
+needs the internet to solve.
 
-1. Download the Linux release archive and extract it with your desktop archive
-   manager.
-2. Open the extracted folder and run the `DDOGearsetOptimizer` executable.
-3. If your file manager does not allow launching it, open the file properties
-   and enable **Allow executing file as program**, then launch it again.
+## Game data
 
-Linux desktop environments need the WebKitGTK runtime. A future Linux release
-will list the exact distribution packages alongside its download.
+Item, augment, filigree, and set data comes from
+[Maetrim/DDOBuilderV2](https://github.com/Maetrim/DDOBuilderV2). Enormous thanks
+to Maetrim and its contributors for maintaining that dataset — this app would not
+exist without it.
 
-## Development
+Data is compiled into the app at build time, so a given release always sees a
+fixed, known snapshot of the game rather than whatever a live fetch happened to
+return.
 
-The application is built with Wails v2, Go, Svelte, TypeScript, and a bundled
-Python/PuLP solver. Development, data-refresh, and release-build details are
-documented in [docs/ENGINEERING.md](docs/ENGINEERING.md).
+DDO Gearset Optimizer is an independent project, not affiliated with DDOBuilderV2
+or with Standing Stone Games.
+
+## For developers
+
+Wails v2, Go, Svelte, TypeScript, and a bundled Python/PuLP solver. Building,
+refreshing game data, and cutting releases are documented in
+[docs/housekeeping.md](docs/housekeeping.md); architecture notes live in
+[docs/ENGINEERING.md](docs/ENGINEERING.md).

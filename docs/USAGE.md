@@ -1,273 +1,429 @@
 # DDO Gearset Optimizer — User Guide
 
-> A desktop app that uses Integer Linear Programming (ILP) to find the mathematically optimal gear set for your DDO character build, with full support for manual overrides, sentient jewels, and filigrees.
+Everything you need to go from a fresh download to a finished gearset.
+
+No setup, no accounts, no internet connection required. Game data ships inside
+the app.
 
 ---
 
-## Table of Contents
+## Contents
 
-1. [Overview](#overview)
-2. [Launching the App](#launching-the-app)
-3. [Tab-by-Tab Walkthrough](#tab-by-tab-walkthrough)
-   - [Auto Solver](#1-auto-solver)
-   - [Gearset Editor](#2-gearset-editor)
-   - [Filigrees](#3-filigrees)
-   - [Summary](#4-summary)
-4. [The `.ddogearset` File Format](#the-ddogearset-file-format)
-5. [Tips & Best Practices](#tips--best-practices)
-
----
-
-## Overview
-
-DDO Gearset Optimizer reads your character's build parameters (build type, weapon style, stat priorities, etc.) and automatically selects the mathematically best combination of items from all available gear in DDOBuilderV2. You can:
-
-- **Auto-solve** a full 14-slot gearset in one click
-- **Manually pin** specific items or augments and let the solver fill in the rest
-- **Pre-fill filigrees** for your Sentient Weapon (10 slots) and Minor Artifact (1–5 slots)
-- **Save and load** gearsets as `.ddogearset` files that fully restore all parameters
+1. [Installing and starting](#1-installing-and-starting)
+2. [The window at a glance](#2-the-window-at-a-glance)
+3. [Your first gearset](#3-your-first-gearset)
+4. [Stat priorities — the five tiers](#4-stat-priorities--the-five-tiers)
+5. [Build settings](#5-build-settings)
+6. [Reviewing and adjusting a result](#6-reviewing-and-adjusting-a-result)
+7. [Filigrees](#7-filigrees)
+8. [Using your own inventory](#8-using-your-own-inventory)
+9. [Saving, loading, and sharing](#9-saving-loading-and-sharing)
+10. [Where your files live](#10-where-your-files-live)
+11. [Tips](#11-tips)
+12. [Troubleshooting](#12-troubleshooting)
 
 ---
 
-## Launching the App
+## 1. Installing and starting
 
-Build and run from the project root:
+### Windows
 
-```bash
-wails dev         # development mode (hot reload)
-wails build       # production binary
+1. Download the Windows installer (`...-installer.exe`) from the
+   [Releases page](https://github.com/jorgec/ddogearset/releases).
+2. Double-click it and accept the default install location.
+3. Launch **DDO Gearset Optimizer** from the Start menu.
+
+**"Windows protected your PC"** — Windows SmartScreen shows this for
+applications it hasn't seen many downloads of yet. If you downloaded from the
+Releases page above, click **More info → Run anyway**.
+
+**"Install Microsoft Edge WebView2 Runtime?"** — say yes. It's a standard
+Microsoft component the app uses to draw its interface. Most Windows 11 machines
+already have it.
+
+### macOS (Apple Silicon)
+
+1. Download the macOS `.zip` and double-click to extract.
+2. Drag **DDO Gearset Optimizer.app** into **Applications**.
+3. First launch only: right-click the app, choose **Open**, then **Open** again.
+   (Double-clicking normally will show an "unidentified developer" warning.)
+
+### Linux (64-bit)
+
+1. Download and extract the release archive.
+2. Run the `DDOGearsetOptimizer` executable. If it won't start, open its
+   Properties and tick **Allow executing file as program**.
+
+You'll need the WebKitGTK runtime, which most desktop distributions include.
+
+### First launch
+
+The app loads its item database in the background — a few seconds. The dot next
+to the title reads **Ready** when it's done, and the **System Console** on the
+right logs progress.
+
+---
+
+## 2. The window at a glance
+
+The whole app is one screen. Nothing is hidden behind navigation.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  DDO Gear Optimizer   ● Ready        [Console] [Owned Items] [Search]│
+├─────────────────┬──────────────────────────┬─────────────────────────┤
+│  Gear │ Filigrees│                          │                         │
+│                 │   Vellum Summary Scroll  │   System Console        │
+│  Helmet         │                          │   (or Owned Items,      │
+│  Necklace       │   Your stat totals,      │    or Item Search —     │
+│  Trinket        │   set bonuses, and       │    pick from the         │
+│  ...            │   every effect your      │    buttons up top)      │
+│  Weapon 1       │   gear grants            │                         │
+│  Weapon 2       │                          │                         │
+├─────────────────┴──────────────────────────┤                         │
+│ ▸ Configuration & Auto-Solver              │                         │
+└────────────────────────────────────────────┴─────────────────────────┘
 ```
 
-The app opens a desktop window with a tabbed interface. On first launch, the item/augment/filigree caches load in the background (watch the Status Console at the bottom for progress).
-
-### Updating External Data
-
-Click **"Update External Sources"** in the Auto Solver tab to run `git pull` on the DDOBuilderV2 repository and hot-reload all item, augment, and filigree data without restarting.
+| Area | What it's for |
+|---|---|
+| **Left — Gear / Filigrees** | Your equipment. Two tabs: gear slots, and filigrees. |
+| **Centre — Vellum Summary Scroll** | The results readout, plus saving and loading. |
+| **Right — Console / Owned Items / Search** | Three panels; switch with the buttons in the title bar. |
+| **Bottom — Configuration & Auto-Solver** | Click the header to expand. All build settings and the **Optimize Gear** button. |
 
 ---
 
-## Tab-by-Tab Walkthrough
+## 3. Your first gearset
 
-### 1. Auto Solver
+1. **Open the drawer.** Click **Configuration & Auto-Solver** at the bottom.
 
-This is the primary configuration tab. Set all your build constraints here before running the solver.
+2. **Set your build profile.** Build Type, Weapon Style, and Character Level.
+   Defaults are Melee / Two Weapon Fighting / level 34.
 
-#### Build Identity
+3. **Pick a starting preset.** Open **Stat Sets** and apply one that matches your
+   character — *Melee Physical*, *Ranged Physical*, *Unarmed / Monk*,
+   *Spell Caster (Fire / Evocation)*, *Warlock (Eldritch Blast)*, or
+   *Mixed (Attack + Spell)*. This fills in sensible priorities that you can then
+   edit. Starting from a preset is much easier than starting from nothing.
 
-| Field | Options | Description |
+4. **Click Optimize Gear.** Watch the console. A solve typically takes a few
+   seconds to a minute depending on how many priorities you set.
+
+5. **Review the proposal.** Results appear in the centre panel. Nothing has been
+   equipped yet — see the next step.
+
+6. **Accept it, or don't.** Click **Accept All** to make the proposal your
+   gearset, or cherry-pick individual slots. Until you accept, your own gear is
+   untouched.
+
+> **The app never overwrites your gear behind your back.** A solve produces a
+> *proposal*. Your gearset only changes when you accept one — so you can solve
+> repeatedly and compare without losing what you had.
+
+---
+
+## 4. Stat priorities — the five tiers
+
+This is the part that decides everything, and it works differently from a
+simple weighted list.
+
+Priorities go into five lanes. **The solver satisfies them strictly in order** —
+it completely finishes Tier 1 before it will spend anything on Tier 2, and no
+lower tier is ever allowed to cost you a single point of a higher one.
+
+| Tier | Name | Meaning |
 |---|---|---|
-| **Build Type** | Melee, Ranged, Caster, Tank | Determines which weapon styles are available and how items are filtered |
-| **Weapon Style** | TWF, THF, SWF, S&B, Bow, Crossbow types, Thrown, Shuriken, None | Controls which weapon slots are activated and which items are eligible |
-| **Offhand Style** | Empty Hand, Orb, Buckler, Runearm | Only shown for Single Weapon Fighting builds |
-| **Character Level** | 29–36 | Maximum Minimum Level (ML) cap for items. Only items with ML ≤ this value are considered |
-| **Armor Restriction** | Any, Cloth, Light, Medium, Heavy | Filters items to only include armor of this type or lighter |
+| **1** | Must Maximize | Solved first. Nothing below can reduce these. |
+| **2** | Maximize Next | Maximized without giving up any Tier 1. |
+| **3** | Maximize If Free | Taken only when Tiers 1–2 are untouched. |
+| **4** | Get At Least Some | Breadth first — one good source of each, then more. |
+| **5** | Nice To Have | Only when convenient. |
 
-#### Checkboxes
+Within a lane, **order matters too** — a stat higher in the lane outranks one
+below it. Use the up/down arrows on each chip to rank them, and **move to tier ▾**
+to shift a stat between lanes.
 
-| Field | Description |
+An empty lane is simply skipped.
+
+### Practical advice
+
+**Put two or three stats in Tier 1, not eight.** Tier 1 is an absolute
+commitment. Loading it up means the solver spends the entire gearset satisfying
+your first lane and has nothing left for anything else. Your real must-haves go
+in Tier 1; everything else belongs further down.
+
+**Tier 4 behaves differently on purpose.** It chases *breadth* — it would rather
+give you one decent source of five different stats than a huge amount of one.
+That's where things like resistances and utility stats belong.
+
+### Caps
+
+Click the small badge on a chip to set a **cap** — a point past which more of
+that stat is worthless to you. Useful when you know a stat's ceiling (or where
+your build stops benefiting), and it frees the solver to spend elsewhere once
+you've hit it.
+
+### Filigrees only count in Tier 1
+
+Filigrees are considered when solving Tier 1 and nowhere else. If a stat only
+appears in Tier 3, filigrees won't be chosen to serve it.
+
+---
+
+## 5. Build settings
+
+All of these live in the **Configuration & Auto-Solver** drawer.
+
+### Build Profile
+
+| Setting | Notes |
 |---|---|
-| **Swashbuckling** | Enables buckler off-hand slot for swashbuckler builds |
-| **Runearm** | Adds a Runearm slot to the solve |
-| **Exclude Gem of Many Facets** | Removes the GoMF from consideration (useful if you don't have it) |
-| **Dinosaur Bone Artifact** | Forces the Minor Artifact slot to be filled by a Dinosaur Bone item only |
+| **Build Type** | Melee, Ranged, Caster, Tank. Changes which weapon styles are offered. |
+| **Weapon Style** | Determines which weapon slots exist and which items qualify. |
+| **Weapon Damage Type** | Melee only. Restricts your main hand to one damage type. |
+| **Character Level** | Only items with a minimum level at or below this are considered. |
+| **Armor Restriction** | Cloth, Light, Medium, Heavy, Docent, or Any. |
 
-#### Caster Options
+Weapon styles by build type:
 
-- **Spell Powers**: Multi-select for your active spell power types (e.g., `Fire`, `Force`, `Positive`)
-- **Spell Schools**: Multi-select for DC schools (e.g., `Necromancy`, `Evocation`)
+- **Melee / Tank** — Two Weapon Fighting, Two Handed Fighting, Single Weapon
+  Fighting, Sword and Board, Single Handed Weapon and Runearm
+- **Ranged** — Bow, Repeating Crossbow, Great Crossbow, Dual Crossbow, Thrown,
+  Shuriken
+- **Caster** — Dual Caster, Stick and Orb, Stick and Runearm, Crossbow and
+  Runearm, Quarterstaff, Two-Handed Weapon, Any
 
-#### Stat Priorities
+> Handwraps count as a Two Weapon Fighting style, but they occupy both hands —
+> the solver leaves your off-hand empty when it equips them.
 
-This is the heart of the optimizer. Add stats you care about with a **weight from 1–100**.
+### Caster Configuration
 
-- Weight `100` = highest importance
-- Weight `1` = very low importance
-- The solver maximizes a weighted sum — higher weights mean the solver will sacrifice lower-priority stats to gain more of this stat
+Caster builds only: pick your damage elements and spell schools so the right
+spellpower and DC stats are recognized.
 
-**To add a stat:**
-1. Type the stat name (e.g., `Melee Power`, `Fortification`, `PRR`)
-2. Set the weight (1–100)
-3. Click **Add** or press **Enter**
+### Equipment Constraints
 
-Click any existing stat in the list to edit its name and weight. Click the × to remove it.
+- **Max Raid Items** — how many raid items the solver may use. `0` for a
+  fully farmable set; `-1` for unlimited.
+- **Exclude Gem of Many Facets** — turn it off if you don't have one.
 
-#### Constraints
+### Artifact Configuration
 
-| Field | Description |
+- **Reserved Minor Artifact Slot** — which equipment slot your Minor Artifact
+  occupies.
+- **Minor Artifact Filigree Slots** — how many filigrees it holds. Set this to
+  match your actual artifact; in game this is usually 1 to 5 depending on the
+  item and its minimum level. Set it to `0` if you aren't wearing one.
+- **Dinosaur Bone Artifact** — restricts the artifact to Dinosaur Bone items.
+
+### Excluded Expansion Packs
+
+Untick content you don't own and the solver won't propose items from it.
+
+### Solver Settings
+
+**Search time** is the total budget in seconds. If the results panel afterwards
+says a stage hit its time limit before proving optimality, raise it and re-run —
+that message means the answer is good but not *proven* best.
+
+---
+
+## 6. Reviewing and adjusting a result
+
+### The Gear tab
+
+Every slot, with the item in it. Click an item name to see its full details;
+click an empty socket to browse and equip something yourself.
+
+Hovering a slot reveals two buttons:
+
+- **⚙ Find alternatives** — other items that fit this slot, ranked, so you can
+  see what you're giving up by swapping.
+- **✕ Clear** — empty that slot.
+
+Anything you place by hand is **pinned**: the next solve keeps it and builds
+around it.
+
+### The buttons above the slots
+
+| Button | What it does |
 |---|---|
-| **Max Raid Items** | Maximum number of raid items the solver may pick (0 = no raid items, -1 = unlimited) |
-| **Minor Artifact Filigree Slots** | How many filigree slots your Minor Artifact has (1–5, see rules below) |
-| **Reserved Minor Artifact Slot** | Which equipment slot is taken by your Minor Artifact (Ring, Trinket, etc.) |
+| **Calculate** | Recomputes your stat totals from exactly what's equipped now. No solving, no proposals — fast. |
+| **Check Inventory** | Marks each equipped item green or red against your loaded Trove inventory. |
+| **Clear** | Empties every slot. Your settings and priorities are kept. |
+| **New** | Starts over — clears gear *and* settings. Asks first. |
 
-**Filigree slot rules:**
-- Epic Voice of the Master → 1 slot
-- ML 30 → 3 slots
-- ML 31 → 4 slots
-- ML 33+ (Myth Drannor / Den of Vipers) → 5 slots; ML 34+ (Chill of Ravenloft) → 5; ML 35 (Demogorgon) → 5
+### The Vellum Summary Scroll
 
-#### Excluded Expansion Packs
+The centre panel, showing what your gear actually produces:
 
-Toggle expansions off to prevent the solver from picking items from those packs. Useful if you don't own certain content.
-
-#### Running the Solver
-
-Click **Run Optimization**. The solver may take 30–120 seconds for complex configurations. Progress is shown in the Status Console. When complete, the app automatically switches to the **Gearset Editor** tab.
+- **Priority effects** — your prioritized stats and which items grant them
+- **All effects** — everything your gearset gives you, including things you never asked for
+- **Set bonuses** — active sets and their piece counts
+- **Duplicated stat sources** — where two items grant the same thing and one is
+  being wasted. Worth checking; it's usually a free slot.
 
 ---
 
-### 2. Gearset Editor
+## 7. Filigrees
 
-Review and manually adjust the solved gearset. The left panel shows equipped items per slot; the right panel shows available alternatives for the selected slot.
+The **Filigrees** tab sits next to **Gear**, in the same panel.
 
-#### Equipment Slots
+There are two groups: **Sentient Weapon** (10 slots) and **Minor Artifact**
+(however many you set in Artifact Configuration).
 
-Each slot shows:
-- The currently equipped item name
-- Its minimum level
-- **Augment slots** — drop-downs to assign specific augments to each augment slot on that item
+Each slot shows one of:
 
-Click a slot row to select it and browse alternatives on the right panel.
+- **LOCKED** — you chose this one; the solver must keep it
+- **AUTO** — the solver picked it; free to change on the next solve
+- **Empty** — click to choose a filigree
 
-#### Alternatives Panel
+In the picker, search by name or narrow by set with the dropdown. Click
+**Unlock** on a locked slot to hand it back to the solver.
 
-Shows alternative items for the selected slot, ranked by solver score. Click any item to swap it in.
+**Stacking rules:**
 
-#### Augment Assignment
+- The same filigree twice on the same item — not allowed
+- The same filigree on the weapon *and* the artifact — allowed, and it stacks
 
-When an item is selected, its augment slots appear. Each slot has a color (e.g., Yellow, Blue, Red) and a drop-down showing compatible augments. Selections are persisted as `pre_filled_augments` — the next time you run the solver, those augments are locked in and the solver builds around them.
-
-> **Tip:** You can also get augment recommendations. The solver will only suggest an upgrade if the recommended augment provides a greater benefit than your current selection.
-
-#### Calculate Stats Button
-
-Click **Calculate Stats** to evaluate all effects from the current manual selections (items + augments + filigrees) without re-running the full optimization. Results populate in the **Summary** tab instantly.
-
-#### Clear Button
-
-Resets all equipment slot assignments.
+After changing filigrees by hand, hit **Calculate** to see the updated totals
+without a full re-solve.
 
 ---
 
-### 3. Filigrees
+## 8. Using your own inventory
 
-Manage filigree assignments for your Sentient Weapon and Minor Artifact. This tab is independent of item identification — it uses your configuration settings directly.
+If you use **Trove** to export your characters' inventory to CSV, the app can
+limit itself to gear you actually own.
 
-#### Weapon Filigrees (10 slots)
+1. Click **Owned Items** in the title bar.
+2. Click **Load Trove CSV...** and pick your export.
+3. The panel lists every row it could match to a real item. Augments, filigrees,
+   and unrecognized rows are ignored.
+4. To actually restrict the solver, open **Owned Items (Trove Import)** in the
+   configuration drawer and switch the restriction **on**.
 
-10 slots for your Sentient Weapon filigrees. Each slot can be:
-- **AUTO** — the solver picked this filigree as optimal
-- **Manually assigned** — type to search by name or filter by Set Name
+Loading the file alone changes nothing — the restriction is opt-in, so you can
+browse your inventory without constraining a solve.
 
-#### Artifact Filigrees (1–5 slots)
+With a CSV loaded, **Check Inventory** on the Gear tab badges each equipped item
+green (owned) or red (not owned). Matching is exact and case-sensitive, on
+purpose: it matches precisely what the solver does, so nothing shows green that
+the solver would then refuse to use.
 
-The number of slots matches **Minor Artifact Filigree Slots** from your configuration.
+### Item Search
 
-#### Filigree Picker
-
-- Type in the search box to filter by filigree name
-- Use the **Set Filter** dropdown to show only filigrees from a specific set (e.g., "Primal Scream", "Through the Mists")
-- The AUTO badge indicates a solver-recommended filigree
-
-#### Stacking Rules
-
-- **Same filigree on the same item** → not allowed (the solver enforces this)
-- **Same filigree on weapon AND artifact** → allowed and fully stacks
-- **Same filigree from different sets on the same item** → allowed and stacks (unless noted otherwise)
-
----
-
-### 4. Summary
-
-A comprehensive breakdown of your full gearset.
-
-#### Gearset Name
-
-Enter a name for this gearset (e.g., `Sentinel`, `Fire Sorc`). This becomes the prefix in the saved filename.
-
-#### Priority Effects (Top Section)
-
-Lists all effects that match your stat priorities, sorted by weight (highest first). Shows which item/filigree/augment grants each effect and the total value.
-
-#### All Effects
-
-A full alphabetical list of every effect granted by your gearset — items, augments, set bonuses, and filigrees — grouped by stat name.
-
-#### Set Bonuses
-
-Active set bonuses from equipped items and filigrees, showing piece count and granted effects.
-
-#### Load / Save
-
-- **Load** — opens a file picker accepting `.ddogearset` and `.json`. Fully restores the configuration parameters (build type, priorities, etc.) and the result into the UI, then automatically recalculates
-- **Save Output** — saves the current gearset as a `.ddogearset` file. The filename is auto-generated as:
-
-```
-<Name>_<BuildType><WeaponStyle>Gearset_<YYYYMMDDHHMMSS>.ddogearset
-```
-
-If no name is given:
-```
-<BuildType><WeaponStyle>Gearset_<YYYYMMDDHHMMSS>.ddogearset
-```
-
-Every save is uniquely timestamped — no overwrites.
+**Search** in the title bar finds every source of a given stat across the whole
+catalog — useful for "what actually grants Melee Power at level 32?" Each result
+name links to its DDO Wiki page.
 
 ---
 
-## The `.ddogearset` File Format
+## 9. Saving, loading, and sharing
 
-`.ddogearset` files are plain JSON (rename to `.json` to inspect in any editor). Structure (v1.2):
+### Save
 
-```json
-{
-  "version": "1.2",
-  "gearset_name": "My Fire Sorc",
-  "saved_at": "2026-08-04T01:00:00Z",
-  "config": {
-    "gearset_name": "My Fire Sorc",
-    "max_levels": [34],
-    "build_type": "Caster",
-    "weapon_style": "None",
-    "stat_priorities": { "Fire Spell Power": 100, "Universal Spell Power": 80 },
-    "armor_restriction": "Cloth",
-    "minor_artifact_filigree_slots": 5,
-    "reserved_minor_artifact_slot": "Ring",
-    "raid_item_limit": 1,
-    "pre_equipped": { "Helmet": "Legendary Crest of the Sun Soul" },
-    "pre_filled_augments": { "Helmet|0": ["Deadly VII"] },
-    "pre_filled_filigrees": {
-      "weapon": ["Spines of the Manticore: +6 Fire Spell Power", "..."],
-      "artifact": ["Through the Mists: +3 Fire SP", "..."]
-    },
-    "excluded_packs": ["Sharn"],
-    "...": "..."
-  },
-  "result": {
-    "success": true,
-    "timeTaken": 45.3,
-    "gearSet": { "Helmet": "Legendary Crest of the Sun Soul", "..." },
-    "realizedStats": { "Fire Spell Power": 342 },
-    "activeSets": ["Feywild Frenzy (3pc)", "..."],
-    "filigrees": { "weapon": ["..."], "artifact": ["..."] },
-    "allEffects": { "Fire Spell Power": ["Item A: +50", "..."] }
-  }
-}
-```
+Type a name in the centre panel and click **Save**. This does two things at
+once:
 
-When loaded, all `config` fields are restored to the UI, and `result` is immediately displayed in the Summary tab.
+1. Stores the build in the app's database, and
+2. Writes a timestamped `.ddogearset` file to your `gearsets` folder.
+
+The toast tells you where the exported copy went. Every export is uniquely
+timestamped, so saving repeatedly never overwrites an earlier one.
+
+### Open DB
+
+Browses everything you've saved: name, date, build type, and slot count, with
+**Load** and **Delete** on each row. This is the normal way back to a build.
+
+The database also keeps a history of your solve runs.
+
+### Load
+
+Opens a file picker for `.ddogearset` and `.json` files — this is how you take a
+gearset from someone else, or restore an older export. It restores the full
+configuration along with the gear, then recalculates.
+
+Those files are plain JSON, so you can open one in a text editor if you're
+curious what's inside.
 
 ---
 
-## Tips & Best Practices
+## 10. Where your files live
 
-1. **Start with high-weight priorities only.** Too many equal-weight stats can make the solver take much longer. Start with 2–3 stats at high weight, then add secondary stats at lower weights.
+On **Windows**, press `Win+R` and paste `%APPDATA%\DDOGearsetOptimizer`.
 
-2. **Use Raid Item Limit = 0** for a farmable-only gearset, then compare against Raid Item Limit = 2 to evaluate the upgrade delta.
+| File | What it is |
+|---|---|
+| `app.db` | **Your builds and history.** |
+| `gearsets\` | Exported `.ddogearset` files. |
+| `catalog.db` | Game data. Replaced whenever you update the app. |
 
-3. **Lock your best-in-slot items first.** Use the Gearset Editor to pin items you already own (pre_equipped), then re-run the solver to fill the rest optimally.
+On macOS this folder is `~/Library/Application Support/DDOGearsetOptimizer`; on
+Linux, `~/.local/share/DDOGearsetOptimizer`.
 
-4. **Name your gearsets** before saving — the name prefix makes it trivial to find the right file when you have many iterations.
+> **Back up `app.db` if your builds matter to you.** It's the one file nothing
+> can regenerate — everything else is either rebuilt by the app or re-downloaded
+> with an update. Copying it somewhere safe occasionally is enough.
 
-5. **Filigrees are solver-recommended by default.** Review the Filigrees tab after solving — the AUTO badges show what the ILP chose. Override any slot you want to change, then click **Calculate Stats** to see the updated breakdown without re-solving.
+---
 
-6. **Update External Sources regularly.** DDOBuilder updates its data files frequently. Hit the Update button before major solves.
+## 11. Tips
+
+1. **Start from a preset and edit it.** Much faster than building a priority
+   list from a blank slate, and the presets encode reasonable defaults.
+
+2. **Keep Tier 1 small.** Two or three stats. Tier 1 is absolute — a crowded
+   Tier 1 consumes the whole gearset.
+
+3. **Solve twice to price your raid gear.** Once with **Max Raid Items = 0**,
+   once unlimited. The difference tells you exactly what the raiding is buying.
+
+4. **Pin what you already own, then re-solve.** Equip your real best-in-slot
+   items by hand and let the solver optimize around them. That's a far more
+   useful answer than a theoretical set you'll never assemble.
+
+5. **Read "Duplicated Stat Sources".** It's the quickest win in the app —
+   overlapping items mean a slot doing nothing.
+
+6. **Check the last-run time.** If a stage ran out of time, the answer is good
+   but unproven. Raise the search time and run again.
+
+7. **Save before big changes.** Saves are cheap and the build browser makes it
+   easy to keep several variants side by side.
+
+---
+
+## 12. Troubleshooting
+
+**Windows says "Windows protected your PC."**
+SmartScreen doesn't recognize the app yet. **More info → Run anyway**, provided
+you downloaded from the official Releases page.
+
+**The app opens but nothing loads / stays on "Parsing".**
+Check the System Console for errors. Restarting usually clears it. If the
+console reports a catalog problem, reinstalling the app restores `catalog.db`
+without touching your builds.
+
+**Optimize Gear does nothing.**
+You need at least one stat priority. Open **Stat Priorities** and add one, or
+apply a preset.
+
+**No items in a weapon slot.**
+Your filters are likely too tight — a high Character Level combined with an
+armor restriction, excluded packs, or an owned-items restriction can empty the
+pool. Relax them one at a time.
+
+**Results look wrong for my build.**
+Remember the app has no idea what your character is. It optimizes precisely what
+you asked for. If the answer looks odd, the priority list is usually the reason —
+check the tiers, and check that a stat you assumed was Tier 1 is actually there.
+
+**A solve is very slow.**
+Too many Tier 1 stats is the usual cause. Move the non-essential ones down.
+
+**My builds disappeared.**
+They're in `app.db` (see [above](#10-where-your-files-live)). If that file was
+moved or deleted, restore it from a backup — nothing else can rebuild it.
