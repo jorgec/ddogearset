@@ -6,6 +6,8 @@
   import JobConfigurationForm from '$lib/components/domain/JobConfigurationForm.svelte';
   import GearsetEditor from '$lib/components/domain/GearsetEditor.svelte';
   import Summary from '$lib/components/domain/Summary.svelte';
+  import HarnessBoard from '$lib/components/domain/HarnessBoard.svelte';
+  import GearChecklist from '$lib/components/domain/GearChecklist.svelte';
   import ItemSearch from '$lib/components/domain/ItemSearch.svelte';
   import OwnedItems from '$lib/components/domain/OwnedItems.svelte';
   import StatusConsole from '$lib/components/domain/StatusConsole.svelte';
@@ -36,6 +38,10 @@
   });
 
   $: busy = $isParsing || $isOptimizing;
+
+  // Centre-column view toggle: summary (the Vellum Scroll), harness board, or gear checklist.
+  let centreView: 'summary' | 'harness' | 'checklist' = 'summary';
+
 </script>
 
 <main class="h-screen flex flex-col overflow-hidden">
@@ -97,9 +103,34 @@
       <GearsetEditor />
     </section>
 
-    <!-- Center 45% — The Vellum Scroll (§4.3) -->
-    <section class="min-h-0 lg:col-start-2 lg:row-start-1 lg:overflow-hidden" aria-label="Summary">
-      <Summary />
+    <!-- Center 45% — The Vellum Scroll / Harness Board -->
+    <section class="min-h-0 lg:col-start-2 lg:row-start-1 lg:overflow-hidden flex flex-col" aria-label="Centre panel">
+      <div class="flex items-center gap-1 px-2 pb-1 shrink-0">
+        <button
+          type="button"
+          on:click={() => (centreView = 'summary')}
+          class="belt-stud px-2.5 py-1 text-xs {centreView === 'summary' ? 'belt-stud-active' : ''}"
+        >Summary</button>
+        <button
+          type="button"
+          on:click={() => (centreView = 'harness')}
+          class="belt-stud px-2.5 py-1 text-xs {centreView === 'harness' ? 'belt-stud-active' : ''}"
+        >Harness</button>
+        <button
+          type="button"
+          on:click={() => (centreView = 'checklist')}
+          class="belt-stud px-2.5 py-1 text-xs {centreView === 'checklist' ? 'belt-stud-active' : ''}"
+        >Checklist</button>
+      </div>
+      <div class:hidden={centreView !== 'summary'} class="flex-1 min-h-0 overflow-hidden">
+        <Summary />
+      </div>
+      <div class:hidden={centreView !== 'harness'} class="flex-1 min-h-0 overflow-hidden">
+        <HarnessBoard onSwitchToSummary={() => (centreView = 'summary')} />
+      </div>
+      <div class:hidden={centreView !== 'checklist'} class="flex-1 min-h-0 overflow-hidden">
+        <GearChecklist />
+      </div>
     </section>
 
     <!-- Right 30% — Console & Trove (§4.4). Spans both rows: full height in

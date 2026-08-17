@@ -2224,6 +2224,7 @@ def find_slot_alternatives(items, sets, augments, filigrees, entries, required_s
             "slot": target_slot,
             "ml": item.get('ml', 0),
             "isRaid": bool(item.get('is_raid', False)),
+            "isMinor": bool(item.get('minor', False)),
             # Not rounded: ObjectiveScore must reproduce the §7.6 collapse of
             # these exact numbers to within 1e-6 (AC-38).
             "tierScores": {str(t): cand['scores'].get(t, 0.0) for t in range(1, 6)
@@ -2491,20 +2492,29 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
         }
 
     all_effects_out = {}
+    all_effects_detail = []
     for (st, b_type), z_var in z.items():
         if _val(z_var) > 0:
             if st not in all_effects_out:
                 all_effects_out[st] = []
 
             contributing = []
-            for tracked_var, val, sname, _origin in sources_tracking[(st, b_type)]:
+            for tracked_var, val, sname, origin in sources_tracking[(st, b_type)]:
                 if _val(tracked_var) > 0.5:
                     contributing.append(f"{val} {b_type} ({sname})")
+                    all_effects_detail.append({
+                        "stat": st, "value": val, "bonusType": b_type,
+                        "sourceName": sname, "sourceKind": origin,
+                    })
 
             if contributing:
                 all_effects_out[st].extend(contributing)
             else:
                 all_effects_out[st].append(f"{_val(z_var)} {b_type}")
+                all_effects_detail.append({
+                    "stat": st, "value": _val(z_var), "bonusType": b_type,
+                    "sourceName": b_type, "sourceKind": "",
+                })
 
     unmet_tier4 = sorted([stat for stat, var in model.present.items() if _val(var) < 0.5])
 
@@ -2514,6 +2524,7 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
         "activeSets": active_sets_out,
         "filigrees": filigrees_out,
         "allEffects": all_effects_out,
+        "allEffectsDetail": all_effects_detail,
         "slots": slots_out,
         # §9 additions
         "tierReport": tier_report,

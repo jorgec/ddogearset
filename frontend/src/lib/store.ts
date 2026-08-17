@@ -43,6 +43,7 @@ export function defaultConfig(): main.OptimizationPayload {
     pre_equipped: {} as Record<string, string>,
     pre_filled_augments: {} as Record<string, Record<string, string>>,
     pre_filled_filigrees: { weapon: [], artifact: [] } as { weapon: string[], artifact: string[] },
+    checklist_owned: {} as Record<string, boolean>,
     calculate_only: false
 } as unknown as main.OptimizationPayload);
 }
@@ -296,3 +297,11 @@ export function showToast(
     }, actions && actions.length > 0 ? TOAST_ACTION_DURATION_MS : TOAST_DURATION_MS);
     return id;
 }
+
+// --- Shared picker / alternatives slot (Phase 12) ---------------------------
+// Both GearsetEditor and HarnessBoard open the same item-picker modal and
+// alternatives drawer. These stores let either surface set the target and a
+// single SlotAlternatives / picker modal instance (mounted in App.svelte or
+// GearsetEditor) respond.
+export const pickerSlot = writable<string | null>(null);
+export const alternativesSlotStore = writable<string | null>(null);

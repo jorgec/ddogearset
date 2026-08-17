@@ -64,10 +64,36 @@ PROC_PRESENCE_FLAG_TYPES = frozenset({
 # than a real proc grant.
 PROC_ZERO_EFFECT_AUGMENT_NAMES = frozenset({
     'legendary affirmation', 'legendary ash', 'legendary dust', 'legendary ice',
-    'legendary ooze', 'legendary salt', 'legendary vacuum',
+    'legendary ooze', 'legendary salt', 'legendary steam', 'legendary vacuum',
     'alchemical fire attunement', 'alchemical water attunement',
     'alchemical air attunement', 'alchemical earth attunement', 'paranoia',
 })
+
+
+# Augments whose NAME differs from the proc they grant. The key is the
+# augment name (lowercase); the value is the proc name (lowercase) that
+# _proc_priority_match should match against. These augments typically have
+# non-proc effects (like DRBypass) or no effects at all, so they aren't
+# caught by Shape A's buff-type check or Shape B's name-IS-the-proc check.
+PROC_AUGMENT_ALIASES = {
+    # IoD fangs -> Alchemical Attunements
+    'flamefang': 'alchemical fire attunement',
+    'icefang': 'alchemical water attunement',
+    'sparkfang': 'alchemical air attunement',
+    'meltfang': 'alchemical earth attunement',
+    # Dolorous (Legendary) -> Alchemical Attunements
+    'dolorous flames (legendary)': 'alchemical fire attunement',
+    'dolorous chill (legendary)': 'alchemical water attunement',
+    'dolorous sparks (legendary)': 'alchemical air attunement',
+    'dolorous acid (legendary)': 'alchemical earth attunement',
+    'dolorous dimlight (legendary)': 'legendary steam',
+    # Woeful (Legendary) -> Legendary procs
+    'woeful flames (legendary)': 'legendary ash',
+    'woeful chill (legendary)': 'legendary ice',
+    'woeful sparks (legendary)': 'legendary vacuum',
+    'woeful acid (legendary)': 'legendary dust',
+    'woeful dimlight (legendary)': 'legendary affirmation',
+}
 
 
 

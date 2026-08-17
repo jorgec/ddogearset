@@ -37,9 +37,12 @@ import os
 import sqlite3
 from typing import Dict, List, Optional
 
-from rules.constants import PROC_BONUS_TYPE, PROC_ZERO_EFFECT_AUGMENT_NAMES, WEAPON_BASE_STATS
+from rules.constants import (
+    PROC_AUGMENT_ALIASES, PROC_BONUS_TYPE, PROC_ZERO_EFFECT_AUGMENT_NAMES,
+    WEAPON_BASE_STATS,
+)
 from rules.extract import wanted_weapon_stats_for
-from rules.naming import _proc_priority_match, normalize_stat_name
+from rules.naming import _is_proc_presence_flag_type, _proc_priority_match, normalize_stat_name
 
 # Set by app.go (replacing DDO_DATA_PATH). Falls back to a dev-local build so
 # `python solver.py` keeps working from a checkout, mirroring how base_dir
@@ -87,6 +90,12 @@ def _buff(raw_type, raw_target, bonus_type, value, priorities, wanted_weapon_sta
         if not user_name:
             return None
         return (user_name, bonus_type.strip() if bonus_type else bonus_type, value)
+
+    if bonus_type == PROC_BONUS_TYPE and _is_proc_presence_flag_type(raw_type):
+        proc_stat = _proc_priority_match(raw_type, priorities)
+        if not proc_stat:
+            return None
+        return (proc_stat, PROC_BONUS_TYPE, 1.0)
 
     stat = normalize_stat_name(raw_type, raw_target, "", priorities,
                                bonus_type=bonus_type)
@@ -268,10 +277,21 @@ def parse_augments(catalog, max_ml, priorities, pre_filled_augment_names=None,
                 buffs.append(b)
 
         # Shape B — see _augment_from_node's comment in rules/extract.py.
-        if not buffs and name.strip().lower() in PROC_ZERO_EFFECT_AUGMENT_NAMES:
+        name_lower = name.strip().lower()
+        has_proc = any(b[1] == PROC_BONUS_TYPE for b in buffs)
+        if not has_proc and name_lower in PROC_ZERO_EFFECT_AUGMENT_NAMES:
             proc_stat = _proc_priority_match(name, priorities)
             if proc_stat:
                 buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
+                has_proc = True
+
+        # Aliased augments — see PROC_AUGMENT_ALIASES in constants.py.
+        if not has_proc:
+            alias_proc = PROC_AUGMENT_ALIASES.get(name_lower)
+            if alias_proc:
+                proc_stat = _proc_priority_match(alias_proc, priorities)
+                if proc_stat:
+                    buffs.append((proc_stat, PROC_BONUS_TYPE, 1.0))
 
         if buffs or is_pre_filled:
             out.append({'name': name, 'type': a['type'], 'buffs': buffs})

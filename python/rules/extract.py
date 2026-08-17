@@ -31,6 +31,7 @@ import re
 import xml.etree.ElementTree as ET
 
 from .constants import (
+    PROC_AUGMENT_ALIASES,
     PROC_BONUS_TYPE,
     PROC_ZERO_EFFECT_AUGMENT_NAMES,
     WEAPON_BASE_BONUS_TYPE,
@@ -291,6 +292,9 @@ def _item_buffs_from_node(item_node, priorities, wanted_weapon_stats,
             if proc_stat:
                 entry = (proc_stat, PROC_BONUS_TYPE, 1.0)
                 buffs.append(entry + ((b_type, None),) if with_raw else entry)
+            elif keep_unmatched:
+                entry = (b_type, PROC_BONUS_TYPE, 1.0)
+                buffs.append(entry + ((b_type, None),) if with_raw else entry)
 
     # §15.2 — weapon combat properties are direct children of <Item>, not
     # <Buff> elements, but they land in the same `buffs` list so sources / z /
@@ -468,11 +472,28 @@ def _augment_from_node(aug_node, priorities, keep_unmatched=False, with_raw=Fals
     # ("Legendary Affirmation", "Legendary Ash", ...) start with a word
     # normalize_stat_name's bonus-type-prefix splitting would otherwise
     # misinterpret (see that helper's docstring).
-    if not buffs and name.strip().lower() in PROC_ZERO_EFFECT_AUGMENT_NAMES:
+    name_lower = name.strip().lower()
+    if not buffs and name_lower in PROC_ZERO_EFFECT_AUGMENT_NAMES:
         proc_stat = _proc_priority_match(name, priorities)
         if proc_stat:
             entry = (proc_stat, PROC_BONUS_TYPE, 1.0)
             buffs.append(entry + ((name, None),) if with_raw else entry)
+        elif keep_unmatched:
+            entry = (name, PROC_BONUS_TYPE, 1.0)
+            buffs.append(entry + ((name, None),) if with_raw else entry)
+
+    # Aliased augments: the augment's name differs from the proc it grants
+    # (e.g. Meltfang -> Alchemical Earth Attunement). Match the alias's proc
+    # name against priorities, not the augment's own name.
+    alias_proc = PROC_AUGMENT_ALIASES.get(name_lower)
+    if alias_proc:
+        proc_stat = _proc_priority_match(alias_proc, priorities)
+        if proc_stat:
+            entry = (proc_stat, PROC_BONUS_TYPE, 1.0)
+            buffs.append(entry + ((alias_proc, None),) if with_raw else entry)
+        elif keep_unmatched:
+            entry = (alias_proc, PROC_BONUS_TYPE, 1.0)
+            buffs.append(entry + ((alias_proc, None),) if with_raw else entry)
 
     return {'name': name, 'type': a_type.strip(), 'buffs': buffs}
 

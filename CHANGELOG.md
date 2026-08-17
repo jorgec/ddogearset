@@ -7,9 +7,44 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [0.5.3] — 2026-08-12
+## [0.5.3] — 2026-08-17
+
+### Added
+
+- **Gear Checklist tab** in the centre pane alongside Summary and Harness.
+  Lists every item in the solved gearset with a checkbox, the equipment slot,
+  adventure pack, and drop location. The quest name in each drop location is a
+  clickable link that opens the corresponding ddowiki page in the real browser.
+  If a Trove CSV is loaded, items found in the inventory are auto-checked;
+  the user can also check or uncheck any item manually. Checked state persists
+  in `checklist_owned` on the config and is saved/loaded with the gearset.
+
+- **Proc detection fully operational for all proc types.** Shape A procs
+  (Lightning Lash, Alchemical Attunements, etc.) are now stored in catalog.db
+  during ETL and detected at query time. Previously the ETL called extraction
+  with empty priorities, so proc presence flags were silently dropped.
+
+- **Augment alias mapping for procs.** Isle of Dread fangs (Flamefang,
+  Icefang, Sparkfang, Meltfang) and Dolorous/Woeful Legendary augments now
+  resolve to the proc they actually grant (e.g. Meltfang → Alchemical Earth
+  Attunement). 14 aliases added in `PROC_AUGMENT_ALIASES`.
+
+- **Stat picker is now a full-screen modal** instead of a small positioned
+  popover, with a dark backdrop and backdrop-click dismiss.
 
 ### Fixed
+
+- **"Location unavailable" on every stat source in the Summary after a solve.**
+  The optimizer's solve path emitted `allEffects` (display strings) but not
+  `allEffectsDetail` (structured source data). The Summary's `locateSource()`
+  needs `allEffectsDetail` to resolve which slot each source comes from;
+  without it every source showed "Location unavailable". Now emitted by both
+  the solve and recalculation paths.
+
+- **"Legendary Steam" missing from `PROC_ZERO_EFFECT_AUGMENT_NAMES`.**
+  Dolorous Dimlight (Legendary) grants it but it was not in the whitelist.
+
+### Fixed (pre-existing)
 
 - **Every filigree slot rendered "Empty" once Filigrees became a tab.** A build
   loaded from `app.db` showed none of its filigrees, though all of them were

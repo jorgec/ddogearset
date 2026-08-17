@@ -23,6 +23,7 @@
 
   let loading = true;
   let error = '';
+  let warnings: string[] = [];
   let alternatives: main.AlternativeItem[] = [];
   // Confirm-before-equip (docs/SLOT_ALTERNATIVES_UI_SPEC.md decision 4) — a
   // bigger, less deliberate action than the existing no-confirm item-search
@@ -33,6 +34,7 @@
   async function load() {
       loading = true;
       error = '';
+      warnings = [];
       alternatives = [];
       pendingEquip = null;
       try {
@@ -51,6 +53,7 @@
               return;
           }
           alternatives = result.alternatives ?? [];
+          warnings = result.warnings ?? [];
       } catch (e) {
           error = 'Failed to fetch alternatives: ' + e;
       } finally {
@@ -146,6 +149,28 @@
       const rounded = Math.round(v * 100) / 100;
       return (rounded > 0 ? '+' : '') + rounded;
   }
+
+  // Phase 11 §5.3 limit indicators — warn when equipping an alternative would
+  // violate a global limit, without hiding the item from the list entirely.
+  $: minorArtifactElsewhere = Object.entries($resultStore?.slots ?? {}).some(
+      ([slot, detail]) => slot !== targetSlot && detail?.item?.minor
+  );
+  $: raidCountElsewhere = Object.entries($resultStore?.slots ?? {}).filter(
+      ([slot, detail]) => slot !== targetSlot && detail?.item?.is_raid
+  ).length;
+  $: raidLimitReached = raidCountElsewhere >= ($configStore.raid_item_limit ?? 2);
+
+  function limitBorderClass(alt: main.AlternativeItem): string {
+      if (alt.isMinor && minorArtifactElsewhere) return 'ring-2 ring-blood';
+      if (alt.isRaid && raidLimitReached) return 'ring-2 ring-gold';
+      return '';
+  }
+
+  function limitTooltip(alt: main.AlternativeItem): string {
+      if (alt.isMinor && minorArtifactElsewhere) return 'A Minor Artifact is already equipped in another slot';
+      if (alt.isRaid && raidLimitReached) return `Raid item limit (${$configStore.raid_item_limit ?? 2}) already reached from other slots`;
+      return '';
+  }
 </script>
 
 <button
@@ -177,15 +202,22 @@
       <p class="text-muted-foreground animate-pulse">Finding alternatives…</p>
     {:else if error}
       <p class="text-destructive text-sm">{error}</p>
-    {:else if alternatives.length === 0}
-      <p class="text-muted-foreground text-sm italic">No alternatives found for this slot.</p>
     {:else}
+      {#each warnings as w}
+        <p class="text-sm text-gold italic">{w}</p>
+      {/each}
+      {#if alternatives.length === 0}
+        <p class="text-muted-foreground text-sm italic">No alternatives found for this slot.</p>
+      {:else}
       {#each alternatives as alt (alt.rank)}
-        <div class="rounded-md border {pendingEquip === alt ? 'border-primary' : 'border-border'} bg-card/40 p-3 space-y-2">
+        <div class="rounded-md border {pendingEquip === alt ? 'border-primary' : 'border-border'} {limitBorderClass(alt)} bg-card/40 p-3 space-y-2"
+             title={limitTooltip(alt)}>
           <button type="button" class="w-full text-left" on:click={() => selectForEquip(alt)}>
             <div class="flex items-center justify-between gap-2">
               <span class="font-medium">#{alt.rank} {alt.itemName}</span>
-              <span class="text-xs text-muted-foreground shrink-0">ML {alt.ml}{alt.isRaid ? ' · Raid' : ''}</span>
+              <span class="text-xs text-muted-foreground shrink-0">
+                ML {alt.ml}{alt.isRaid ? ' · Raid' : ''}{alt.isMinor ? ' · Minor Artifact' : ''}
+              </span>
             </div>
             {#if alt.statDeltas && Object.keys(alt.statDeltas).length > 0}
               <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">
@@ -209,6 +241,7 @@
           {/if}
         </div>
       {/each}
+      {/if}
     {/if}
   </div>
 </div>

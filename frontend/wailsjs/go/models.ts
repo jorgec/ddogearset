@@ -142,6 +142,7 @@ export namespace main {
 	    slot: string;
 	    ml: number;
 	    isRaid: boolean;
+	    isMinor: boolean;
 	    tierScores: Record<string, number>;
 	    objectiveScore: number;
 	    statDeltas: Record<string, number>;
@@ -159,6 +160,7 @@ export namespace main {
 	        this.slot = source["slot"];
 	        this.ml = source["ml"];
 	        this.isRaid = source["isRaid"];
+	        this.isMinor = source["isMinor"];
 	        this.tierScores = source["tierScores"];
 	        this.objectiveScore = source["objectiveScore"];
 	        this.statDeltas = source["statDeltas"];
@@ -227,6 +229,7 @@ export namespace main {
 	    pre_equipped: Record<string, string>;
 	    pre_filled_augments: Record<string, any>;
 	    pre_filled_filigrees: Record<string, string[]>;
+	    checklist_owned?: Record<string, boolean>;
 	    calculate_only: boolean;
 	    max_search_time?: number;
 	    mode?: string;
@@ -265,6 +268,7 @@ export namespace main {
 	        this.pre_equipped = source["pre_equipped"];
 	        this.pre_filled_augments = source["pre_filled_augments"];
 	        this.pre_filled_filigrees = source["pre_filled_filigrees"];
+	        this.checklist_owned = source["checklist_owned"];
 	        this.calculate_only = source["calculate_only"];
 	        this.max_search_time = source["max_search_time"];
 	        this.mode = source["mode"];
@@ -426,6 +430,7 @@ export namespace main {
 	    pre_equipped: Record<string, string>;
 	    pre_filled_augments: Record<string, any>;
 	    pre_filled_filigrees: Record<string, string[]>;
+	    checklist_owned?: Record<string, boolean>;
 	    calculate_only: boolean;
 	    max_search_time?: number;
 	    mode?: string;
@@ -460,6 +465,7 @@ export namespace main {
 	        this.pre_equipped = source["pre_equipped"];
 	        this.pre_filled_augments = source["pre_filled_augments"];
 	        this.pre_filled_filigrees = source["pre_filled_filigrees"];
+	        this.checklist_owned = source["checklist_owned"];
 	        this.calculate_only = source["calculate_only"];
 	        this.max_search_time = source["max_search_time"];
 	        this.mode = source["mode"];

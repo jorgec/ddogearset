@@ -364,6 +364,13 @@
       "kind": "augment",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "00ba9294-10aa-53ee-98ad-ae68e2fad21e": {
+      "aka": [],
+      "canonical": "Mind Tear\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "00bb41db-ff9f-5c0f-8a3f-6b03b3b51a02": {
       "aka": [],
       "canonical": "The Renovator",
@@ -945,6 +952,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "01b3c002-bc5e-5780-aeae-39c049fd81f1": {
+      "aka": [],
+      "canonical": "Memory of Binding\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "01be5868-d88d-5fc5-bf3b-fa18d7a9f826": {
       "aka": [],
       "canonical": "Prowess: +1 Dexterity",
@@ -1209,6 +1223,13 @@
       "canonical": "Perfected Light Mace of the Weapon Master",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "02402a2a-70b6-5293-8750-1d7f0c8235ce": {
+      "aka": [],
+      "canonical": "Legendary Dust \u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "0243e1dd-7a9d-5e41-b2df-49ecd940e90e": {
@@ -3127,6 +3148,13 @@
       "canonical": "Crocodile Tooth",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "060de4d1-f968-5744-843f-543304e78eeb": {
+      "aka": [],
+      "canonical": "Legendary Stone Prison\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "060e6ca7-f0d8-5d1c-8543-a99837702a44": {
@@ -8132,6 +8160,13 @@
       "canonical": "Selune's Favor",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "0f8eac8e-5f79-5c32-9f74-f0a2e999891a": {
+      "aka": [],
+      "canonical": "Royalty's Frigid Response\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "0f9061dd-6a34-50b8-8ece-71730ecbff7b": {
@@ -14063,11 +14098,25 @@
       "kind": "quest",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "1ac79699-8619-5f6f-9e88-e51fa477a187": {
+      "aka": [],
+      "canonical": "Nightsinger\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "1accd372-b712-5950-b131-80e8a6aea5e8": {
       "aka": [],
       "canonical": "Quality listen +5\u001fLegendary Slavelords Bonus",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "augment",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "1ad35a2b-3f97-5924-80da-3d3f367bd2c5": {
+      "aka": [],
+      "canonical": "Greater Stone Prison\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "1ad7be91-4511-5103-9cbd-a40a9912b242": {
@@ -16310,6 +16359,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "1ee7eb51-dc1e-5619-bbe3-257d9f691157": {
+      "aka": [],
+      "canonical": "AlchemicalEarthAttunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "1eeabc2d-532a-5b4a-ac3e-847ab74dcb6a": {
       "aka": [],
       "canonical": "Shining Reliquary Light Pick",
@@ -16364,6 +16420,13 @@
       "canonical": "Mystical: Efficient Metamagic - Empower II, Conjuration Focus +2, Spell Penetration III\u001fAlchemical Tier 3",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "augment",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "1f04ffe9-6a14-5f50-8df3-903a2c76b518": {
+      "aka": [],
+      "canonical": "Coalesced Flame\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "1f05c003-2dd2-5752-9197-9bbf010f7540": {
@@ -20853,6 +20916,13 @@
       "kind": "filigree",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "27b078f8-6be3-5398-8863-d81abe4cedc4": {
+      "aka": [],
+      "canonical": "Sound and Silence\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "27b09900-bdb2-5550-8292-67aac9aab08c": {
       "aka": [],
       "canonical": "Ferrocrystal Dart",
@@ -22734,6 +22804,13 @@
       "canonical": "Legendary Shining Reliquary Heavy Mace",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "2b150d05-455e-5a1f-9cee-1ee85752beaa": {
+      "aka": [],
+      "canonical": "Legendary Ooze \u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "2b15ce17-7569-5785-affc-1594e6d3dee4": {
@@ -26810,6 +26887,13 @@
       "kind": "set_tier",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "32bdeae0-85ce-54f8-8042-129395de1baa": {
+      "aka": [],
+      "canonical": "alchemical fire attunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "32c2014f-74f8-5e6b-8675-53167f3ce245": {
       "aka": [],
       "canonical": "+7 Corrosion Epic Caustic Sickle",
@@ -27620,6 +27704,13 @@
       "canonical": "+3 Glaciation Doused Shortsword",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "3439bea5-b52c-5dc8-80e1-c3ce205205eb": {
+      "aka": [],
+      "canonical": "Legendary Salt \u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "343b7ad5-f0d5-53cb-8090-6369e96df712": {
@@ -31836,6 +31927,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "3c483088-9dc3-5507-953c-c767f6d7e140": {
+      "aka": [],
+      "canonical": "Sounding\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "3c4cc9db-9bb8-5c9d-ad77-00f05db67588": {
       "aka": [],
       "canonical": "SchoolFocusNumber\u001fNecromancy",
@@ -32249,6 +32347,13 @@
       "kind": "augment",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "3d0a0d2b-ad38-5737-9049-f9b9ff4b0e19": {
+      "aka": [],
+      "canonical": "Paranoia\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "3d0aa93d-409f-552f-a2fb-c6abe150ff18": {
       "aka": [],
       "canonical": "Otto's Irrevocable Power: +3 PRR",
@@ -32611,6 +32716,13 @@
       "canonical": "Quality Repair +2\u001fSlavelords Bonus",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "augment",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "3d92bac8-a6a7-58b7-834e-db7bbbcb2ce8": {
+      "aka": [],
+      "canonical": "Coronach\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "3d948204-70c4-5f86-ba18-61b3764e056e": {
@@ -36330,6 +36442,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "44a08dc2-3301-59f7-81c9-9f353bc127ba": {
+      "aka": [],
+      "canonical": "Freezing Ice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "44a57d15-8812-5a19-b8c8-6b50e6f13218": {
       "aka": [],
       "canonical": "The Enlightened Step",
@@ -36748,6 +36867,13 @@
       "canonical": "Legendary Maiming Fury Blade",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "45806acd-1d0a-5ec3-8998-17c55c3479c2": {
+      "aka": [],
+      "canonical": "Legendary Ice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "4582ce04-a885-56e0-93f1-47ef2dedc8ab": {
@@ -37462,6 +37588,13 @@
       "canonical": "Madstone Skull (Level 25)",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "46eae739-9e32-50d5-ab99-af175be8dd72": {
+      "aka": [],
+      "canonical": "Legendary Vacuum \u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "46edb2f8-216d-5dbc-abe0-6260cf038c9c": {
@@ -38260,6 +38393,13 @@
       "canonical": "Guardian of Stormreach Shield (round)",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "482542fc-3b40-5f5d-bef5-a64316308712": {
+      "aka": [],
+      "canonical": "Vulkoor's Bite\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "4825d2c9-83bd-537a-8e82-ac90e5413b0b": {
@@ -40943,6 +41083,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "4d0a2adc-7c2e-5907-bc78-664bb3b70752": {
+      "aka": [],
+      "canonical": "AlchemicalFireAttunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "4d0a9077-c97e-5048-bf12-25c72ea9315e": {
       "aka": [],
       "canonical": "Giant's Fist (Level 19)",
@@ -41200,6 +41347,13 @@
       "canonical": "+3 Glaciation Doused Rapier",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "4d709d11-5286-5605-b187-27930ac74749": {
+      "aka": [],
+      "canonical": "Lightning Lash\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "4d70bf70-a6b8-5866-88dc-24f8d2f09e0e": {
@@ -42049,6 +42203,13 @@
       "kind": "filigree_base",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "4f254767-c8ea-58d1-ad77-f69363b07c95": {
+      "aka": [],
+      "canonical": "legendary ash\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "4f255004-7e03-57aa-a631-0f46dbb9e878": {
       "aka": [],
       "canonical": "Dolorous Damage (Legendary)\u001fDolorous Slot (Accessory)",
@@ -42693,6 +42854,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "50f17e1d-2e8d-5c01-8f8a-82fb02aaabf5": {
+      "aka": [],
+      "canonical": "Spell Resonance\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "50f5e8f5-888e-5944-8c33-9fc807f7b495": {
       "aka": [],
       "canonical": "Ferrocrystal Handwraps",
@@ -42719,6 +42887,13 @@
       "canonical": "Gulthias Staff",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "50fe3670-0264-5dcb-a94f-d4d50ef8bd4e": {
+      "aka": [],
+      "canonical": "Sinister Chill\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "51003110-8900-5381-b074-82771b71a3a9": {
@@ -44098,6 +44273,13 @@
       "canonical": "Nether Orb (Level 26)",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "53b38b89-bd4d-5539-aa94-419873e6c2e6": {
+      "aka": [],
+      "canonical": "legendary steam\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "53b727d1-acd6-5f89-9bef-9eb2e54d4557": {
@@ -47306,6 +47488,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "5a135093-4e2c-55e1-b91b-19896906e65f": {
+      "aka": [],
+      "canonical": "Eternal Fire\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "5a1428fb-3cbe-5d94-9030-8533137694ad": {
       "aka": [],
       "canonical": "+7 Epic Quenched Sickle",
@@ -49091,6 +49280,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "5d3e9a80-d800-5ab4-8fad-89652e09cb88": {
+      "aka": [],
+      "canonical": "Brazen Brilliance\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "5d3ee3bb-baf1-5e80-b922-37ebed525522": {
       "aka": [],
       "canonical": "Cursed Mirror",
@@ -49441,6 +49637,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "5de3ea76-a52c-5281-b626-43db36815a5f": {
+      "aka": [],
+      "canonical": "Rippling Energy\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "5de4c2a2-aeb7-57b5-b49c-c830196bb1d4": {
       "aka": [],
       "canonical": "Red Dragonhide Armor",
@@ -49782,6 +49985,13 @@
       "canonical": "Echoes of the Walking Ancestors\u001fIoD: Set Bonus Slot",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "augment",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "5e6948e4-81e8-529a-9391-aa22678be5e8": {
+      "aka": [],
+      "canonical": "Legendary Salt\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "5e6da0a8-1203-5d60-b2d3-00d168bf8691": {
@@ -50720,6 +50930,13 @@
       "canonical": "Legendary Ring of the Mire",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "60451308-cc92-5044-a768-f517b69f067c": {
+      "aka": [],
+      "canonical": "Legendary Negation\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "6047ae32-c227-5579-bce7-378ae4fc7ad6": {
@@ -54782,6 +54999,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "67b32497-f437-5803-bd6f-150d2133baf9": {
+      "aka": [],
+      "canonical": "Freezing Ice Guard\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "67b4a0be-dd78-5664-9e52-c8486b6a94ca": {
       "aka": [],
       "canonical": "Calamitous Dart",
@@ -54815,6 +55039,13 @@
       "canonical": "The Long Shadow: +1 Dexterity",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "filigree",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "67ce62de-0ddf-5f19-b75f-22556fc8651f": {
+      "aka": [],
+      "canonical": "Revel in Blood (Shield)\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "67ce7168-11e4-55c3-8915-019c9358ea08": {
@@ -55473,6 +55704,13 @@
       "canonical": "The Art of Persuasion, Vol. 3\u001fGreen",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "augment",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "68e3dabf-fe03-58c2-a07b-f07ae1e22bf3": {
+      "aka": [],
+      "canonical": "Legendary Dust\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "68e4e109-e2c3-5aeb-b85c-eb2c33afbee5": {
@@ -62013,6 +62251,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "754106db-0150-5080-af83-5215243ff4d9": {
+      "aka": [],
+      "canonical": "Eternal Holy Burst\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "7544cd8c-7b35-5abe-96e1-a19fbc5d25e5": {
       "aka": [],
       "canonical": "Ferrocrystal Great Crossbow",
@@ -63602,6 +63847,13 @@
       "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "78624773-6897-58ab-b3d4-a735594b113b": {
+      "aka": [],
+      "canonical": "alchemical air attunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "78676539-2f44-5883-bfa8-14ed53031e6d": {
       "aka": [],
       "canonical": "Nightmother's Light Pick",
@@ -64239,11 +64491,25 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "79850b63-ba79-5121-afee-7a2227daf766": {
+      "aka": [],
+      "canonical": "Titania's Warmth\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "798e74b8-93a8-5d9c-896c-1c186ed2e891": {
       "aka": [],
       "canonical": "Grim Greaves",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "798ff193-700e-53cc-b20b-6eecff813e5d": {
+      "aka": [],
+      "canonical": "Dripping with Magma\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "79b098e2-925e-57eb-bbc6-1690d3f76445": {
@@ -64820,6 +65086,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "7aa633b5-f17a-5d88-85ec-dc8e07c6ec91": {
+      "aka": [],
+      "canonical": "Rupturing Echo\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "7aaa63f1-4632-5873-991c-60d053eeb87f": {
       "aka": [],
       "canonical": "Cruel Baton",
@@ -65014,6 +65287,13 @@
       "canonical": "Destructive War Axe",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "7b16625a-0cec-5b65-a00c-3f6afc880c0c": {
+      "aka": [],
+      "canonical": "Legendary Freezing Ice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "7b1744b9-f96d-5240-ad74-089cbb0433ea": {
@@ -65546,6 +65826,13 @@
       "canonical": "Shining Reliquary Blessed Sceptre",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "7c2b17ca-6c38-516b-9200-b93ad993ee2d": {
+      "aka": [],
+      "canonical": "Epic Noxious Venom Spike\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "7c2c710f-d1ab-55bd-bfa7-d4f65d0ab3d3": {
@@ -67032,6 +67319,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "7ee5c41c-36aa-5346-b223-9d96cfc04a56": {
+      "aka": [],
+      "canonical": "Brilliance of the Shattered Sun\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "7ee78380-37b3-5a69-bd22-ebe4daf14b65": {
       "aka": [],
       "canonical": "Paragon Guard",
@@ -67933,6 +68227,13 @@
       "canonical": "Leathers of the Celestial Archer",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "806cbb8c-100e-5d53-89fc-80341b43a2c1": {
+      "aka": [],
+      "canonical": "Memory of Butchery\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "806f6e10-a0a5-5a4d-aa59-1ffcd4f824ad": {
@@ -71617,6 +71918,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "87899ed3-794d-572a-b019-5e1d98528548": {
+      "aka": [],
+      "canonical": "Antimagic Spike\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "878bc0d4-41cf-559e-8fd9-2023c61e8d48": {
       "aka": [],
       "canonical": "Attuned Bone Battle Axe",
@@ -74009,6 +74317,13 @@
       "canonical": "Guardian's Glasses (Level 19)",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "8c1c8901-5cfe-500d-9236-0e3ba73e2911": {
+      "aka": [],
+      "canonical": "Spell Turmoil\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "8c1fb8e3-6ce0-5db8-8431-65e5300cc20f": {
@@ -83811,6 +84126,13 @@
       "kind": "quest",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "9e877c1e-376f-5c80-8ad7-7e2493a2e5f7": {
+      "aka": [],
+      "canonical": "AlchemicalAirAttunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "9e99e998-5eae-5587-a78a-dbf65b4d511d": {
       "aka": [],
       "canonical": "Legendary Core of a War Machine",
@@ -84068,6 +84390,13 @@
       "canonical": "Skull of the Sea",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "9f1f5906-3fbb-5b0b-b99c-ee5e8f35803a": {
+      "aka": [],
+      "canonical": "Overwhelming Despair\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "9f1f7260-0bdb-514b-aa97-f854b7e0171f": {
@@ -87745,6 +88074,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "a60164a8-4548-5e31-afea-9e4c2af9bafa": {
+      "aka": [],
+      "canonical": "Inflict Blight\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "a6020773-434f-5da2-8f61-6ff64ff1b8ce": {
       "aka": [],
       "canonical": "Ophael's Cincture",
@@ -88872,6 +89208,13 @@
       "kind": "quest",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "a81c5a1a-6b76-5dd5-9c7d-269ca23ae691": {
+      "aka": [],
+      "canonical": "Minor Freezing Ice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "a82222c9-66d3-53f9-998b-3b04231c989f": {
       "aka": [],
       "canonical": "Ring of Shadows (historic)",
@@ -89402,6 +89745,13 @@
       "canonical": "Legendary Garb of the Spring Winds",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "a91bdc56-6ab9-5f58-92d6-31761a4b5a12": {
+      "aka": [],
+      "canonical": "Legendary Vacuum\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "a91f74df-1892-5abe-9154-c53622cdc9c4": {
@@ -90559,6 +90909,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "ab59ab09-1c52-58b8-a15e-5f3259fb6152": {
+      "aka": [],
+      "canonical": "legendary affirmation\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "ab5bc111-6ed1-5e8f-a602-c1e0881a2255": {
       "aka": [],
       "canonical": "Nightmother's Sceptre",
@@ -91686,6 +92043,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "ad51c253-d2cd-501f-a461-592ea4e5f774": {
+      "aka": [],
+      "canonical": "Legendary Steam\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "ad562af0-f4dc-50af-aa50-e8fbae88c265": {
       "aka": [],
       "canonical": "Multitude of Menace",
@@ -91901,6 +92265,13 @@
       "canonical": "Fang: Fire Spell Critical Damage\u001fIoD: Accessory: Fang Slot",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "augment",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "add64d39-4573-51bf-9334-887620a803f0": {
+      "aka": [],
+      "canonical": "Grip of Venom\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "adde6351-5c4b-55e0-9a6e-a9ef51cfd97e": {
@@ -92552,6 +92923,13 @@
       "canonical": "Legendary Infested Scalemail",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "af221124-64cd-5545-9f81-50189adee628": {
+      "aka": [],
+      "canonical": "Bitter Frostbite\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "af224594-06b8-5f70-95e0-b1cf2565a12f": {
@@ -94764,6 +95142,13 @@
       "canonical": "Gravekeeper's Nimble Cloak",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "b34eed7c-9c4f-5c14-aa66-94a4962ed4f5": {
+      "aka": [],
+      "canonical": "Legendary Affirmation \u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "b350c6e3-3131-50f8-abe1-8104801e7401": {
@@ -98210,6 +98595,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "b9d7380c-c0fd-5ba1-9554-5db2a1b5e377": {
+      "aka": [],
+      "canonical": "Noxious Venom Spike\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "b9d86293-fe3f-5fb6-b094-661a142a9e6a": {
       "aka": [],
       "canonical": "Epic Sworn Silver Heavy Crossbow",
@@ -101332,6 +101724,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "bf932e2b-54a6-57e8-93d9-80955a0b554d": {
+      "aka": [],
+      "canonical": "Legendary Cerulean Wave\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "bf96df8e-3624-5de9-8fa7-73026ee09f32": {
       "aka": [],
       "canonical": "Legendary Poniard of Pain",
@@ -101927,6 +102326,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "c0a31d2b-b062-56ef-976f-a1172dcfe89a": {
+      "aka": [],
+      "canonical": "Legendary Ooze\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "c0a60996-5315-5e31-998c-223f927bf42d": {
       "aka": [],
       "canonical": "Robe of the Magi",
@@ -102249,6 +102655,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "c14686a5-15a9-5ca3-a648-4818d728492b": {
+      "aka": [],
+      "canonical": "Tendon Slice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "c1469c9c-dcc9-586f-8e37-06af079ff12e": {
       "aka": [],
       "canonical": "Docent of the Crownblade",
@@ -102296,6 +102709,13 @@
       "canonical": "Spectral Great Crossbow (level 16)",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "c15a8127-a419-5db4-ae97-28dbcaa5de7d": {
+      "aka": [],
+      "canonical": "AlchemicalWaterAttunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "c15d27d5-1a43-5ac7-982d-d33e96cce87d": {
@@ -102478,6 +102898,13 @@
       "canonical": "Epic Silver Necklace of Prophecy",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "c1bf137e-3bbd-583c-9bbe-e9cfb8e32211": {
+      "aka": [],
+      "canonical": "Revel in Blood (Slashing)\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "c1c89f8c-f3e6-5a57-b4ed-8175ca543949": {
@@ -103815,6 +104242,13 @@
       "canonical": "Epic Headman's Hood",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "c418fc2c-65ae-5871-8fa7-e66f159cbae8": {
+      "aka": [],
+      "canonical": "Cerulean Wave\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "c41c8369-48db-580f-b42e-80c6ed803f14": {
@@ -107604,6 +108038,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "cae22532-3e54-5ff0-b7fe-8cafa2bf3f6c": {
+      "aka": [],
+      "canonical": "Revel in Blood (Bludgeoning)\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "cae33bda-6e9f-5b98-8a82-61625cdb4ab5": {
       "aka": [],
       "canonical": "Elder's Knowledge\u001f2",
@@ -109179,6 +109620,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "cdc4d4ed-6715-5a32-a352-6c7b1501081b": {
+      "aka": [],
+      "canonical": "The Artblade's Gift\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "cdc5e4e8-cd63-5397-9fae-1b55c12da167": {
       "aka": [],
       "canonical": "Alchemical Light Pick",
@@ -109835,6 +110283,13 @@
       "canonical": "Creation Forge Gauntlets",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "cf30c2bb-eb27-5e5c-a4f1-bd8acab4b557": {
+      "aka": [],
+      "canonical": "Legendary Ash\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "cf311ad7-331d-52a8-9757-186eb4cf15b7": {
@@ -111816,6 +112271,13 @@
       "canonical": "Thunder-Forged Alloy Bastard Sword",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "d2fb9607-0073-570f-b594-efc0da43e224": {
+      "aka": [],
+      "canonical": "Revel in Blood (Piercing)\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "d2fda6be-c884-53bc-94d3-3b5f111eb657": {
@@ -114427,6 +114889,13 @@
       "canonical": "Mythic Power Boost\u001fMythic",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "augment",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "d820fb50-4b5d-5ed7-8ebc-f00e8918b66d": {
+      "aka": [],
+      "canonical": "Lesser Freezing Ice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "d821598c-817e-537d-b177-1228c3b86de7": {
@@ -117320,6 +117789,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "ddbc025b-41d9-54f5-b2ff-e8a11a617387": {
+      "aka": [],
+      "canonical": "Epic Freezing Ice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "ddc4c374-014d-56a4-9025-78359e8768ca": {
       "aka": [],
       "canonical": "Bend Fate",
@@ -118972,6 +119448,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "e0f88666-9b56-5299-87de-42f4adcbb6bc": {
+      "aka": [],
+      "canonical": "legendary vacuum\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "e0fcd233-0e7c-5369-8dbe-c819d5634cdb": {
       "aka": [],
       "canonical": "+3 Smoldering Hand Axe",
@@ -120286,6 +120769,13 @@
       "canonical": "Gauntlet of the Iron Council",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item_family",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "e3799b03-778f-5e13-981d-e2a810b875b8": {
+      "aka": [],
+      "canonical": "Revel in Blood (Magic)\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "e37b0542-a9c0-5b76-ad9e-f0281453ae93": {
@@ -122367,6 +122857,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "e798453e-f3c0-5bba-a99e-4bee28d1e68b": {
+      "aka": [],
+      "canonical": "alchemical earth attunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "e79bde5d-76fa-599a-a71e-7858a58be8d6": {
       "aka": [],
       "canonical": "Body and Mind",
@@ -123732,6 +124229,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "ea191f9d-4852-5b81-9250-7cb5bd97041d": {
+      "aka": [],
+      "canonical": "The Mummy's Gift\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "ea192b50-43c4-5503-b171-01926cb15827": {
       "aka": [],
       "canonical": "Admiral's Wristwatch",
@@ -124030,6 +124534,13 @@
       "aka": [],
       "canonical": "MetamagicCostExtend\u001f",
       "first_seen": "2026-08-11T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "eaa2785f-a0f2-56cd-93cd-5441c8db95d5": {
+      "aka": [],
+      "canonical": "Lesser Stone Prison Guard\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
       "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
@@ -126091,6 +126602,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "ee722826-7718-55bf-b616-c067014f8859": {
+      "aka": [],
+      "canonical": "alchemical water attunement\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "ee77a5f5-27fc-54d7-a5aa-fe190ae73564": {
       "aka": [],
       "canonical": "Doublestrike\u001fCannith Belt Prefix",
@@ -126439,6 +126957,13 @@
       "canonical": "Legendary Book-Cover Beltstrap",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "ef283c79-10e8-5596-badd-6bd5e93d37bd": {
+      "aka": [],
+      "canonical": "Paragon Cerulean Wave\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "ef2a1f7a-36a0-5fc5-8b64-ce777e1c54cc": {
@@ -131593,6 +132118,13 @@
       "kind": "item",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "f8648932-e6e5-508b-8cc2-ec4649d598b1": {
+      "aka": [],
+      "canonical": "Legendary Vile Grip of the Hidden Hand\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "f86672eb-46cf-5f61-80b7-06c592282a73": {
       "aka": [],
       "canonical": "Legendary Band of the Imprisoned One",
@@ -131843,6 +132375,13 @@
       "canonical": "Abiding Path/Elemental Avatar +2 Wisdom",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "filigree",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "f8ece590-8021-5b9e-a6d6-6694f599124b": {
+      "aka": [],
+      "canonical": "legendary ice\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "f8f447f8-0256-5ecd-9553-abbe36845089": {
@@ -132622,6 +133161,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "fa758dde-6db1-50bc-8ba8-1df84adc9df8": {
+      "aka": [],
+      "canonical": "Legendary Ash \u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "fa7aa45c-ee08-522f-8364-aed74f868ec9": {
       "aka": [],
       "canonical": "+2 Intimidating Dagger of Paralyzing Acid",
@@ -133329,6 +133875,13 @@
       "kind": "item_family",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
+    "fbd0dd94-3ced-5cf5-ab43-8d94bdfb18e0": {
+      "aka": [],
+      "canonical": "Lingering Acidic Burn\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
     "fbd2ed6d-36d6-527e-ba27-f97301c3fdb7": {
       "aka": [],
       "canonical": "Alchemical Light Shield",
@@ -133460,6 +134013,13 @@
       "canonical": "Captain's Spyglass",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "item",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "fc1025f3-d37a-596c-975f-b86ad8d4b867": {
+      "aka": [],
+      "canonical": "legendary dust\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "fc13b9e2-4d99-595f-b6ad-c6071b9765bd": {
@@ -135441,6 +136001,13 @@
       "canonical": "Endgame: Marguerite",
       "first_seen": "2026-08-11T00:00:00Z",
       "kind": "quest",
+      "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
+    },
+    "ffb287e7-b36c-5eb9-be6c-50206dee0fce": {
+      "aka": [],
+      "canonical": "Legendary Affirmation\u001f",
+      "first_seen": "2026-08-17T00:00:00Z",
+      "kind": "stat",
       "last_seen_commit": "f91af4e65d72e62b54984e1bd0dc7a6c0449970b"
     },
     "ffb293bd-b58d-5c5a-bf27-9119707f28e5": {

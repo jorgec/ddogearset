@@ -1,20 +1,22 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast,
-           troveImportStore, defaultConfig } from '$lib/store';
+           troveImportStore, defaultConfig, pickerSlot, alternativesSlotStore } from '$lib/store';
   import { GetAvailableItems, GetItemDetails, GetAvailableFiligrees, RecalculateGearset } from '../../../../wailsjs/go/main/App';
   import type { models, main } from '../../../../wailsjs/go/models';
   import { main as mainModels } from '../../../../wailsjs/go/models';
   import ItemDetail from './ItemDetail.svelte';
   import SlotAlternatives from './SlotAlternatives.svelte';
   import FiligreeEditor from './FiligreeEditor.svelte';
+  import { rarityClass } from '$lib/harness';
 
   let editorTab: 'gear' | 'filigrees' = 'gear';
 
   const baseSlots = ['Helmet', 'Necklace', 'Trinket', 'Cloak', 'Belt', 'Ring_1', 'Ring_2', 'Gloves', 'Boots', 'Bracers', 'Armor', 'Goggles', 'Weapon1', 'Weapon2'];
 
   // docs/SLOT_ALTERNATIVES_UI_SPEC.md — the slot currently showing the
-  // alternatives drawer, or null when closed.
-  let alternativesSlot: string | null = null;
+  // alternatives drawer, or null when closed. Shared store so the
+  // HarnessBoard can also open it.
+  $: alternativesSlot = $alternativesSlotStore;
 
   let selectedSlot: string | null = null;
   let availableItems: models.XMLItem[] = [];
@@ -82,6 +84,19 @@
       selectedSlot = slot;
       searchQuery = ""; // reset search on new slot click
       await fetchItems(slot, "");
+  }
+
+  // Phase 12 — respond to the shared pickerSlot store so the HarnessBoard can
+  // open this component's picker modal.
+  $: if ($pickerSlot) {
+      const slot = $pickerSlot;
+      $pickerSlot = null;
+      const itemName = $resultStore?.gearSet?.[slot];
+      if (itemName) {
+          handleItemClick(slot, itemName as string);
+      } else {
+          handleSlotClick(slot);
+      }
   }
   
   async function fetchItems(slot: string, query: string) {
@@ -259,6 +274,7 @@
   // Reactive, so swapping an item re-badges it without pressing the button
   // again.
   $: ownedNameSet = new Set($troveImportStore.ownedNames ?? []);
+  $: ownedItemsMap = new Map(($troveImportStore.items ?? []).map(i => [i.name, i]));
 
   function ownershipOf(itemName: string | undefined): 'owned' | 'missing' | null {
       if (!inventoryChecked || !itemName) return null;
@@ -311,7 +327,7 @@
       selectedItemDetails = null;
       selectedSlot = null;
       availableItems = [];
-      alternativesSlot = null;
+      $alternativesSlotStore = null;
       inventoryChecked = false;
       showToast('Started a new build.', 'success');
   }
@@ -396,17 +412,18 @@
       selectedItemDetails = null;
   }
 
-  // §4.2 — "item name is displayed in a distinct color based on rarity
-  // (e.g. Purple for Epic, Orange for Legendary)". DDO encodes exactly that
-  // in the item name itself ("Legendary …" / "Epic …"), with minimum level as
-  // the authoritative fallback for anything not prefixed — so this reads real
-  // data rather than inventing a rarity field the corpus doesn't have.
-  function rarityClass(name: string, ml: number): string {
-      const n = (name || '').toLowerCase();
-      if (n.startsWith('legendary') || ml >= 30) return 'text-gold';
-      if (n.startsWith('epic') || ml >= 20) return 'text-[#A78BFA]';
-      return 'text-vellum';
-  }
+  // Mirrors Go's isWeapon2Locked / python/solver.py resolve_weapon_lists
+  // w2_list == ['none'] branches.
+  $: weapon2Locked = (() => {
+      const ws = $configStore.weapon_style;
+      if (ws === 'Two Handed Fighting' || ws === 'Bow') return true;
+      if (ws === 'Single Weapon Fighting') {
+          if ($configStore.swashbuckling) return false;
+          const os = $configStore.offhand_style ?? '';
+          return os === '' || os === 'None' || os === 'Empty';
+      }
+      return false;
+  })();
 
   const SLOT_ICON: Record<string, string> = {
       Helmet: 'M4 13a8 8 0 0116 0v4H4z',
@@ -501,17 +518,13 @@
 
         <div class="min-w-0 flex-1">
           <div class="text-[10px] uppercase tracking-wider text-steel/70 leading-none flex items-center gap-1.5">
-            <span>{slot.replace('_1', ' 1').replace('_2', ' 2')}</span>
             {#if owned}
-              <span class="inline-flex items-center gap-1 normal-case tracking-normal
-                           {owned === 'owned' ? 'text-emerald-400' : 'text-blood'}"
+              <span class="h-2 w-2 rounded-full shrink-0 {owned === 'owned' ? 'bg-emerald-400' : 'bg-blood'}"
                     title={owned === 'owned'
                       ? 'In your loaded Trove inventory'
-                      : 'NOT in your loaded Trove inventory'}>
-                <span class="h-1.5 w-1.5 rounded-full {owned === 'owned' ? 'bg-emerald-400' : 'bg-blood'}"></span>
-                {owned === 'owned' ? 'owned' : 'not owned'}
-              </span>
+                      : 'NOT in your loaded Trove inventory'}></span>
             {/if}
+            <span>{slot.replace('_1', ' 1').replace('_2', ' 2')}</span>
           </div>
           {#if itemName}
             <button
@@ -519,6 +532,14 @@
               on:click={() => handleItemClick(slot, itemName)}
               title={itemName}
             >{itemName}</button>
+            {#if owned === 'owned' && ownedItemsMap.has(itemName)}
+              {@const troveInfo = ownedItemsMap.get(itemName)}
+              {#if troveInfo?.character || troveInfo?.location}
+                <div class="mt-0.5 text-[10px] text-steel/60 truncate" title={troveInfo.character ? `${troveInfo.character} (${troveInfo.location})` : troveInfo.location}>
+                  {troveInfo.character ? `${troveInfo.character} (${troveInfo.location})` : troveInfo.location}
+                </div>
+              {/if}
+            {/if}
           {:else}
             <button
               class="mt-0.5 block w-full text-left text-xs italic text-steel/50 hover:text-gold transition-colors"
@@ -529,9 +550,10 @@
 
         <!-- actions: quiet until the socket is hovered/focused -->
         <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-          <button on:click={() => alternativesSlot = slot}
-                  class="p-1 rounded text-steel hover:text-gold hover:bg-carved transition-colors"
-                  title="Find alternatives for this slot">
+          <button on:click={() => $alternativesSlotStore = slot}
+                  disabled={slot === 'Weapon2' && weapon2Locked}
+                  class="p-1 rounded text-steel hover:text-gold hover:bg-carved transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={slot === 'Weapon2' && weapon2Locked ? 'Weapon2 is locked by the current weapon style' : 'Find alternatives for this slot'}>
             <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/></svg>
           </button>
@@ -616,5 +638,5 @@
 
 {#if alternativesSlot}
   {@const currentAlternativesSlot = alternativesSlot}
-  <SlotAlternatives targetSlot={currentAlternativesSlot} onClose={() => alternativesSlot = null} />
+  <SlotAlternatives targetSlot={currentAlternativesSlot} onClose={() => $alternativesSlotStore = null} />
 {/if}

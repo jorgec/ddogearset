@@ -179,22 +179,12 @@
           {/if}
         </div>
 
-        <div class="relative shrink-0">
+        <div class="shrink-0">
           <button
             type="button"
             class="rounded-md border border-border bg-secondary text-secondary-foreground px-2 py-1 text-xs hover:bg-secondary/80 transition-colors"
             on:click={() => togglePicker(tier)}
           >Add stat ▾</button>
-
-          {#if openPickerTier === tier}
-            <div class="absolute right-0 z-40 mt-1">
-              <StatPicker
-                buildType={$configStore.build_type}
-                on:select={(e) => addStat(tier, e.detail)}
-                on:close={() => (openPickerTier = null)}
-              />
-            </div>
-          {/if}
         </div>
       </div>
 
@@ -285,3 +275,11 @@
     </div>
   {/each}
 </div>
+
+{#if openPickerTier !== null}
+  <StatPicker
+    buildType={$configStore.build_type}
+    on:select={(e) => { if (openPickerTier !== null) addStat(openPickerTier, e.detail); }}
+    on:close={() => (openPickerTier = null)}
+  />
+{/if}

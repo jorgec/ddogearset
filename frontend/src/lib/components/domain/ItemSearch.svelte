@@ -78,15 +78,11 @@
       </button>
 
       {#if showPicker}
-          <!-- Backdrop to close on outside click -->
-          <button class="fixed inset-0 z-40 bg-transparent" on:click={() => showPicker = false} aria-label="Close picker"></button>
-          <div class="absolute top-full left-0 mt-2 z-50">
-              <StatPicker 
-                  buildType={$configStore.build_type} 
-                  on:select={(e) => performSearch(e.detail)} 
-                  on:close={() => showPicker = false} 
-              />
-          </div>
+          <StatPicker
+              buildType={$configStore.build_type}
+              on:select={(e) => performSearch(e.detail)}
+              on:close={() => showPicker = false}
+          />
       {/if}
     </div>
 

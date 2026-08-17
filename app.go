@@ -602,6 +602,7 @@ type OptimizationPayload struct {
 	// normalizes both shapes.
 	PreFilledAugments  map[string]interface{} `json:"pre_filled_augments"`
 	PreFilledFiligrees map[string][]string    `json:"pre_filled_filigrees"`
+	ChecklistOwned     map[string]bool        `json:"checklist_owned,omitempty"`
 	CalculateOnly      bool                   `json:"calculate_only"`
 	// MaxSearchTime is the TOTAL wall-clock budget in seconds shared across all
 	// solve stages (not a per-solve limit). The frontend has produced this value
@@ -639,6 +640,7 @@ type AlternativeItem struct {
 	Slot     string `json:"slot"`
 	ML       int    `json:"ml"`
 	IsRaid   bool   `json:"isRaid"`
+	IsMinor  bool   `json:"isMinor"`
 	// TierScores ("1".."5") is the AUTHORITATIVE ranking vector; compare
 	// candidates lexicographically on it. Only populated tiers appear.
 	TierScores map[string]float64 `json:"tierScores"`
@@ -1108,6 +1110,14 @@ func (a *App) GetSlotAlternatives(payload AlternativesPayload) (AlternativesResu
 	payload.Mode = "alternatives"
 	payload.CalculateOnly = false
 
+	if payload.TargetSlot == "Weapon2" && isWeapon2Locked(payload.OptimizationPayload) {
+		return AlternativesResult{
+			Success:  true,
+			Slot:     payload.TargetSlot,
+			Warnings: []string{"Cannot suggest alternatives for Weapon2 while using a two-handed or bow weapon style."},
+		}, nil
+	}
+
 	// Clamp before sending so Python and the UI agree on what was asked for.
 	if payload.Count < minAlternatives {
 		payload.Count = minAlternatives
@@ -1138,6 +1148,25 @@ const (
 	minAlternatives = 3
 	maxAlternatives = 10
 )
+
+// isWeapon2Locked returns true when the build's weapon style means that
+// Weapon2 should be empty (two-handed, bow, etc.). This mirrors the
+// w2_list == ['none'] branches of python/solver.py resolve_weapon_lists.
+func isWeapon2Locked(cfg OptimizationPayload) bool {
+	switch cfg.WeaponStyle {
+	case "Two Handed Fighting":
+		return true
+	case "Bow":
+		return true
+	case "Single Weapon Fighting":
+		if cfg.Swashbuckling {
+			return false
+		}
+		return cfg.OffhandStyle == "" || cfg.OffhandStyle == "None" || cfg.OffhandStyle == "Empty"
+	default:
+		return false
+	}
+}
 
 // GetSystemLogs retrieves real-time execution logs.
 func (a *App) GetSystemLogs() []string {
