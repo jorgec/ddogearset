@@ -827,7 +827,8 @@ def build_ub_sources(items, sets, augments, filigrees, required_slots):
 def create_model(items, sets, augments, filigrees, entries, art_slots, required_slots,
                  raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
                  pre_filled_filigrees=None,
-                 weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False):
+                 weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False,
+                 maximize_colorless_first=False):
     """Build the PuLP model once (INV-5). Sets NO objective — every stage does
     that itself via prob.setObjective().
 
@@ -1176,6 +1177,57 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
     ub_all = compute_stat_upper_bounds(sources, items, required_slots, caps, True)
     ub_nofil = compute_stat_upper_bounds(sources, items, required_slots, caps, False)
 
+    # ---- "maximize colorless slots first" UB override --------------------
+    # For tier >= 3 stats where a colorless-compatible augment provides a
+    # value within 1 of the max item value, cap UB_s so n_s reaches 1.0
+    # via the augment alone. This makes the solver not seek items
+    # specifically for these stats — diamonds/festive augments handle them.
+    colorless_covered_notes = []
+    if maximize_colorless_first:
+        tier_of_stat = {e.stat: e.tier for e in entries}
+        colorless_ub_overrides = {}
+        for (stat, b_type), srclist in sources.items():
+            tier = tier_of_stat.get(stat)
+            if tier is None or tier < 3:
+                continue
+            max_item = max((val for val, var, sname, origin in srclist
+                           if origin == 'item'), default=0.0)
+            max_colorless = max(
+                (val for val, var, sname, origin in srclist
+                 if origin == 'augment'
+                 and COLORLESS_AUGMENT_NAME_PATTERN.match(sname.strip())),
+                default=0.0)
+            if max_colorless > 0 and max_colorless >= max_item - 1:
+                colorless_ub_overrides[(stat, b_type)] = max_colorless
+
+        if colorless_ub_overrides:
+            for ub_dict in (ub_all, ub_nofil):
+                for stat in list(ub_dict.keys()):
+                    tier = tier_of_stat.get(stat)
+                    if tier is None or tier < 3:
+                        continue
+                    replacement = 0.0
+                    for (s, bt), srclist in sources.items():
+                        if s != stat or not srclist:
+                            continue
+                        if (s, bt) in colorless_ub_overrides:
+                            replacement += colorless_ub_overrides[(s, bt)]
+                        elif _is_stacking(bt):
+                            eligible = srclist
+                            replacement += _stacking_family_bound(
+                                eligible, required_slots,
+                                _augment_slot_budget(items, required_slots))
+                        else:
+                            replacement += max(t[0] for t in srclist)
+                    if replacement > 0:
+                        if stat in caps:
+                            replacement = min(replacement, float(caps[stat]))
+                        ub_dict[stat] = max(replacement, UB_FLOOR)
+            for (stat, b_type), aug_val in colorless_ub_overrides.items():
+                colorless_covered_notes.append(
+                    f"'{stat}' ({b_type}): colorless augment covers "
+                    f"{aug_val:.0f} of max {max((v for v, _, _, o in sources[(stat, b_type)] if o == 'item'), default=0):.0f}")
+
     # EC-4: a priority stat with zero sources in the parsed pool is excluded
     # from every goal, from tier-4 breadth, and from weight normalization (so
     # the remaining weights still sum to 1).
@@ -1188,6 +1240,10 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         flat_weights.update(tier_map)
 
     notes = list(hard_slot_notes)
+
+    if colorless_covered_notes:
+        notes.append(
+            "Maximize colorless first: " + "; ".join(colorless_covered_notes))
 
     if unmatched_pre_filled_augments:
         notes.append(
@@ -2320,7 +2376,8 @@ def _local_search_augments(item, augments, used_names, initial, evaluate, shortl
 def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, art_slots,
                      raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
                      pre_filled_filigrees=None, mode="optimize", max_search_time=DEFAULT_SEARCH_TIME,
-                     weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False):
+                     weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False,
+                     maximize_colorless_first=False):
     # Required slots based on available items
     available_slots = set()
     for item in items:
@@ -2339,7 +2396,8 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
                          pre_filled_filigrees,
                          weapon1_eligible_types=weapon1_eligible_types,
                          weapon2_eligible_types=weapon2_eligible_types,
-                         require_weapon2=require_weapon2)
+                         require_weapon2=require_weapon2,
+                         maximize_colorless_first=maximize_colorless_first)
 
     out_file.write(f"\n======================================\n")
     out_file.write(f"       RUNNING FOR MAX LEVEL {cap}\n")

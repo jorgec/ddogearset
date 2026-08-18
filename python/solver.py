@@ -694,6 +694,7 @@ def main():
     pre_filled_augments = parsed_data.get('pre_filled_augments', {})
     pre_filled_filigrees = parsed_data.get('pre_filled_filigrees', {})
     max_search_time = parsed_data.get('max_search_time', optimizer.DEFAULT_SEARCH_TIME)
+    maximize_colorless_first = parsed_data.get('maximize_colorless_first', False)
 
     # DDO_CATALOG_DB is set by app.go's runSolver() to the same seeded
     # catalog.db path Go's own item/augment/filigree caches read (see
@@ -787,7 +788,7 @@ def main():
 
         print(f"Parsing Augments (ML {min_ml}-{cap})...")
         pre_filled_augment_names = optimizer.flatten_pre_filled_augment_names(pre_filled_augments)
-        augments = catalog_source.parse_augments(catalog_conn, cap, priority_names, pre_filled_augment_names, min_ml=min_ml, owned_names=pool_owned_names)
+        augments = catalog_source.parse_augments(catalog_conn, cap, priority_names, pre_filled_augment_names, min_ml=min_ml, owned_names=pool_owned_names, max_level=cap)
         print(f"Loaded {len(augments)} augments")
 
         filigrees = []
@@ -844,7 +845,8 @@ def main():
             mode, max_search_time,
             weapon1_eligible_types=weapon1_eligible_types,
             weapon2_eligible_types=weapon2_eligible_types,
-            require_weapon2=require_weapon2)
+            require_weapon2=require_weapon2,
+            maximize_colorless_first=maximize_colorless_first)
 
         if result and result.get('success') is not False:
             final_gearset = result

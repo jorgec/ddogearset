@@ -7,6 +7,149 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.5.4] — 2026-08-19
+
+### Added
+
+- **Level-dependent diamond augment values.** Diamond augments (stats and skills)
+  now resolve their effect value from `<LevelValue>` XML at the character's max
+  level instead of using the static `<Amount>` (which was the base-level value).
+  At level 36: stat enhancement diamonds give +15, skill competence diamonds
+  give +22, insightful diamonds give +6 at level 28. Previously these augments
+  were invisible to the solver because their MinLevel=0 was filtered by the
+  ML≥29 floor.
+
+- **"Maximize colorless slots first?" checkbox.** For stats at tier 3 (Maximize
+  If Free) and below, when a colorless augment (diamond or festive) can provide
+  a value within 1 of the best item value, the solver prefers the augment in a
+  colorless slot instead of seeking a dedicated item. Covers enhancement,
+  insightful, and festive bonus types.
+
+- **Festive augments recognized as colorless-compatible.** `+N Festive <stat>`
+  augments are now matched by the colorless augment pattern, so they participate
+  in colorless-slot optimization.
+
+- **Diamond.Augments.xml extended to level 36.** Added level 36 entries for all
+  six stat enhancement diamonds (+15) and all skill competence diamonds (+22),
+  matching in-game values at the current level cap.
+
+## [Unreleased]
+
+### Changed
+
+- **Trove inventory import is now drag-and-drop only.** Both "Load Trove CSV…"
+  buttons are gone; drag the export onto the Owned Items panel or the
+  configuration drawer's Trove section instead. Either zone highlights while a
+  file is over it, and a drop on either populates both screens as before.
+
+  This is not just a different affordance — it removes three failure modes at
+  once. There is no `<input type="file">` in the flow, so the element-lifetime
+  bug below cannot recur on this path. Wails' `OnFileDrop` gives the frontend an
+  absolute path, so the CSV never crosses the IPC bridge — it used to be sent
+  twice, concurrently, to two RPCs that each parsed it. And a drop works on an
+  unfocused window, unlike a click (see Known issues).
+
+  `LoadTroveInventory` and `GetTroveOwnedItems` are replaced by a single
+  `LoadTroveFromPath`, which reads and parses the file once and returns both the
+  owned-name set the solver constraint needs and the catalog-matched item list
+  the Owned Items screen browses. `docs/TROVE_INVENTORY_IMPORT_SPEC.md` amended.
+
+  Trade-off, accepted deliberately: there is now no keyboard-accessible way to
+  import a CSV. Gearset file loading is unaffected and keeps its button.
+
+- **Wails RPC calls that gate the UI now time out.** Wails' `calls.js` swallows a
+  failed send with nothing but a `console.error`, and its call timeout defaults
+  to infinite — so a call that never reached Go never settled, leaving whatever
+  control it disabled dead for the rest of the session with nothing logged. New
+  `services/rpc.ts` adds `withTimeout`, applied to the Trove import and, via
+  `solveTimeoutMs`, to optimization and recalculation. The solve timeout is
+  derived from the user's own `max_search_time` budget plus a wide allowance for
+  solver extraction, catalog reads and marshalling, so it can never cut a
+  legitimate long solve short.
+
+- **The system log is capped at 2000 lines and the console only polls while
+  visible.** It previously grew without bound for the life of the process while
+  the status console re-fetched all of it once a second — including while the
+  console was hidden behind another readout, which is most of the time.
+
+### Fixed
+
+- **Loading a Trove CSV (or a gearset file) sometimes did nothing at all.**
+  Every file loader built a `<input type="file">`, never attached it to the
+  document, kept no reference to it, and called `.click()`. On macOS that
+  element is unreachable from JavaScript the moment the function returns, and
+  the pending native Open panel does not keep it alive — so JavaScriptCore was
+  free to collect it while the panel was still on screen, taking the file
+  chooser with it. The user picked a file and nothing arrived: no `change`
+  event, no error, no log line. Intermittent because it is a race against a
+  garbage collector — it depends on how long the panel stays open and on how
+  much the page allocates meanwhile (`StatusConsole` polls `GetSystemLogs`
+  every second and the log slice is never trimmed, so it always allocates).
+
+  Reproduced in a WKWebView harness whose `WKUIDelegate` replaces `NSOpenPanel`,
+  making the dialog dwell time a parameter: a dwell of 2s loads, a dwell of 3s
+  was dropped in 6 of 6 trials, with a `FinalizationRegistry` confirming the
+  input was collected before the file came back.
+
+  Fixed by a single shared `pickFile()` (`frontend/src/lib/services/filePicker.ts`)
+  that both puts the input in the document and holds a module-level reference to
+  it, releasing it only once an outcome is known. Either measure alone was
+  verified sufficient; it does both. Cancellation now comes from the `cancel`
+  event. Adopted by `OwnedItems.svelte`, `JobConfigurationForm.svelte` and
+  `Summary.svelte`'s `loadGearset` — gearset files had exactly the same defect.
+  Full write-up: `docs/FILE_DIALOG_SILENT_DROP.md`.
+
+- **A Trove CSV loaded in the first moments of a launch matched nothing, silently.**
+  `loadCaches()` runs in a goroutine while the UI is already clickable, and
+  `GetTroveOwnedItems` read `itemsByName` straight through that ~0.5s window,
+  returning `Success: true` with zero items — which the Owned Items screen
+  renders as its "load a CSV" empty state, indistinguishable from the click
+  having done nothing. `go test -race` also flagged the read of `itemsByName`
+  (`trove_inventory.go`) against `loadCaches`' write of it (`app.go`).
+
+  `App.cacheReadyCh` now closes when `loadCaches` finishes on every exit path,
+  and `GetTroveOwnedItems` waits on it before matching — which removes the empty
+  window and orders those reads against the writes, so the race is gone rather
+  than merely unlikely. If the gate opens with an empty catalog (`loadCaches`
+  genuinely failed) the call now reports that instead of returning an empty
+  list; a CSV that legitimately matches nothing still succeeds with zero items.
+  Regression tests in `trove_cachegate_test.go`.
+
+- **The same empty-cache window, on every other catalog-backed screen.**
+  `GetTroveOwnedItems` was only the reader that got noticed. `GetAvailableItems`,
+  `GetItemDetails`, `GetAvailableAugments`, `GetAugmentByName`,
+  `GetAvailableFiligrees`, `GetFiligreeByName` and `GetSetBonus` all read the
+  four caches (and their name indexes) through the same ~0.5s startup window:
+  an item panel opened early rendered blank, a gear search early in a launch
+  found nothing, and each of those reads raced `loadCaches`' writes under
+  `-race` exactly as the Trove one did.
+
+  All seven now wait on the readiness gate first, through a shared
+  `App.awaitCaches` helper that `GetTroveOwnedItems` also uses, so there is one
+  place the wait is implemented and one wording for it. The helper checks the
+  channel non-blockingly before arming any timer — once `loadCaches` has
+  finished, the wait costs a closed-channel receive, which matters for the
+  search-box readers that are called on every keystroke. Regression tests in
+  `app_cachegate_test.go`, including a `-race` test with one goroutine per
+  reader so a gate dropped from any single RPC still trips the detector.
+
+- **`addLog`/`GetSystemLogs` data race.** Every RPC appends to `a.logs` from its
+  own goroutine (Wails dispatches each bound call separately) while the status
+  console read the live slice once a second and handed it to the JSON
+  marshaller. Both are now behind a mutex and `GetSystemLogs` returns a copy.
+
+### Known issues
+
+- **On macOS the first click on the window is swallowed when the app is not
+  focused.** `WKWebView.acceptsFirstMouse` is `false`, so AppKit spends that
+  click activating the window instead of delivering it to the page — coming back
+  from Finder and clicking straight onto a button does nothing the first time.
+  Standard macOS behaviour (Safari does the same) and not fixable from Go or
+  JavaScript, since the click never reaches the webview; it needs an
+  Objective-C override Wails v2 does not expose.
+
+---
+
 ## [0.5.3] — 2026-08-17
 
 ### Added

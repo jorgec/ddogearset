@@ -35,13 +35,14 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional
 
 from rules.constants import (
     PROC_AUGMENT_ALIASES, PROC_BONUS_TYPE, PROC_ZERO_EFFECT_AUGMENT_NAMES,
     WEAPON_BASE_STATS,
 )
-from rules.extract import wanted_weapon_stats_for
+from rules.extract import COLORLESS_AUGMENT_NAME_PATTERN, wanted_weapon_stats_for
 from rules.naming import _is_proc_presence_flag_type, _proc_priority_match, normalize_stat_name
 
 # Set by app.go (replacing DDO_DATA_PATH). Falls back to a dev-local build so
@@ -239,14 +240,45 @@ def parse_items(catalog, max_ml, priorities, allowed_armor, allowed_w1_list,
     return out
 
 
+def _resolve_level_value(raw_xml: str, max_level: int) -> Optional[float]:
+    """For an augment with <ChooseLevel/>, return the effect value appropriate
+    for the given character level by looking up <Levels>/<LevelValue>.
+
+    Returns None when the augment has no level scaling or max_level is below
+    the lowest available threshold."""
+    try:
+        aug_node = ET.fromstring(raw_xml)
+    except ET.ParseError:
+        return None
+    if aug_node.find('ChooseLevel') is None:
+        return None
+    levels_text = aug_node.findtext('Levels')
+    values_text = aug_node.findtext('LevelValue')
+    if not levels_text or not values_text:
+        return None
+    try:
+        levels = [int(x) for x in levels_text.strip().split()]
+        values = [float(x) for x in values_text.strip().split()]
+    except (ValueError, TypeError):
+        return None
+    if len(levels) != len(values) or not levels:
+        return None
+    best = None
+    for lvl, val in zip(levels, values):
+        if lvl <= max_level:
+            best = val
+    return best
+
+
 def parse_augments(catalog, max_ml, priorities, pre_filled_augment_names=None,
-                   min_ml=29, owned_names=None) -> List[dict]:
+                   min_ml=29, owned_names=None, max_level=None) -> List[dict]:
     conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
     try:
         augs: Dict[str, dict] = {}
-        for uuid_, name, colour, ml in conn.execute(
-                "SELECT uuid, name, colour, min_level FROM augment"):
-            augs[uuid_] = {'name': name, 'type': colour, 'ml': ml, 'raw_buffs': []}
+        for uuid_, name, colour, ml, raw_xml in conn.execute(
+                "SELECT uuid, name, colour, min_level, raw_xml FROM augment"):
+            augs[uuid_] = {'name': name, 'type': colour, 'ml': ml,
+                           'raw_xml': raw_xml, 'raw_buffs': []}
         for aug_uuid, bonus_type, value, raw_type, raw_target in conn.execute("""
             SELECT ef.source_uuid, ef.bonus_type, ef.value, s.raw_type, s.raw_target
             FROM effect ef
@@ -265,14 +297,27 @@ def parse_augments(catalog, max_ml, priorities, pre_filled_augment_names=None,
     for a in augs.values():
         name = a['name']
         is_pre_filled = name in pre_filled_augment_names
-        if not is_pre_filled and (a['ml'] < min_ml or a['ml'] > max_ml):
-            continue
+
+        # Level-scaled augments (diamonds etc.) use <ChooseLevel/> and have
+        # MinLevel=0 in the catalog, which would fail the ML >= 29 floor.
+        # Resolve the level-appropriate value and bypass the ML filter when
+        # the augment is relevant at the user's character level.
+        level_override = None
+        if max_level is not None and a.get('raw_xml'):
+            level_override = _resolve_level_value(a['raw_xml'], max_level)
+
+        is_level_scaled = level_override is not None
+
+        if not is_pre_filled and not is_level_scaled:
+            if a['ml'] < min_ml or a['ml'] > max_ml:
+                continue
         if not is_pre_filled and owned_names is not None and name not in owned_names:
             continue
 
         buffs = []
         for raw_type, raw_target, bonus_type, value in a['raw_buffs']:
-            b = _buff(raw_type, raw_target, bonus_type, value, priorities)
+            effective_value = level_override if is_level_scaled else value
+            b = _buff(raw_type, raw_target, bonus_type, effective_value, priorities)
             if b:
                 buffs.append(b)
 

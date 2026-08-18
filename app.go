@@ -62,7 +62,7 @@ var packMappingsJSON []byte
 // anywhere in this codebase) — this MUST be kept in sync by hand with
 // wails.json's "version"/"productVersion" on every version bump. There is no
 // automated check for drift between the two.
-const AppVersion = "0.5.3"
+const AppVersion = "0.5.4"
 
 // GetAppVersion returns the running app's release version (see AppVersion).
 func (a *App) GetAppVersion() string {
@@ -106,7 +106,110 @@ type App struct {
 	filigreesByName map[string]int
 	setsByName      map[string]int
 
+	// cacheReadyCh is closed once loadCaches has finished publishing the
+	// caches above, and is how an RPC that NEEDS them waits instead of
+	// silently answering from empty ones.
+	//
+	// It exists because loadCaches runs in a goroutine from startup() while
+	// the UI is already interactive (app.go's startup), so for the first
+	// ~0.5s of a launch every cache here is empty. GetTroveOwnedItems used to
+	// read straight through that window and return Success=true with zero
+	// matched items — a loaded CSV that rendered as an empty screen with no
+	// error anywhere. `go test -race` also flagged the read of itemsByName
+	// against loadCaches' write of it; closing a channel after the writes and
+	// receiving from it before the reads is what establishes the ordering
+	// that makes those reads correct, not just non-empty.
+	//
+	// Created lazily (cachesReady) rather than in NewApp because tests build
+	// App with a bare &App{} literal.
+	cacheReadyMu sync.Mutex
+	cacheReadyCh chan struct{}
+
+	// logsMu guards logs, which addLog appends to from every RPC goroutine
+	// (Wails dispatches each bound call in its own goroutine) while
+	// GetSystemLogs is read once a second by the status console.
+	logsMu sync.Mutex
+
 	initOnce sync.Once
+}
+
+// cachesReady returns the channel that closes when loadCaches has published
+// the item/augment/filigree/set caches.
+func (a *App) cachesReady() chan struct{} {
+	a.cacheReadyMu.Lock()
+	defer a.cacheReadyMu.Unlock()
+	if a.cacheReadyCh == nil {
+		a.cacheReadyCh = make(chan struct{})
+	}
+	return a.cacheReadyCh
+}
+
+// markCachesReady releases everything waiting on cachesReady. Safe to call
+// more than once (loadCaches can run again on a catalog reload).
+func (a *App) markCachesReady() {
+	a.cacheReadyMu.Lock()
+	defer a.cacheReadyMu.Unlock()
+	if a.cacheReadyCh == nil {
+		a.cacheReadyCh = make(chan struct{})
+	}
+	select {
+	case <-a.cacheReadyCh: // already released
+	default:
+		close(a.cacheReadyCh)
+	}
+}
+
+// catalogWaitTimeout bounds how long a catalog-backed RPC will wait for
+// loadCaches. Generous on purpose: the measured load is ~0.5s, so anything
+// near this means something is actually wrong and the user deserves to be
+// told rather than left with a spinner.
+const catalogWaitTimeout = 15 * time.Second
+
+// catalogLoadingMsg is the one wording every catalog-backed RPC uses when the
+// gate never opened, so the user sees the same sentence wherever they hit it.
+const catalogLoadingMsg = "the item catalog is still loading; try again in a moment"
+
+// awaitCaches blocks until loadCaches has published the item/augment/filigree/
+// set caches, and reports whether they arrived before catalogWaitTimeout.
+//
+// Every reader of those caches must call this first. Two reasons, and the
+// second is the one that is easy to miss:
+//
+//  1. loadCaches runs in a goroutine from startup() while the UI is already
+//     interactive, so for the first ~0.5s of a launch every cache is empty.
+//     Reading straight through that window returns an empty result that is
+//     indistinguishable from a genuine "nothing matched" — the failure mode
+//     that made a Trove CSV load look like a no-op (docs/FILE_DIALOG_SILENT_DROP.md).
+//  2. Receiving from the channel loadCaches closes AFTER its writes is what
+//     gives those reads a happens-before edge against them. Without it the
+//     reads are a data race, flagged by `go test -race`, and no amount of
+//     "the cache is non-empty by now" reasoning fixes that.
+//
+// caller names the RPC for the log line on timeout.
+func (a *App) awaitCaches(caller string) bool {
+	ready := a.cachesReady()
+
+	// Fast path. Once loadCaches has finished — every moment of a run bar the
+	// first half second — this is a receive on a closed channel, and it still
+	// carries the happens-before edge that point 2 needs. It exists to avoid
+	// the time.After below: GetAvailableItems and GetAvailableFiligrees are
+	// called on every keystroke of a search box, and a 15s timer per call
+	// would leave thousands of them live.
+	select {
+	case <-ready:
+		return true
+	default:
+	}
+
+	timer := time.NewTimer(catalogWaitTimeout)
+	defer timer.Stop()
+	select {
+	case <-ready:
+		return true
+	case <-timer.C:
+		a.addLog(caller + ": " + catalogLoadingMsg)
+		return false
+	}
 }
 
 // buildNameIndex maps each entry's name to its index in items.
@@ -192,6 +295,11 @@ func catalogPath() string {
 //
 // verb distinguishes the startup log wording from the reload wording.
 func (a *App) loadCaches(verb string) {
+	// Deferred, so the early return below on an unopenable catalog releases
+	// waiters too: they then see empty caches and report that honestly,
+	// rather than blocking until their timeout.
+	defer a.markCachesReady()
+
 	logSkipped := func(kind string, skipped []string) {
 		if len(skipped) > 0 {
 			a.addLog(fmt.Sprintf("Skipped %d unparseable %s row(s); the rest loaded normally.", len(skipped), kind))
@@ -604,6 +712,9 @@ type OptimizationPayload struct {
 	PreFilledFiligrees map[string][]string    `json:"pre_filled_filigrees"`
 	ChecklistOwned     map[string]bool        `json:"checklist_owned,omitempty"`
 	CalculateOnly      bool                   `json:"calculate_only"`
+	// MaximizeColorlessFirst tells the solver to prefer diamond/festive augments
+	// in colorless slots for tier 3+ stats rather than seeking items for them.
+	MaximizeColorlessFirst bool `json:"maximize_colorless_first,omitempty"`
 	// MaxSearchTime is the TOTAL wall-clock budget in seconds shared across all
 	// solve stages (not a per-solve limit). The frontend has produced this value
 	// since Phase 9 but it was absent from this struct and therefore silently
@@ -794,8 +905,26 @@ type TierReport struct {
 	Notes    []string `json:"notes"`
 }
 
+// maxLogLines caps the in-memory system log.
+//
+// It used to grow without bound for the life of the process while the status
+// console re-fetched ALL of it once a second — so a long session paid a
+// steadily growing marshal-and-rebuild cost every tick, for scrollback nobody
+// reads. The cap is generous enough to cover a whole session's worth of
+// interesting output and turns that into a fixed cost.
+const maxLogLines = 2000
+
 func (a *App) addLog(msg string) {
+	a.logsMu.Lock()
+	defer a.logsMu.Unlock()
 	a.logs = append(a.logs, msg)
+	if len(a.logs) > maxLogLines {
+		// Re-slice onto a fresh array rather than a.logs[n:], which would keep
+		// the whole original backing array alive behind the smaller slice.
+		trimmed := make([]string, maxLogLines)
+		copy(trimmed, a.logs[len(a.logs)-maxLogLines:])
+		a.logs = trimmed
+	}
 }
 
 // ParseMetadata triggers the Phase 2 XML parsing logic.
@@ -1170,12 +1299,22 @@ func isWeapon2Locked(cfg OptimizationPayload) bool {
 
 // GetSystemLogs retrieves real-time execution logs.
 func (a *App) GetSystemLogs() []string {
-	return a.logs
+	a.logsMu.Lock()
+	defer a.logsMu.Unlock()
+	// A copy, not a.logs itself: handing out the live slice lets the JSON
+	// marshaller read the backing array while another RPC's addLog appends
+	// to it, which is a data race even with the append itself locked.
+	out := make([]string, len(a.logs))
+	copy(out, a.logs)
+	return out
 }
 
 // GetAvailableItems returns items for a given slot, maxLevel, and artifact filter
 func (a *App) GetAvailableItems(slot string, maxLevel int, searchTerm string) []models.XMLItem {
 	results := make([]models.XMLItem, 0)
+	if !a.awaitCaches("GetAvailableItems") {
+		return results
+	}
 	minLvl := maxLevel - 6
 	searchTermLower := strings.ToLower(searchTerm)
 	for _, item := range a.itemsCache {
@@ -1201,6 +1340,9 @@ func (a *App) GetAvailableItems(slot string, maxLevel int, searchTerm string) []
 
 // GetItemDetails returns the full XMLItem for a given item name
 func (a *App) GetItemDetails(itemName string) models.XMLItem {
+	if !a.awaitCaches("GetItemDetails") {
+		return models.XMLItem{}
+	}
 	if idx, ok := a.itemsByName[itemName]; ok && idx < len(a.itemsCache) {
 		return a.itemsCache[idx]
 	}
@@ -1213,6 +1355,9 @@ func (a *App) GetItemDetails(itemName string) models.XMLItem {
 // name match, index-backed, and a ZERO-VALUE struct (not an error) on a miss, so
 // the frontend can treat an empty Type/Name as the single not-found signal.
 func (a *App) GetSetBonus(name string) models.XMLSetBonus {
+	if !a.awaitCaches("GetSetBonus") {
+		return models.XMLSetBonus{}
+	}
 	if idx, ok := a.setsByName[name]; ok && idx < len(a.setBonusCache) {
 		return a.setBonusCache[idx]
 	}
@@ -1226,6 +1371,9 @@ func (a *App) GetSetBonus(name string) models.XMLSetBonus {
 // for display regardless of the current max_level setting or which color slot it
 // occupies (docs/ITEM_DETAIL_SPEC.md §4.5, EC-9).
 func (a *App) GetAugmentByName(name string) models.XMLAugment {
+	if !a.awaitCaches("GetAugmentByName") {
+		return models.XMLAugment{}
+	}
 	if idx, ok := a.augmentsByName[name]; ok && idx < len(a.augmentsCache) {
 		return a.augmentsCache[idx]
 	}
@@ -1235,6 +1383,9 @@ func (a *App) GetAugmentByName(name string) models.XMLAugment {
 // GetFiligreeByName returns one filigree's full detail by exact name, unfiltered
 // — same rationale as GetAugmentByName.
 func (a *App) GetFiligreeByName(name string) models.XMLFiligree {
+	if !a.awaitCaches("GetFiligreeByName") {
+		return models.XMLFiligree{}
+	}
 	if idx, ok := a.filigreesByName[name]; ok && idx < len(a.filigreesCache) {
 		return a.filigreesCache[idx]
 	}
@@ -1244,6 +1395,9 @@ func (a *App) GetFiligreeByName(name string) models.XMLFiligree {
 // GetAvailableAugments returns augments matching a given slot type (e.g. Green), maxLevel, and search term
 func (a *App) GetAvailableAugments(slotType string, maxLevel int, searchTerm string) []models.XMLAugment {
 	results := make([]models.XMLAugment, 0)
+	if !a.awaitCaches("GetAvailableAugments") {
+		return results
+	}
 	searchTermLower := strings.ToLower(searchTerm)
 
 	// DDO Rules mapping - green takes yellow or blue, purple takes clear or blue, etc.
@@ -1278,6 +1432,9 @@ func (a *App) GetAvailableAugments(slotType string, maxLevel int, searchTerm str
 // GetAvailableFiligrees returns filigrees matching a search term (by Name, Menu, or SetName)
 func (a *App) GetAvailableFiligrees(searchTerm string) []models.XMLFiligree {
 	results := make([]models.XMLFiligree, 0)
+	if !a.awaitCaches("GetAvailableFiligrees") {
+		return results
+	}
 	searchTermLower := strings.ToLower(searchTerm)
 
 	for _, fil := range a.filigreesCache {

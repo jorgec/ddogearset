@@ -13,9 +13,9 @@
   // writes into the same stat_priorities array the rest of this form already
   // uses, with no standing binding to go stale.
 
-  import { configStore, isOptimizing, resultStore, drawerOpen, showToast, troveImportStore } from '$lib/store';
+  import { configStore, isOptimizing, resultStore, drawerOpen, showToast, troveImportStore, troveImporting } from '$lib/store';
   import { RunOptimization } from '../../../../wailsjs/go/main/App';
-  import { loadTroveCsv } from '$lib/services/troveImport';
+  import { withTimeout, solveTimeoutMs } from '$lib/services/rpc';
   import { hydrateConfigFromSlots } from '../../store';
   import type { main } from '../../../../wailsjs/go/models';
   import { onMount } from 'svelte';
@@ -34,7 +34,6 @@
   // (what the solver sees) is empty unless BOTH a CSV has been loaded AND the
   // toggle is on — this is what keeps the restriction opt-in rather than a
   // standing mode that could silently activate with nothing behind it.
-  let troveLoading = false;
 
   $: $configStore.owned_item_names = ($troveImportStore.restrictToOwned && $troveImportStore.ownedNames.length > 0)
     ? $troveImportStore.ownedNames
@@ -42,39 +41,6 @@
   $: troveSummary = $troveImportStore.ownedNames.length > 0
     ? `${$troveImportStore.restrictToOwned ? 'On' : 'Off'} — ${$troveImportStore.ownedNames.length} names from ${$troveImportStore.fileName}`
     : 'Not loaded';
-
-  function loadTroveInventory() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      troveLoading = true;
-      const reader = new FileReader();
-      reader.onload = async (re) => {
-        try {
-          const csvContent = re.target?.result as string;
-          const result = await loadTroveCsv(csvContent, file.name);
-          if (!result.success) {
-            showToast('Failed to load Trove inventory: ' + (result.errorMessage || 'unknown error'), 'error');
-            return;
-          }
-          showToast(`Loaded ${result.totalRows} rows, ${result.ownedNamesCount} owned item/augment names.`, 'success');
-        } catch (e) {
-          showToast('Failed to load Trove inventory: ' + e, 'error');
-        } finally {
-          troveLoading = false;
-        }
-      };
-      reader.onerror = () => {
-        troveLoading = false;
-        showToast('Failed to read the selected file.', 'error');
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  }
 
   onMount(async () => {
     try {
@@ -106,8 +72,10 @@
       // The cast mirrors store.ts: spreading a wails-generated class produces a
       // plain object without its convertValues method, which the generated
       // signature nominally requires but never calls on the request path.
-      const result = await RunOptimization(
-        { ...$configStore, mode: 'optimize' } as unknown as main.OptimizationPayload
+      const result = await withTimeout(
+        RunOptimization({ ...$configStore, mode: 'optimize' } as unknown as main.OptimizationPayload),
+        solveTimeoutMs($configStore.max_search_time),
+        'Optimization',
       );
       if (result.success) {
         $resultStore = result;
@@ -319,6 +287,18 @@
           <span class="font-medium leading-none text-foreground">Exclude Gem of Many Facets</span>
         </label>
       </div>
+
+      <div class="space-y-2 flex flex-col justify-center col-span-2">
+        <label class="flex items-center space-x-2 text-sm cursor-pointer">
+          <input type="checkbox" bind:checked={$configStore.maximize_colorless_first} class="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background" />
+          <span class="font-medium leading-none text-foreground">Maximize Colorless Slots First</span>
+        </label>
+        <p class="text-[10px] text-muted-foreground">
+          For tier 3+ stats (Maximize If Free and below), prefer diamond/festive augments in
+          colorless slots over items when the augment value is within 1 of the best item value.
+          Frees up item slots for higher-priority stats.
+        </p>
+      </div>
     </div>
   </Accordion>
 
@@ -382,15 +362,22 @@
         ignored — no filigree matching, no random-loot items (see
         docs/TROVE_INVENTORY_IMPORT_SPEC.md).
       </p>
+      <!-- Import is drag-and-drop only; see OwnedItems.svelte for why the
+           custom property has to be inline. -->
+      <div
+        style="--wails-drop-target: drop"
+        class="drop-zone rounded border border-dashed border-carved px-3 py-3 text-center transition-colors"
+      >
+        {#if $troveImporting}
+          <p class="text-sm text-gold">Importing…</p>
+        {:else}
+          <p class="text-sm text-foreground">Drag a Trove CSV export here</p>
+          <p class="text-[10px] text-muted-foreground mt-1">
+            {$troveImportStore.ownedNames.length > 0 ? 'Drop another to replace it' : 'Your inventory export from Trove (.csv)'}
+          </p>
+        {/if}
+      </div>
       <div class="flex items-center space-x-4">
-        <button
-          type="button"
-          on:click={loadTroveInventory}
-          disabled={troveLoading}
-          class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded transition-colors disabled:opacity-50 shrink-0"
-        >
-          {troveLoading ? 'Loading...' : $troveImportStore.ownedNames.length > 0 ? 'Load a different CSV' : 'Load Trove CSV...'}
-        </button>
         <label class="flex items-center space-x-2 text-sm" class:cursor-pointer={$troveImportStore.ownedNames.length > 0} class:opacity-40={$troveImportStore.ownedNames.length === 0}>
           <input
             type="checkbox"

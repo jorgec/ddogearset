@@ -37,6 +37,7 @@ export function defaultConfig(): main.OptimizationPayload {
     // full-catalog behavior); populated only after LoadTroveInventory runs.
     owned_item_names: [] as string[],
     raid_item_limit: 2,
+    maximize_colorless_first: false,
     max_search_time: 60,
     is_dino_artifact: false,
     output_filename: "",
@@ -172,6 +173,11 @@ export const troveImportStore = writable<TroveImportState>({
     items: [],
     restrictToOwned: false,
 });
+
+// True while a dropped CSV is being imported. Module-level, not component
+// state, because both drop zones (the Owned Items panel and the configuration
+// drawer's Trove section) show the same import and either one can start it.
+export const troveImporting = writable<boolean>(false);
 
 export const logsStore = writable<string[]>([]);
 export const isParsing = writable(false);

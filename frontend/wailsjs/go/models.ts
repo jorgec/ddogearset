@@ -224,6 +224,7 @@ export namespace main {
 	    excluded_packs: string[];
 	    owned_item_names?: string[];
 	    raid_item_limit: number;
+	    maximize_colorless_first?: boolean;
 	    is_dino_artifact: boolean;
 	    output_filename: string;
 	    pre_equipped: Record<string, string>;
@@ -263,6 +264,7 @@ export namespace main {
 	        this.excluded_packs = source["excluded_packs"];
 	        this.owned_item_names = source["owned_item_names"];
 	        this.raid_item_limit = source["raid_item_limit"];
+	        this.maximize_colorless_first = source["maximize_colorless_first"];
 	        this.is_dino_artifact = source["is_dino_artifact"];
 	        this.output_filename = source["output_filename"];
 	        this.pre_equipped = source["pre_equipped"];
@@ -425,6 +427,7 @@ export namespace main {
 	    excluded_packs: string[];
 	    owned_item_names?: string[];
 	    raid_item_limit: number;
+	    maximize_colorless_first?: boolean;
 	    is_dino_artifact: boolean;
 	    output_filename: string;
 	    pre_equipped: Record<string, string>;
@@ -434,7 +437,7 @@ export namespace main {
 	    calculate_only: boolean;
 	    max_search_time?: number;
 	    mode?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new OptimizationPayload(source);
 	    }
@@ -460,6 +463,7 @@ export namespace main {
 	        this.excluded_packs = source["excluded_packs"];
 	        this.owned_item_names = source["owned_item_names"];
 	        this.raid_item_limit = source["raid_item_limit"];
+	        this.maximize_colorless_first = source["maximize_colorless_first"];
 	        this.is_dino_artifact = source["is_dino_artifact"];
 	        this.output_filename = source["output_filename"];
 	        this.pre_equipped = source["pre_equipped"];
@@ -862,24 +866,6 @@ export namespace main {
 	}
 	
 	
-	export class TroveInventoryResult {
-	    success: boolean;
-	    errorMessage?: string;
-	    totalRows: number;
-	    ownedNames: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new TroveInventoryResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.success = source["success"];
-	        this.errorMessage = source["errorMessage"];
-	        this.totalRows = source["totalRows"];
-	        this.ownedNames = source["ownedNames"];
-	    }
-	}
 	export class TroveOwnedItem {
 	    name: string;
 	    minLevel: number;
@@ -900,21 +886,25 @@ export namespace main {
 	        this.location = source["location"];
 	    }
 	}
-	export class TroveOwnedItemsResult {
+	export class TroveLoadResult {
 	    success: boolean;
 	    errorMessage?: string;
+	    fileName: string;
 	    totalRows: number;
+	    ownedNames: string[];
 	    items: TroveOwnedItem[];
 	
 	    static createFrom(source: any = {}) {
-	        return new TroveOwnedItemsResult(source);
+	        return new TroveLoadResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.success = source["success"];
 	        this.errorMessage = source["errorMessage"];
+	        this.fileName = source["fileName"];
 	        this.totalRows = source["totalRows"];
+	        this.ownedNames = source["ownedNames"];
 	        this.items = this.convertValues(source["items"], TroveOwnedItem);
 	    }
 	

@@ -75,6 +75,7 @@ from .provenance import (
 COLORLESS_AUGMENT_NAME_PATTERN = re.compile(
     r"^(Diamond of .+|Set Augment: .+|Globe of .+|Clearwater Diamond|"
     r"Essence of the Epic Litany of the Dead|"
+    r"\+\d+ Festive .+|"
     r"Ravil's Book of (?:Legendary )?Recipes|The Master's Gift)$"
 )
 
