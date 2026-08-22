@@ -185,6 +185,22 @@
     box-shadow: 0 3px 10px -3px rgba(212, 175, 55, 0.6);
   }
 
+  /* ---- Trove drag-and-drop zones ------------------------------------- */
+  /* Importing a Trove export is drag-and-drop only. `wails-drop-target-active`
+     is added and removed by Wails' own drag listeners while a file hovers a
+     zone (its draganddrop.js), NOT by this app — which is why the rule lives
+     here in global CSS rather than in the component: Svelte's scoped styles
+     would never match a class it did not render. */
+  .drop-zone {
+    background-color: rgba(45, 45, 53, 0.25);
+  }
+  .drop-zone.wails-drop-target-active {
+    border-color: #D4AF37;
+    border-style: solid;
+    background-color: rgba(212, 175, 55, 0.12);
+    box-shadow: inset 0 0 18px -6px rgba(212, 175, 55, 0.7);
+  }
+
   /* ---- Set-bonus pips (§4.3) ----------------------------------------- */
   .pip {
     @apply inline-block rounded-full;

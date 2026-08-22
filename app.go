@@ -62,11 +62,18 @@ var packMappingsJSON []byte
 // anywhere in this codebase) — this MUST be kept in sync by hand with
 // wails.json's "version"/"productVersion" on every version bump. There is no
 // automated check for drift between the two.
-const AppVersion = "0.5.4"
+const AppVersion = "0.5.5"
 
 // GetAppVersion returns the running app's release version (see AppVersion).
 func (a *App) GetAppVersion() string {
 	return AppVersion
+}
+
+// GetDatasetVersion returns the DDOBuilder version the catalog was built from
+// (e.g. "2.0.0.83"), or "" if the catalog predates this field.
+func (a *App) GetDatasetVersion() string {
+	<-a.cachesReady()
+	return a.datasetVersion
 }
 
 // App struct
@@ -129,6 +136,8 @@ type App struct {
 	// (Wails dispatches each bound call in its own goroutine) while
 	// GetSystemLogs is read once a second by the status console.
 	logsMu sync.Mutex
+
+	datasetVersion string
 
 	initOnce sync.Once
 }
@@ -330,6 +339,7 @@ func (a *App) loadCaches(verb string) {
 	defer db.Close()
 
 	if meta, err := catalog.ReadMeta(db); err == nil {
+		a.datasetVersion = meta.DDOBuilderVersion
 		a.addLog(fmt.Sprintf("Catalog v%d (schema %d, built %s)", meta.CatalogVersion, meta.SchemaVersion, meta.BuiltAt))
 	}
 
@@ -1315,7 +1325,7 @@ func (a *App) GetAvailableItems(slot string, maxLevel int, searchTerm string) []
 	if !a.awaitCaches("GetAvailableItems") {
 		return results
 	}
-	minLvl := maxLevel - 6
+	minLvl := maxLevel - 10
 	searchTermLower := strings.ToLower(searchTerm)
 	for _, item := range a.itemsCache {
 		if item.MinLevel >= minLvl && item.MinLevel <= maxLevel {

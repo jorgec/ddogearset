@@ -49,6 +49,7 @@ type Meta struct {
 	MinAppVersion        string
 	ContentHash          string
 	IdentityRegistryHash string
+	DDOBuilderVersion    string
 }
 
 func ReadMeta(db *sql.DB) (Meta, error) {
@@ -62,6 +63,8 @@ func ReadMeta(db *sql.DB) (Meta, error) {
 	if err != nil {
 		return Meta{}, fmt.Errorf("reading catalog_meta: %w", err)
 	}
+	// ddobuilder_version was added after the initial schema; old catalogs lack it.
+	_ = db.QueryRow(`SELECT ddobuilder_version FROM catalog_meta WHERE id = 1`).Scan(&m.DDOBuilderVersion)
 	return m, nil
 }
 

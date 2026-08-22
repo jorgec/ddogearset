@@ -39,7 +39,8 @@ CREATE TABLE catalog_meta (
     source_file_count       INTEGER NOT NULL,
     min_app_version         TEXT    NOT NULL,
     content_hash            TEXT    NOT NULL,
-    identity_registry_hash  TEXT    NOT NULL
+    identity_registry_hash  TEXT    NOT NULL,
+    ddobuilder_version      TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE source (
@@ -285,7 +286,8 @@ def _insert_many(conn: sqlite3.Connection, table: str, rows: list, columns: list
 
 def build_catalog(result: TransformResult, out_path: Path, *, registry_path: Path,
                   ddobuilder_commit: str, etl_version: str, source_file_count: int,
-                  min_app_version: str, catalog_version: int, built_at: str) -> None:
+                  min_app_version: str, catalog_version: int, built_at: str,
+                  ddobuilder_version: str = '') -> None:
     """Writes `result` to `out_path`. Raises if `result.validation_errors` is
     non-empty — Load refuses to write a catalog Transform itself flagged as
     broken, regardless of --strict (that flag governs identity DRIFT, a
@@ -321,11 +323,13 @@ def build_catalog(result: TransformResult, out_path: Path, *, registry_path: Pat
             conn.execute(
                 "INSERT INTO catalog_meta (id, schema_version, catalog_version, "
                 "built_at, ddobuilder_commit, etl_version, source_file_count, "
-                "min_app_version, content_hash, identity_registry_hash) "
-                "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "min_app_version, content_hash, identity_registry_hash, "
+                "ddobuilder_version) "
+                "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (SCHEMA_VERSION, catalog_version, built_at, ddobuilder_commit,
                  etl_version, source_file_count, min_app_version,
-                 _content_hash(result), _registry_hash(registry_path)),
+                 _content_hash(result), _registry_hash(registry_path),
+                 ddobuilder_version),
             )
             conn.commit()
         finally:

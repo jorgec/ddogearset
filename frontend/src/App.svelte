@@ -2,7 +2,7 @@
   // docs/DASHBOARD_REDESIGN_SPEC.md — the single-page dashboard that replaces
   // the old six-tab layout. Zone widths (25% / 45% / 30%) come straight from
   // the design spec's §5 table.
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import JobConfigurationForm from '$lib/components/domain/JobConfigurationForm.svelte';
   import GearsetEditor from '$lib/components/domain/GearsetEditor.svelte';
   import Summary from '$lib/components/domain/Summary.svelte';
@@ -12,9 +12,14 @@
   import OwnedItems from '$lib/components/domain/OwnedItems.svelte';
   import StatusConsole from '$lib/components/domain/StatusConsole.svelte';
   import Toast from '$lib/components/domain/Toast.svelte';
-  import { ParseMetadata } from '../wailsjs/go/main/App';
-  import { isParsing, isOptimizing, rightPanel, drawerOpen, type RightPanel } from '$lib/store';
+  import { ParseMetadata, GetAppVersion, GetDatasetVersion } from '../wailsjs/go/main/App';
+  import { OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime';
+  import { importTroveFromPath, isCsvPath } from '$lib/services/troveImport';
+  import { isParsing, isOptimizing, rightPanel, drawerOpen, showToast, type RightPanel } from '$lib/store';
   import logoUrl from './assets/images/logo.jpg';
+
+  let buildVersion = '';
+  let datasetVersion = '';
 
   // §4.1 "The Belt" — icons accompany the text on every stud.
   const RIGHT_PANELS: { id: RightPanel; label: string; icon: string }[] = [
@@ -35,7 +40,34 @@
     } finally {
       $isParsing = false;
     }
+    GetAppVersion().then(v => buildVersion = v).catch(() => {});
+    GetDatasetVersion().then(v => datasetVersion = v).catch(() => {});
   });
+
+  // ONE registration for the whole app, on purpose: Wails' OnFileDrop keeps a
+  // single global callback and silently ignores every later call
+  // (`if (flags.registered) return;` in its draganddrop.js), so a per-panel
+  // registration would mean whichever panel mounted first wins and the others
+  // never fire.
+  //
+  // useDropTarget: true makes Wails hit-test the drop point itself and only
+  // call back when it landed on an element whose computed
+  // `--wails-drop-target` is `drop`. Custom properties inherit, so marking a
+  // container marks everything inside it. Wails also toggles the
+  // `wails-drop-target-active` class on those containers while a drag hovers
+  // them, which is what the dashed highlight in style.css hangs off.
+  onMount(() => {
+    OnFileDrop((_x, _y, paths) => {
+      const csv = (paths ?? []).find(isCsvPath);
+      if (!csv) {
+        showToast('That is not a CSV — drop a Trove inventory export (.csv).', 'error');
+        return;
+      }
+      importTroveFromPath(csv);
+    }, true);
+  });
+
+  onDestroy(() => OnFileDropOff());
 
   $: busy = $isParsing || $isOptimizing;
 
@@ -49,7 +81,14 @@
   <header class="flex items-center justify-between px-5 py-2.5 bg-obsidian border-b border-carved shrink-0">
     <div class="flex items-center gap-3 min-w-0">
       <img src={logoUrl} alt="" class="h-9 w-9 rounded shadow-gold shrink-0" />
-      <h1 class="panel-title text-lg md:text-xl truncate">DDO Gear Optimizer</h1>
+      <div class="min-w-0">
+        <h1 class="panel-title text-lg md:text-xl truncate">DDO Gear Optimizer</h1>
+        {#if buildVersion || datasetVersion}
+          <p class="text-[12px] text-muted truncate leading-tight text-white">
+            {#if buildVersion}Build: {buildVersion}{/if}{#if buildVersion && datasetVersion} | {/if}{#if datasetVersion}Dataset {datasetVersion}{/if}
+          </p>
+        {/if}
+      </div>
       <!-- §4.1 — the "System Ready" dot is a glowing crystal. -->
       <span class="flex items-center gap-2 shrink-0 ml-2" title={busy ? 'Working…' : 'System ready'}>
         <span class="crystal {busy ? 'crystal-busy' : 'crystal-ready'}"></span>

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
+  import { pickFile, readTextFile } from '$lib/services/filePicker';
+  import { withTimeout, solveTimeoutMs } from '$lib/services/rpc';
   import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus,
            ListBuilds, LoadBuild, DeleteBuild, ImportGearsetContent, AcceptAll, BuildIDForCurrentConfig,
            RecalculateGearset } from '../../../../wailsjs/go/main/App';
@@ -356,105 +358,97 @@
       await refreshBuilds();
   }
 
-  function loadGearset() {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.ddogearset,.json';
-      input.onchange = (e) => {
-          const file = (e.target as HTMLInputElement).files?.[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = async (re) => {
-              try {
-                  const rawText = re.target?.result as string;
+  // pickFile, not a hand-rolled <input type="file"> — see filePicker.ts for
+  // why the obvious version drops the file in silence on macOS.
+  async function loadGearset() {
+      const file = await pickFile('.ddogearset,.json');
+      if (!file) return;
+      try {
+          const rawText = await readTextFile(file);
 
-                  // Content-integrity check (docs: gearset_checksum.go) — a
-                  // file saved before this feature existed simply has no
-                  // checksum field at all (hasChecksum: false) and is not
-                  // flagged; only a genuine mismatch (the content changed
-                  // since it was saved — hand-edited, corrupted, etc.) warns.
-                  // Never refuses to load, same "warn, don't block" policy as
-                  // the app-version check below.
-                  try {
-                      const checksumResult = await VerifyGearsetChecksum(rawText);
-                      if (checksumResult.hasChecksum && !checksumResult.valid) {
-                          showToast(
-                              "This gearset file's content does not match its saved checksum — " +
-                              'it may have been modified outside the app since it was saved. ' +
-                              'Loaded anyway, but double-check it before trusting it.',
-                              'error'
-                          );
-                      }
-                  } catch (e) {
-                      console.error('Failed to verify gearset checksum', e);
-                  }
-
-                  // Loading a file is now an IMPORT: the build lands in
-                  // app.db so it survives without the file, and the file stays
-                  // exactly where the user keeps it. Failure here is reported
-                  // but does not stop the load — being unable to persist should
-                  // not stop someone looking at their own gearset.
-                  try {
-                      const outcome = await ImportGearsetContent(file.name, rawText);
-                      if (outcome.status === 'imported') {
-                          await refreshBuilds();
-                      }
-                  } catch (e) {
-                      console.error('Failed to import gearset into storage', e);
-                      showToast('Loaded, but could not save this to your builds: ' + e, 'error');
-                  }
-
-                  const data = JSON.parse(rawText);
-                  if (data.config && data.result) {
-                      // Full format: hydrate both config params and result
-                      const loadedConfig = {...$configStore, ...data.config, calculate_only: false};
-                      $configStore = migrateLegacyConfig(loadedConfig);
-                      $resultStore = data.result;
-
-                      // Warn (never refuse) on an app-version mismatch — a
-                      // missing app_version means the file predates this check
-                      // entirely (every gearset saved before this feature),
-                      // not a real conflict, so it's treated the same as a
-                      // genuine mismatch: a non-blocking notice with a button
-                      // to re-save under the current version. "Update" just
-                      // re-saves the now-migrated config/result (SaveGearset
-                      // always writes a new timestamped file — nothing here
-                      // overwrites the original on disk).
-                      try {
-                          const currentVersion = await GetAppVersion();
-                          const savedVersion = data.app_version as string | undefined;
-                          if (savedVersion !== currentVersion) {
-                              const desc = savedVersion
-                                  ? `saved with version ${savedVersion}`
-                                  : 'saved before version tracking existed';
-                              showToast(
-                                  `This gearset was ${desc} — you're running ${currentVersion}. ` +
-                                  `Fixes since then (e.g. excluded-pack name corrections) may not be reflected.`,
-                                  'info',
-                                  [{ label: 'Update Saved File', onClick: () => saveGearset() }]
-                              );
-                          }
-                      } catch (e) {
-                          console.error('Failed to check app version', e);
-                      }
-                  } else if (data.gearSet) {
-                      $resultStore = data;
-                      $configStore.pre_equipped = {...data.gearSet};
-                  } else {
-                      // Legacy: plain slot map
-                      $resultStore = { success: true, timeTaken: 0, gearSet: data, realizedStats: {}, activeSets: [], filigrees: {} } as unknown as main.ResultPayload;
-                      $configStore.pre_equipped = {...data};
-                  }
-                  
-                  calculateStats();
-              } catch(e) {
-                  console.error('Failed to parse gearset file');
-                  showToast('Failed to load gearset file: ' + e, 'error');
+          // Content-integrity check (docs: gearset_checksum.go) — a
+          // file saved before this feature existed simply has no
+          // checksum field at all (hasChecksum: false) and is not
+          // flagged; only a genuine mismatch (the content changed
+          // since it was saved — hand-edited, corrupted, etc.) warns.
+          // Never refuses to load, same "warn, don't block" policy as
+          // the app-version check below.
+          try {
+              const checksumResult = await VerifyGearsetChecksum(rawText);
+              if (checksumResult.hasChecksum && !checksumResult.valid) {
+                  showToast(
+                      "This gearset file's content does not match its saved checksum — " +
+                      'it may have been modified outside the app since it was saved. ' +
+                      'Loaded anyway, but double-check it before trusting it.',
+                      'error'
+                  );
               }
-          };
-          reader.readAsText(file);
-      };
-      input.click();
+          } catch (e) {
+              console.error('Failed to verify gearset checksum', e);
+          }
+
+          // Loading a file is now an IMPORT: the build lands in
+          // app.db so it survives without the file, and the file stays
+          // exactly where the user keeps it. Failure here is reported
+          // but does not stop the load — being unable to persist should
+          // not stop someone looking at their own gearset.
+          try {
+              const outcome = await ImportGearsetContent(file.name, rawText);
+              if (outcome.status === 'imported') {
+                  await refreshBuilds();
+              }
+          } catch (e) {
+              console.error('Failed to import gearset into storage', e);
+              showToast('Loaded, but could not save this to your builds: ' + e, 'error');
+          }
+
+          const data = JSON.parse(rawText);
+          if (data.config && data.result) {
+              // Full format: hydrate both config params and result
+              const loadedConfig = {...$configStore, ...data.config, calculate_only: false};
+              $configStore = migrateLegacyConfig(loadedConfig);
+              $resultStore = data.result;
+
+              // Warn (never refuse) on an app-version mismatch — a
+              // missing app_version means the file predates this check
+              // entirely (every gearset saved before this feature),
+              // not a real conflict, so it's treated the same as a
+              // genuine mismatch: a non-blocking notice with a button
+              // to re-save under the current version. "Update" just
+              // re-saves the now-migrated config/result (SaveGearset
+              // always writes a new timestamped file — nothing here
+              // overwrites the original on disk).
+              try {
+                  const currentVersion = await GetAppVersion();
+                  const savedVersion = data.app_version as string | undefined;
+                  if (savedVersion !== currentVersion) {
+                      const desc = savedVersion
+                          ? `saved with version ${savedVersion}`
+                          : 'saved before version tracking existed';
+                      showToast(
+                          `This gearset was ${desc} — you're running ${currentVersion}. ` +
+                          `Fixes since then (e.g. excluded-pack name corrections) may not be reflected.`,
+                          'info',
+                          [{ label: 'Update Saved File', onClick: () => saveGearset() }]
+                      );
+                  }
+              } catch (e) {
+                  console.error('Failed to check app version', e);
+              }
+          } else if (data.gearSet) {
+              $resultStore = data;
+              $configStore.pre_equipped = {...data.gearSet};
+          } else {
+              // Legacy: plain slot map
+              $resultStore = { success: true, timeTaken: 0, gearSet: data, realizedStats: {}, activeSets: [], filigrees: {} } as unknown as main.ResultPayload;
+              $configStore.pre_equipped = {...data};
+          }
+
+          calculateStats();
+      } catch(e) {
+          console.error('Failed to parse gearset file');
+          showToast('Failed to load gearset file: ' + e, 'error');
+      }
   }
   
   // The one place a full configuration is narrowed to what a recalculation may
@@ -490,7 +484,11 @@
           // RecalculationRequest has nowhere to put a search restriction, so
           // none can reach an evaluation of gear the user already has
           // (0.5.1 Phase 4/5).
-          const res = await RecalculateGearset(recalculationRequest($configStore));
+          const res = await withTimeout(
+              RecalculateGearset(recalculationRequest($configStore)),
+              solveTimeoutMs($configStore.max_search_time),
+              'Recalculation',
+          );
           if (res && res.success) {
               $resultStore = res;
               showToast('Gearset loaded and stats recalculated.', 'success');

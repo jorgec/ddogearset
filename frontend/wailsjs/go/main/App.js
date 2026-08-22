@@ -34,6 +34,10 @@ export function GetAvailableItems(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetAvailableItems'](arg1, arg2, arg3);
 }
 
+export function GetDatasetVersion() {
+  return window['go']['main']['App']['GetDatasetVersion']();
+}
+
 export function GetFiligreeByName(arg1) {
   return window['go']['main']['App']['GetFiligreeByName'](arg1);
 }
@@ -62,10 +66,6 @@ export function GetSystemLogs() {
   return window['go']['main']['App']['GetSystemLogs']();
 }
 
-export function GetTroveOwnedItems(arg1) {
-  return window['go']['main']['App']['GetTroveOwnedItems'](arg1);
-}
-
 export function ImportGearsetContent(arg1, arg2) {
   return window['go']['main']['App']['ImportGearsetContent'](arg1, arg2);
 }
@@ -90,8 +90,8 @@ export function LoadBuild(arg1) {
   return window['go']['main']['App']['LoadBuild'](arg1);
 }
 
-export function LoadTroveInventory(arg1) {
-  return window['go']['main']['App']['LoadTroveInventory'](arg1);
+export function LoadTroveFromPath(arg1) {
+  return window['go']['main']['App']['LoadTroveFromPath'](arg1);
 }
 
 export function OpenFile(arg1) {

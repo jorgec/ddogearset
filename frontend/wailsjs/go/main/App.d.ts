@@ -20,6 +20,8 @@ export function GetAvailableFiligrees(arg1:string):Promise<Array<models.XMLFilig
 
 export function GetAvailableItems(arg1:string,arg2:number,arg3:string):Promise<Array<models.XMLItem>>;
 
+export function GetDatasetVersion():Promise<string>;
+
 export function GetFiligreeByName(arg1:string):Promise<models.XMLFiligree>;
 
 export function GetItemDetails(arg1:string):Promise<models.XMLItem>;
@@ -34,8 +36,6 @@ export function GetSuggestion(arg1:string):Promise<Record<string, any>>;
 
 export function GetSystemLogs():Promise<Array<string>>;
 
-export function GetTroveOwnedItems(arg1:string):Promise<main.TroveOwnedItemsResult>;
-
 export function ImportGearsetContent(arg1:string,arg2:string):Promise<appdb.ImportOutcome>;
 
 export function ImportGearsetFile(arg1:string):Promise<appdb.ImportOutcome>;
@@ -48,7 +48,7 @@ export function ListRuns(arg1:string):Promise<Array<appdb.RunRecord>>;
 
 export function LoadBuild(arg1:string):Promise<main.LoadedBuildPayload>;
 
-export function LoadTroveInventory(arg1:string):Promise<main.TroveInventoryResult>;
+export function LoadTroveFromPath(arg1:string):Promise<main.TroveLoadResult>;
 
 export function OpenFile(arg1:string):Promise<void>;
 

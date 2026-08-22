@@ -110,6 +110,22 @@ def _source_fingerprint(source: Path) -> str:
     return "content-" + digest.hexdigest()[:12]
 
 
+def _parse_ddobuilder_version(source: Path) -> str:
+    """Read the DDOBuilder version from BuildInfo.h (e.g. '2.0.0.83')."""
+    for candidate in (source, source.parent, source.parent.parent):
+        build_info = candidate / "BuildInfo.h"
+        if build_info.exists():
+            parts = {}
+            for line in build_info.read_text(encoding='latin-1').splitlines():
+                for tag in ("MAJOR", "MINOR", "MODIF", "BUILD"):
+                    prefix = f"#define BUILDINFO_VERSION_{tag} "
+                    if line.startswith(prefix):
+                        parts[tag] = line[len(prefix):].strip()
+            if len(parts) == 4:
+                return f"{parts['MAJOR']}.{parts['MINOR']}.{parts['MODIF']}.{parts['BUILD']}"
+    return ""
+
+
 def _source_file_count(source: Path) -> int:
     return sum(1 for p in source.rglob("*")
                if p.is_file() and p.suffix.lower() in (".xml", ".item"))
@@ -237,6 +253,7 @@ def main(argv=None) -> int:
     built_at = _built_at()
     commit = args.ddobuilder_commit or _source_fingerprint(source)
     file_count = _source_file_count(source)
+    ddobuilder_version = _parse_ddobuilder_version(source)
 
     _log("=== ETL: building catalog.db ===")
     _log(f"   source     {source}  ({file_count} data files)")
@@ -341,7 +358,8 @@ def main(argv=None) -> int:
                   ddobuilder_commit=commit, etl_version=ETL_VERSION,
                   source_file_count=file_count,
                   min_app_version=args.min_app_version,
-                  catalog_version=catalog_version, built_at=built_at)
+                  catalog_version=catalog_version, built_at=built_at,
+                  ddobuilder_version=ddobuilder_version)
 
     size_mb = args.out.stat().st_size / 1024 / 1024
     _log(f"   wrote {args.out} ({size_mb:.1f} MB) in {time.time() - started:.1f}s")

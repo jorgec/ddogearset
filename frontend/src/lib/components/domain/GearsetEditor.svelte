@@ -263,27 +263,43 @@
   // fuzzy matching — would badge an item green that the solver then refuses to
   // use when "restrict to owned" is on. The button would be lying about the one
   // thing it exists to tell you.
-  let inventoryChecked = false;
-
   $: inventoryLoaded = ($troveImportStore.ownedNames?.length ?? 0) > 0;
 
-  // Badges clear themselves if the CSV is unloaded. A stale green dot pointing
-  // at an inventory that is no longer loaded is worse than no dot.
-  $: if (!inventoryLoaded && inventoryChecked) inventoryChecked = false;
-
-  // Reactive, so swapping an item re-badges it without pressing the button
-  // again.
   $: ownedNameSet = new Set($troveImportStore.ownedNames ?? []);
   $: ownedItemsMap = new Map(($troveImportStore.items ?? []).map(i => [i.name, i]));
 
-  function ownershipOf(itemName: string | undefined): 'owned' | 'missing' | null {
-      if (!inventoryChecked || !itemName) return null;
-      return ownedNameSet.has(itemName) ? 'owned' : 'missing';
+  // Badging is LIVE: loading a CSV, solving, or picking an item by hand
+  // re-badges every socket on its own, and unloading the inventory empties the
+  // map so no stale dot survives.
+  //
+  // Keyed by SLOT and derived straight from the stores so the markup can read
+  // it as a value. It used to call an ownershipOf() helper gated on a one-shot
+  // flag the Check Inventory button set, which was wrong twice over: nothing
+  // showed until the button was pressed, and even then the dots only appeared
+  // on the next unrelated re-render (clicking a slot), because Svelte tracks
+  // the identifiers an expression mentions — not what the callee reads, so the
+  // Trove store was never a dependency of the badge.
+  $: ownership = buildOwnership(baseSlots, $resultStore?.gearSet, ownedNameSet, inventoryLoaded);
+
+  function buildOwnership(
+      slots: string[],
+      gearSet: Record<string, string> | undefined,
+      owned: Set<string>,
+      loaded: boolean,
+  ): Map<string, 'owned' | 'missing'> {
+      const map = new Map<string, 'owned' | 'missing'>();
+      if (!loaded) return map;
+      for (const slot of slots) {
+          const name = gearSet?.[slot];
+          if (!name) continue;
+          map.set(slot, owned.has(name) ? 'owned' : 'missing');
+      }
+      return map;
   }
 
+  // The button no longer switches badging on — it just reports the tally.
   function checkInventory() {
       if (!inventoryLoaded) return;
-      inventoryChecked = true;
       const equipped = baseSlots
           .map((slot) => $resultStore?.gearSet?.[slot])
           .filter((n): n is string => !!n);
@@ -328,7 +344,6 @@
       selectedSlot = null;
       availableItems = [];
       $alternativesSlotStore = null;
-      inventoryChecked = false;
       showToast('Started a new build.', 'success');
   }
 
@@ -476,7 +491,7 @@
           disabled={$isOptimizing || !inventoryLoaded}
           class="px-2 py-1 text-[11px] rounded bg-carved text-vellum hover:bg-carved/70 hover:shadow-press border border-carved transition-all disabled:opacity-40"
           title={inventoryLoaded
-            ? 'Badge each socketed item against your loaded Trove inventory'
+            ? 'Count how many socketed items are in your loaded Trove inventory'
             : 'Load a Trove inventory CSV first'}
         >Check Inventory</button>
         <button
@@ -505,7 +520,7 @@
       {@const itemName = $resultStore?.gearSet?.[slot]}
       {@const detail = $resultStore?.slots?.[slot]}
       {@const ml = detail?.item?.ml ?? 0}
-      {@const owned = ownershipOf(itemName)}
+      {@const owned = ownership.get(slot) ?? null}
       <div class="group relative flex items-center gap-2 px-2 py-1.5 transition-colors
                   {itemName ? 'socket-filled' : 'socket'}
                   {selectedSlot === slot ? 'ring-1 ring-gold/60' : ''}">

@@ -146,10 +146,14 @@ def _load_items(conn) -> Dict[str, dict]:
 
 def parse_items(catalog, max_ml, priorities, allowed_armor, allowed_w1_list,
                 allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None,
-                pre_equipped_names=None, min_ml=29, owned_names=None) -> List[dict]:
+                pre_equipped_names=None, min_ml=None, owned_names=None) -> List[dict]:
     """Candidacy is byte-for-byte optimizer.parse_items'. `quests_lookup` is
     gone from the signature: adventure pack and raid status are columns now,
-    resolved once at ETL time rather than per-run."""
+    resolved once at ETL time rather than per-run.
+
+    `min_ml=None` means the level-relative default floor, max_ml - 10."""
+    if min_ml is None:
+        min_ml = max(0, max_ml - 10)
     conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
     try:
         raw_items = _load_items(conn)
@@ -271,7 +275,10 @@ def _resolve_level_value(raw_xml: str, max_level: int) -> Optional[float]:
 
 
 def parse_augments(catalog, max_ml, priorities, pre_filled_augment_names=None,
-                   min_ml=29, owned_names=None, max_level=None) -> List[dict]:
+                   min_ml=None, owned_names=None, max_level=None) -> List[dict]:
+    # min_ml=None means the level-relative default floor, max_ml - 10.
+    if min_ml is None:
+        min_ml = max(0, max_ml - 10)
     conn = catalog if isinstance(catalog, sqlite3.Connection) else connect(catalog)
     try:
         augs: Dict[str, dict] = {}
@@ -299,7 +306,7 @@ def parse_augments(catalog, max_ml, priorities, pre_filled_augment_names=None,
         is_pre_filled = name in pre_filled_augment_names
 
         # Level-scaled augments (diamonds etc.) use <ChooseLevel/> and have
-        # MinLevel=0 in the catalog, which would fail the ML >= 29 floor.
+        # MinLevel=0 in the catalog, which would fail the min_ml floor.
         # Resolve the level-appropriate value and bypass the ML filter when
         # the augment is relevant at the user's character level.
         level_override = None

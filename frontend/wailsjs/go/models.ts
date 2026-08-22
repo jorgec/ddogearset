@@ -224,7 +224,6 @@ export namespace main {
 	    excluded_packs: string[];
 	    owned_item_names?: string[];
 	    raid_item_limit: number;
-	    maximize_colorless_first?: boolean;
 	    is_dino_artifact: boolean;
 	    output_filename: string;
 	    pre_equipped: Record<string, string>;
@@ -232,6 +231,7 @@ export namespace main {
 	    pre_filled_filigrees: Record<string, string[]>;
 	    checklist_owned?: Record<string, boolean>;
 	    calculate_only: boolean;
+	    maximize_colorless_first?: boolean;
 	    max_search_time?: number;
 	    mode?: string;
 	    target_slot: string;
@@ -264,7 +264,6 @@ export namespace main {
 	        this.excluded_packs = source["excluded_packs"];
 	        this.owned_item_names = source["owned_item_names"];
 	        this.raid_item_limit = source["raid_item_limit"];
-	        this.maximize_colorless_first = source["maximize_colorless_first"];
 	        this.is_dino_artifact = source["is_dino_artifact"];
 	        this.output_filename = source["output_filename"];
 	        this.pre_equipped = source["pre_equipped"];
@@ -272,6 +271,7 @@ export namespace main {
 	        this.pre_filled_filigrees = source["pre_filled_filigrees"];
 	        this.checklist_owned = source["checklist_owned"];
 	        this.calculate_only = source["calculate_only"];
+	        this.maximize_colorless_first = source["maximize_colorless_first"];
 	        this.max_search_time = source["max_search_time"];
 	        this.mode = source["mode"];
 	        this.target_slot = source["target_slot"];
@@ -427,7 +427,6 @@ export namespace main {
 	    excluded_packs: string[];
 	    owned_item_names?: string[];
 	    raid_item_limit: number;
-	    maximize_colorless_first?: boolean;
 	    is_dino_artifact: boolean;
 	    output_filename: string;
 	    pre_equipped: Record<string, string>;
@@ -435,9 +434,10 @@ export namespace main {
 	    pre_filled_filigrees: Record<string, string[]>;
 	    checklist_owned?: Record<string, boolean>;
 	    calculate_only: boolean;
+	    maximize_colorless_first?: boolean;
 	    max_search_time?: number;
 	    mode?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new OptimizationPayload(source);
 	    }
@@ -463,7 +463,6 @@ export namespace main {
 	        this.excluded_packs = source["excluded_packs"];
 	        this.owned_item_names = source["owned_item_names"];
 	        this.raid_item_limit = source["raid_item_limit"];
-	        this.maximize_colorless_first = source["maximize_colorless_first"];
 	        this.is_dino_artifact = source["is_dino_artifact"];
 	        this.output_filename = source["output_filename"];
 	        this.pre_equipped = source["pre_equipped"];
@@ -471,6 +470,7 @@ export namespace main {
 	        this.pre_filled_filigrees = source["pre_filled_filigrees"];
 	        this.checklist_owned = source["checklist_owned"];
 	        this.calculate_only = source["calculate_only"];
+	        this.maximize_colorless_first = source["maximize_colorless_first"];
 	        this.max_search_time = source["max_search_time"];
 	        this.mode = source["mode"];
 	    }

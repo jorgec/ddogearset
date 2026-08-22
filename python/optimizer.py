@@ -268,7 +268,10 @@ def _val(var):
 
 
 
-def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None, min_ml=29, owned_names=None):
+def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, allowed_w2_list, allow_gomf, art_slot_input, excluded_packs=None, quests_lookup=None, pre_equipped_names=None, min_ml=None, owned_names=None):
+    # min_ml=None means the level-relative default floor, max_ml - 10.
+    if min_ml is None:
+        min_ml = max(0, max_ml - 10)
     items = []
     allowed_armor = allowed_armor.strip().lower() if allowed_armor else None
 
@@ -409,17 +412,21 @@ def flatten_pre_filled_augment_names(pre_filled_augments):
 
 
 
-def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, min_ml=29, owned_names=None):
+def parse_augments(base_dir, max_ml, priorities, pre_filled_augment_names=None, min_ml=None, owned_names=None):
     """`pre_filled_augment_names` mirrors parse_items' `pre_equipped_names` bypass
     (see is_pre_equipped there): an augment already slotted into a pre-equipped
     item is not optional gear-search inventory, it's a fact about the current
-    build, so the ML>=29 floor (meant to keep the *search space* to
+    build, so the min_ml floor (meant to keep the *search space* to
     endgame-relevant items) must not silently drop it. Without this, any
-    pre-filled augment with MinLevel < 29 (e.g. the MinLevel-22 Festive line)
+    pre-filled augment below the floor (e.g. the MinLevel-22 Festive line)
     fails to match in create_model, and the aggregate
     `sum(y) == total_pre_filled_augments` constraint (which counts every
     payload entry, matched or not) turns that single miss into a hard
-    infeasibility for the whole calculate-only solve."""
+    infeasibility for the whole calculate-only solve.
+
+    `min_ml=None` means the level-relative default floor, max_ml - 10."""
+    if min_ml is None:
+        min_ml = max(0, max_ml - 10)
     augments = []
     pre_filled_augment_names = set(pre_filled_augment_names or [])
     for aug_file in glob.glob(os.path.join(base_dir, 'Augments', '*.xml')):

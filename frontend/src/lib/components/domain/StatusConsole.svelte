@@ -1,12 +1,20 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { GetSystemLogs } from '../../../../wailsjs/go/main/App';
-  import { logsStore } from '$lib/store';
+  import { logsStore, rightPanel } from '$lib/store';
 
   let consoleRef: HTMLDivElement;
   let intervalId: number;
 
+  // All three readouts stay mounted and only toggle visibility (App.svelte), so
+  // this poll used to run once a second forever — including while the console
+  // was not on screen, marshalling the whole log array across the IPC bridge
+  // for a panel nobody was looking at. Skipping the fetch while hidden costs
+  // nothing: switching back re-fetches within a tick.
+  $: visible = $rightPanel === 'console';
+
   async function fetchLogs() {
+    if (!visible) return;
     try {
       const logs = await GetSystemLogs();
       $logsStore = logs;
@@ -26,6 +34,10 @@
     fetchLogs();
     intervalId = setInterval(fetchLogs, 1000) as unknown as number;
   });
+
+  // Refresh immediately on becoming visible, rather than showing whatever was
+  // last fetched until the next tick.
+  $: if (visible) fetchLogs();
 
   onDestroy(() => {
     if (intervalId) clearInterval(intervalId);

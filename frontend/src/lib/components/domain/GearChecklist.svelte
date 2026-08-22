@@ -1,6 +1,6 @@
 <script lang="ts">
   import { configStore, resultStore, troveImportStore } from '$lib/store';
-  import type { SlotDetail } from '$lib/store';
+  import type { SlotDetail, TroveOwnedItem } from '$lib/store';
   import { fetchItem } from '$lib/services/itemCatalog';
   import { openWikiSearch } from '$lib/wiki';
 
@@ -57,6 +57,39 @@
       entries = result;
   }
 
+  // Where each owned item actually sits — character and bank/location, comma
+  // joined by the importer when one name turns up in several places. Keyed
+  // lower-case to match troveNames, which is what decides ownership here.
+  $: troveInfoByName = new Map<string, TroveOwnedItem>(
+      ($troveImportStore.items ?? []).map((i: TroveOwnedItem) => [i.name.toLowerCase(), i])
+  );
+
+  // Derived rather than called from the markup: an isOwned(name) call there
+  // would not re-run when a CSV is loaded, because Svelte tracks the
+  // identifiers an expression mentions, not what the callee reads.
+  $: ownedByName = new Map(
+      entries.map(e => [e.name, e.name in checklist
+          ? checklist[e.name]
+          : troveNames.has(e.name.toLowerCase())])
+  );
+
+  // Present only when the CSV vouches for the item, so a hand-ticked checkbox
+  // never invents a location it cannot know. Both are maps for the same reason
+  // ownedByName is: the markup has to read values, not call helpers.
+  $: inTroveByName = new Map(
+      entries.map(e => [e.name, troveNames.has(e.name.toLowerCase())])
+  );
+
+  $: whereByName = new Map(
+      entries.map(e => [e.name, troveWhere(troveInfoByName.get(e.name.toLowerCase()))])
+  );
+
+  function troveWhere(info: TroveOwnedItem | undefined): string | null {
+      if (!info) return null;
+      if (info.character && info.location) return `${info.character} — ${info.location}`;
+      return info.character || info.location || null;
+  }
+
   function isOwned(name: string): boolean {
       if (name in checklist) return checklist[name];
       return troveNames.has(name.toLowerCase());
@@ -82,7 +115,7 @@
       return commaIdx > 0 ? trimmed.substring(0, commaIdx).trim() : trimmed;
   }
 
-  $: ownedCount = entries.filter(e => isOwned(e.name)).length;
+  $: ownedCount = [...ownedByName.values()].filter(Boolean).length;
 </script>
 
 <div class="panel flex flex-col h-full overflow-hidden">
@@ -105,7 +138,9 @@
     {:else}
       <div class="divide-y divide-border/30">
         {#each entries as entry (entry.slot)}
-          {@const owned = isOwned(entry.name)}
+          {@const owned = ownedByName.get(entry.name) ?? false}
+          {@const inTrove = inTroveByName.get(entry.name) ?? false}
+          {@const where = inTrove ? whereByName.get(entry.name) : null}
           <div class="px-4 py-2.5 hover:bg-muted/20 transition-colors">
             <div class="flex items-start gap-3">
               <label class="flex items-center shrink-0 mt-0.5 cursor-pointer">
@@ -134,6 +169,15 @@
                     <span class="italic text-primary/60">{entry.pack}</span>
                   {/if}
                 </div>
+
+                {#if inTrove}
+                  <div class="mt-0.5 flex items-baseline gap-1.5 text-[11px]">
+                    <span class="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold bg-vitality/15 text-vitality border border-vitality/30">In Trove</span>
+                    {#if where}
+                      <span class="truncate text-steel/70" title={where}>{where}</span>
+                    {/if}
+                  </div>
+                {/if}
 
                 {#if entry.dropLocations.length > 0}
                   <div class="mt-1 space-y-0.5">

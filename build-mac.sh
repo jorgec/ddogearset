@@ -49,6 +49,29 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
     exit 1
 fi
 
+# --update-data (or UPDATE_DATA=1) refreshes the data/ddobuilder submodule from
+# upstream BEFORE the ETL runs. Off by default: the ETL always rebuilds
+# catalog.db, but from whatever revision is checked out locally, so a plain
+# build is reproducible against the pinned submodule. This flag is the
+# one-command "pull the latest game data and build" path — the same fetch
+# update-catalog.sh does, folded into the build.
+UPDATE_DATA="${UPDATE_DATA:-0}"
+for arg in "$@"; do
+    case "$arg" in
+        --update-data) UPDATE_DATA=1 ;;
+        -h|--help)
+            echo "usage: ./build-mac.sh [--update-data]"
+            echo "  --update-data   fetch the latest data/ddobuilder before the ETL"
+            echo "  RELEASE=0       env var: skip the ETL's --strict drift check"
+            exit 0
+            ;;
+        *)
+            echo "error: unknown argument '$arg' (try --help)." >&2
+            exit 1
+            ;;
+    esac
+done
+
 # RELEASE=1 (the default) passes --strict to the ETL: an unexplained rename in
 # DDOBuilderV2 fails the build instead of quietly minting a new identity that
 # orphans saved gearsets. RELEASE=0 is for day-to-day dev builds mid-week, when
@@ -62,6 +85,23 @@ DIST_DIR="dist/${PLATFORM}"
 
 echo "=== DDO Gearset Optimizer — native macOS build (${PLATFORM}) ==="
 mkdir -p "$BUNDLE_DIR"
+
+# ── 0. Refresh the game data (only with --update-data) ─────────────────────
+# Deliberately before the ETL, and deliberately opt-in: `git checkout
+# origin/main` moves the submodule off its pinned revision, which is a change
+# to what this build ships, not a build detail. The pin stays until you commit
+# the new submodule SHA.
+if [ "$UPDATE_DATA" = "1" ]; then
+    echo ""
+    echo "-> Updating data/ddobuilder from upstream (--update-data)..."
+    git submodule update --init --depth 1
+    ( cd data/ddobuilder && git fetch origin main && git checkout origin/main )
+    echo "   now at $( cd data/ddobuilder && git rev-parse --short HEAD )"
+else
+    echo ""
+    echo "-> Using data/ddobuilder as checked out ($( cd data/ddobuilder 2>/dev/null && git rev-parse --short HEAD || echo 'submodule missing' ))."
+    echo "   Pass --update-data to fetch the latest game data first."
+fi
 
 # ── 1. Build catalog.db from DDOBuilderV2 (the ETL) ────────────────────────
 echo ""

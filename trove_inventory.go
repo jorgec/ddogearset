@@ -8,27 +8,23 @@ package main
 // Deliberately NOT filigree-aware and NOT random-loot-aware (see the spec's
 // "Scope" section) — DDOBuilderV2 is treated as the definitive source, and a
 // CSV row whose Name doesn't match it is silently dropped. No fuzzy matching.
+//
+// Import is drag-and-drop only, so this file takes a PATH and reads the file
+// itself. The two content-taking RPCs it used to expose (LoadTroveInventory,
+// GetTroveOwnedItems) were removed with the file-picker buttons that fed
+// them — see docs/FILE_DIALOG_SILENT_DROP.md.
 
 import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
-
-// TroveInventoryResult is what LoadTroveInventory returns to the frontend.
-// OwnedNames is the deduplicated set of names that survived the CSV-level
-// filter (Location, and Binding when the column is present) — whether each
-// name actually matches a real DDOBuilderV2 item/augment is only resolved
-// later, at solve time, by optimizer.py's name-set membership check.
-type TroveInventoryResult struct {
-	Success      bool     `json:"success"`
-	ErrorMessage string   `json:"errorMessage,omitempty"`
-	TotalRows    int      `json:"totalRows"`
-	OwnedNames   []string `json:"ownedNames"`
-}
 
 // parseTroveInventoryCSV applies the Location/Binding filter (see spec) and
 // returns the deduplicated set of surviving item/augment names. Reads by
@@ -150,30 +146,6 @@ func parseTroveInventoryCSV(csvContent string) (names map[string]*troveNameInfo,
 	return names, totalRows, nil
 }
 
-// LoadTroveInventory is the RPC the frontend calls with the raw text content
-// of a user-selected Trove export (read client-side via FileReader, matching
-// how gearset files are already loaded — see Summary.svelte's loadGearset()
-// — rather than Go opening a file by path).
-func (a *App) LoadTroveInventory(csvContent string) TroveInventoryResult {
-	names, totalRows, err := parseTroveInventoryCSV(csvContent)
-	if err != nil {
-		a.addLog("Failed to parse Trove inventory CSV: " + err.Error())
-		return TroveInventoryResult{Success: false, ErrorMessage: err.Error()}
-	}
-
-	ownedNames := make([]string, 0, len(names))
-	for n := range names {
-		ownedNames = append(ownedNames, n)
-	}
-
-	a.addLog(fmt.Sprintf("Trove inventory loaded: %d rows, %d owned item/augment names after filtering.", totalRows, len(ownedNames)))
-	return TroveInventoryResult{
-		Success:    true,
-		TotalRows:  totalRows,
-		OwnedNames: ownedNames,
-	}
-}
-
 // TroveOwnedItem is one row in the Owned Items screen's list — just enough to
 // render a list entry; the full detail is fetched separately (ItemDetail.svelte
 // self-fetches by name, same as everywhere else it's used). Character/Location
@@ -188,24 +160,76 @@ type TroveOwnedItem struct {
 	Location  string `json:"location,omitempty"`
 }
 
-type TroveOwnedItemsResult struct {
+// TroveLoadResult is everything one import produces, in one reply.
+//
+// Both consumers are served by a single call on purpose. The solver
+// constraint needs OwnedNames — items AND augments, unfiltered against the
+// catalog, because the matching happens later in optimizer.py — while the
+// Owned Items screen needs Items, catalog-matched and items-only. Those used
+// to be two RPCs (LoadTroveInventory and GetTroveOwnedItems), which meant the
+// frontend sent the whole CSV twice, concurrently, and Go parsed it twice.
+// Now the file is read and parsed once, here.
+type TroveLoadResult struct {
 	Success      bool             `json:"success"`
 	ErrorMessage string           `json:"errorMessage,omitempty"`
+	FileName     string           `json:"fileName"`
 	TotalRows    int              `json:"totalRows"`
+	OwnedNames   []string         `json:"ownedNames"`
 	Items        []TroveOwnedItem `json:"items"`
 }
 
-// GetTroveOwnedItems is the RPC behind the standalone "Owned Items" screen.
-// Unlike LoadTroveInventory (which feeds the solver and must include both
-// items AND augments, unfiltered against the catalog — matching happens
-// later in Python), this is items-only and pre-filtered against the
-// already-loaded itemsCache/itemsByName index, so the screen only ever shows
-// names that are actually usable — no augments, no unmatched CSV noise.
-func (a *App) GetTroveOwnedItems(csvContent string) TroveOwnedItemsResult {
-	names, totalRows, err := parseTroveInventoryCSV(csvContent)
+// LoadTroveFromPath imports a Trove export the user dragged onto the window.
+//
+// Takes a PATH, not the file's content: the import is drag-and-drop only
+// (Wails' OnFileDrop hands the frontend absolute paths), so the CSV never
+// crosses the IPC bridge at all. That removes the two failure modes the old
+// content-based RPCs carried — a multi-megabyte payload sent twice over a
+// bridge whose send errors are swallowed by Wails with no timeout, and the
+// HTML file input whose element could be garbage-collected mid-dialog
+// (docs/FILE_DIALOG_SILENT_DROP.md).
+func (a *App) LoadTroveFromPath(path string) TroveLoadResult {
+	fileName := filepath.Base(path)
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		a.addLog("Failed to read Trove inventory CSV: " + err.Error())
+		return TroveLoadResult{Success: false, FileName: fileName, ErrorMessage: "could not read " + fileName + ": " + err.Error()}
+	}
+
+	names, totalRows, err := parseTroveInventoryCSV(string(content))
 	if err != nil {
 		a.addLog("Failed to parse Trove inventory CSV: " + err.Error())
-		return TroveOwnedItemsResult{Success: false, ErrorMessage: err.Error()}
+		return TroveLoadResult{Success: false, FileName: fileName, ErrorMessage: err.Error()}
+	}
+
+	ownedNames := make([]string, 0, len(names))
+	for n := range names {
+		ownedNames = append(ownedNames, n)
+	}
+	sort.Strings(ownedNames)
+
+	// Wait for the item cache before matching against it. loadCaches runs in
+	// a goroutine while the UI is already usable (see App.cacheReadyCh), so
+	// without this an import in the first ~0.5s of a launch matched nothing
+	// and the Owned Items screen rendered its empty state — a successful
+	// import that looked exactly like a broken one. Waiting also gives the
+	// reads below a happens-before edge against loadCaches' writes, which
+	// `go test -race` flagged.
+	select {
+	case <-a.cachesReady():
+	case <-time.After(catalogWaitTimeout):
+		msg := catalogLoadingMsg
+		a.addLog("Trove import: " + msg)
+		return TroveLoadResult{Success: false, FileName: fileName, ErrorMessage: msg, TotalRows: totalRows}
+	}
+	if len(a.itemsCache) == 0 {
+		// The gate opened but nothing is behind it: loadCaches failed (an
+		// unreadable or missing catalog, already logged by it). Saying so is
+		// the point — silently returning an empty list here is
+		// indistinguishable from "you own nothing".
+		msg := "the item catalog is unavailable — see the System Console for why"
+		a.addLog("Trove import: " + msg)
+		return TroveLoadResult{Success: false, FileName: fileName, ErrorMessage: msg, TotalRows: totalRows}
 	}
 
 	items := make([]TroveOwnedItem, 0, len(names))
@@ -225,10 +249,13 @@ func (a *App) GetTroveOwnedItems(csvContent string) TroveOwnedItemsResult {
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 
-	a.addLog(fmt.Sprintf("Trove owned items: %d rows, %d matched to real items.", totalRows, len(items)))
-	return TroveOwnedItemsResult{
-		Success:   true,
-		TotalRows: totalRows,
-		Items:     items,
+	a.addLog(fmt.Sprintf("Trove import from %s: %d rows, %d owned names, %d matched to real items.",
+		fileName, totalRows, len(ownedNames), len(items)))
+	return TroveLoadResult{
+		Success:    true,
+		FileName:   fileName,
+		TotalRows:  totalRows,
+		OwnedNames: ownedNames,
+		Items:      items,
 	}
 }

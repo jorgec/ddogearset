@@ -7,6 +7,52 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.5.5] — 2026-08-23
+
+### Added
+
+- **Live Trove ownership badges.** Every socketed item in the gearset editor is
+  badged green/red against the loaded Trove CSV as soon as one is loaded — no
+  button press — and the badges follow the gearset through a solve, a manual
+  pick, or a fresh import. **Check Inventory** remains, but now only reports the
+  tally instead of switching badging on.
+
+- **Trove location details in the Gear Checklist.** Items the CSV vouches for
+  carry an "In Trove" badge with the character and bank/location they are held
+  on. Hand-ticked items get no badge — there is no location to report.
+
+- **Drag-and-drop Trove import.** Dropping a CSV anywhere on the dashboard or
+  the Owned Items panel imports it; Go reads the file from its path, so the CSV
+  never crosses the IPC bridge. Wails' `DisableWebViewDrop` is set alongside
+  `EnableFileDrop`, without which the webview's own drop handler navigates the
+  window to the raw CSV and replaces the UI.
+
+- **Dataset version reporting.** The catalog records the DDOBuilder version it
+  was built from (`catalog_meta.ddobuilder_version`, parsed from `BuildInfo.h`)
+  and the app exposes it via `GetDatasetVersion`. Old catalogs without the
+  column still load.
+
+- **`update-catalog.sh`** for rebuilding and re-bundling the catalog, plus cache-
+  gate and dataset-version tests (`app_cachegate_test.go`,
+  `app_datasetversion_test.go`, `trove_cachegate_test.go`).
+
+### Changed
+
+- **Item ML floor is now level-relative.** The hard `min_ml=29` floor became
+  `max_level - 10` throughout the ETL and solver, so lower-level builds get a
+  candidate pool that actually matches them. Alternatives use `max_level - 6`.
+
+### Fixed
+
+- **Ownership indicators no longer wait for an unrelated re-render.** The badges
+  and the checklist read derived maps instead of calling a helper from the
+  markup: Svelte tracks the identifiers an expression mentions, not what the
+  callee reads, so the Trove store was never a dependency and the dots only
+  appeared when something else forced a redraw (clicking a gear slot). The
+  checklist's `N / M items owned` header had the same defect.
+
+---
+
 ## [0.5.4] — 2026-08-19
 
 ### Added

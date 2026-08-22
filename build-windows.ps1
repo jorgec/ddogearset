@@ -14,6 +14,7 @@
 #
 # Run from a normal (non-administrator) PowerShell prompt, from the repo root:
 #   .\build-windows.ps1
+#   .\build-windows.ps1 -UpdateData   # fetch the latest game data first
 #
 # What it does, in order (every step below prints what it's doing and what it
 # found before moving on - nothing should run silently):
@@ -25,6 +26,8 @@
 #   3. Creates a Python venv at python\.venv and installs pulp + pyinstaller.
 #   4. Installs the Wails CLI (go install, pinned to match go.mod).
 #   5. Builds catalog.db from the local DDOBuilderV2 checkout (the ETL).
+#      With -UpdateData, first fetches the latest data\ddobuilder from
+#      upstream so the ETL reads fresh game data.
 #   6. Rebuilds the Python solver (PyInstaller --onedir ->
 #      python\dist\solver\solver.exe plus its _internal\ tree).
 #   7. Locates glpsol.exe + its DLLs from the Chocolatey glpk package and
@@ -47,6 +50,15 @@
 # NOTHING fetches it at runtime any more - since 0.5.0 the shipped app carries
 # catalog.db and never touches DDOBuilderV2, the network, or Python XML parsing
 # (docs/0.5.0/00_ETL_START_HERE.md constraints 1 and 3).
+
+# -UpdateData refreshes the data\ddobuilder submodule from upstream BEFORE the
+# ETL in step 5. Off by default: the ETL always rebuilds catalog.db, but from
+# whatever revision is checked out locally, so a plain build stays reproducible
+# against the pinned submodule. This switch is the one-command "pull the latest
+# game data and build" path - the same fetch update-catalog.sh does.
+param(
+    [switch]$UpdateData
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -164,6 +176,26 @@ Write-Step "Installing Python dependencies (pulp, pyinstaller) into the venv..."
 & $VenvPip install --quiet --upgrade pip
 & $VenvPip install --quiet -r python\requirements.txt pyinstaller
 Write-Ok "Python venv ready."
+
+# Deliberately before the ETL, and deliberately opt-in: `git checkout
+# origin/main` moves the submodule off its pinned revision, which is a change
+# to what this build ships, not a build detail. The pin stays until you commit
+# the new submodule SHA.
+if ($UpdateData) {
+    Write-Step "Updating data\ddobuilder from upstream (-UpdateData)..."
+    git submodule update --init --depth 1
+    if ($LASTEXITCODE -ne 0) { Fail "git submodule update failed (exit $LASTEXITCODE)." }
+    Push-Location "data\ddobuilder"
+    git fetch origin main
+    if ($LASTEXITCODE -ne 0) { Pop-Location; Fail "git fetch failed (exit $LASTEXITCODE)." }
+    git checkout origin/main
+    if ($LASTEXITCODE -ne 0) { Pop-Location; Fail "git checkout origin/main failed (exit $LASTEXITCODE)." }
+    $DataCommit = (git rev-parse --short HEAD)
+    Pop-Location
+    Write-Ok "data\ddobuilder now at $DataCommit."
+} else {
+    Write-Step "Using data\ddobuilder as checked out (pass -UpdateData to fetch the latest game data first)."
+}
 
 # == 5. Build catalog.db from DDOBuilderV2 (the ETL) =========================
 # $env:RELEASE = "0" builds permissively for day-to-day dev; the default (1)

@@ -5,10 +5,9 @@
   // (docs/TROVE_INVENTORY_IMPORT_SPEC.md); this one is read-only browsing,
   // items-only (no augments — kept simple per explicit scope), pre-filtered
   // to only names that actually matched a real DDOBuilderV2 item (Go's
-  // GetTroveOwnedItems cross-references itemsByName itself, so nothing
+  // LoadTroveFromPath cross-references itemsByName itself, so nothing
   // "non-usable" ever reaches this list).
-  import { showToast, troveImportStore } from '$lib/store';
-  import { loadTroveCsv } from '$lib/services/troveImport';
+  import { troveImportStore, troveImporting } from '$lib/store';
   import ItemDetail from './ItemDetail.svelte';
   import { fly, fade } from 'svelte/transition';
 
@@ -17,8 +16,7 @@
   // the original reason (App.svelte destroying it on every tab switch) no
   // longer applies — but the store is still the right home, because it is the
   // SAME store the solver form's "Owned Items (Trove Import)" accordion reads
-  // and writes: a CSV loaded from either place has to show up in both.
-  let loading = false;
+  // and writes: a CSV dropped on either zone has to show up in both.
   let searchQuery = '';
 
   let selectedItemName: string | null = null;
@@ -26,39 +24,6 @@
   $: filteredItems = searchQuery.trim()
     ? $troveImportStore.items.filter(i => i.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     : $troveImportStore.items;
-
-  function loadTroveCSV() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      loading = true;
-      const reader = new FileReader();
-      reader.onload = async (re) => {
-        try {
-          const csvContent = re.target?.result as string;
-          const result = await loadTroveCsv(csvContent, file.name);
-          if (!result.success) {
-            showToast('Failed to load Trove inventory: ' + (result.errorMessage || 'unknown error'), 'error');
-            return;
-          }
-          showToast(`Loaded ${result.totalRows} rows — ${result.itemsCount} usable items.`, 'success');
-        } catch (e) {
-          showToast('Failed to load Trove inventory: ' + e, 'error');
-        } finally {
-          loading = false;
-        }
-      };
-      reader.onerror = () => {
-        loading = false;
-        showToast('Failed to read the selected file.', 'error');
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  }
 
   function openDrawer(name: string) {
     selectedItemName = name;
@@ -78,14 +43,23 @@
         item are shown — no augments, no filigrees, no unmatched/unusable rows.
       </p>
     </div>
-    <button
-      type="button"
-      on:click={loadTroveCSV}
-      disabled={loading}
-      class="w-full px-3 py-1.5 text-xs bg-secondary text-secondary-foreground border border-border rounded hover:bg-secondary/80 hover:shadow-press transition-all disabled:opacity-50"
+    <!-- Import is drag-and-drop only. The inline custom property is what Wails
+         hit-tests against on drop (App.svelte registers the handler); it must
+         be inline rather than a class, because Wails reads element.style when
+         it walks up to flag the active target. -->
+    <div
+      style="--wails-drop-target: drop"
+      class="drop-zone w-full rounded border border-dashed border-carved px-3 py-4 text-center transition-colors"
     >
-      {loading ? 'Loading...' : $troveImportStore.items.length > 0 ? 'Load a different CSV' : 'Load Trove CSV...'}
-    </button>
+      {#if $troveImporting}
+        <p class="text-xs text-gold">Importing…</p>
+      {:else}
+        <p class="text-xs text-vellum">Drag a Trove CSV export here</p>
+        <p class="text-[10px] text-steel mt-1">
+          {$troveImportStore.items.length > 0 ? 'Drop another to replace it' : 'Your inventory export from Trove (.csv)'}
+        </p>
+      {/if}
+    </div>
   </div>
 
   {#if $troveImportStore.items.length > 0}
@@ -130,10 +104,10 @@
         <p class="text-steel text-xs py-6 text-center">No items match "{searchQuery}".</p>
       {/if}
     </div>
-  {:else if !loading}
+  {:else if !$troveImporting}
     <div class="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground p-12">
       <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-4 opacity-50"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>
-      <p>Load a Trove inventory CSV export to see your usable items here.</p>
+      <p>Drag a Trove inventory CSV export onto the panel above to see your usable items here.</p>
     </div>
   {/if}
 </div>

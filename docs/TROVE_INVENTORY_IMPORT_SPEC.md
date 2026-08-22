@@ -1,8 +1,27 @@
 # Spec — Constrain Gearset Generation to Owned Items (Trove Inventory Import)
 
-**Status:** Ready to implement, not yet built.
+**Status:** Built and shipped. Amended 2026-08-18 (see below).
 **Depends on:** Nothing — additive filter, same shape as the existing `excluded_packs`/
 `armor_restriction` filters already wired through the whole stack.
+
+> **Amendment, 2026-08-18 — import is drag-and-drop only, and the RPC surface changed.**
+>
+> The Go API below is superseded. `LoadTroveInventory(csvContent)` and its companion
+> `GetTroveOwnedItems(csvContent)` are **removed**, replaced by a single
+> `LoadTroveFromPath(path string) TroveLoadResult` returning the owned-name set AND
+> the catalog-matched item list from one read and one parse.
+>
+> Everything below about row filtering, matching, and scope is unchanged — only how
+> the file gets to Go is different.
+>
+> Why: the two file-picker buttons that fed the content-taking RPCs are gone. They
+> used an `<input type="file">` whose element could be garbage-collected while the
+> native dialog was open, silently dropping the load, and they sent the whole CSV
+> across the IPC bridge twice, concurrently, over a bridge that swallows send errors
+> and has no default timeout. A dropped file gives Go a path instead, so the CSV
+> never crosses the bridge at all — and a drop works on an unfocused window, which
+> the button did not (macOS spends the first click activating the window).
+> Full write-up: `docs/FILE_DIALOG_SILENT_DROP.md`.
 
 ## Goal
 

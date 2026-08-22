@@ -771,7 +771,7 @@ def main():
                     print(msg)
         out_file.write("\n")
 
-        min_ml = cap - 6 if mode == "stat_search" else 29
+        min_ml = max(0, cap - 6 if mode == "stat_search" else cap - 10)
         # owned_item_names constrains what the solver may SELECT for a
         # gearset — stat_search is a browse-the-whole-catalog feature (what's
         # possible in the game, not what you own), so it's deliberately
