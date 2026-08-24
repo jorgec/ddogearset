@@ -771,7 +771,16 @@ def main():
                     print(msg)
         out_file.write("\n")
 
-        min_ml = max(0, cap - 6 if mode == "stat_search" else cap - 10)
+        # A stat search carries its own ML window (the search panel owns it,
+        # independently of the build being solved for); everything else uses
+        # the level-relative default floor. Pushing the floor down into the
+        # parse — rather than filtering the answer afterwards — is what makes a
+        # narrow window cheap instead of merely short.
+        requested_min_ml = parsed_data.get('min_level')
+        if mode == "stat_search" and isinstance(requested_min_ml, int) and requested_min_ml > 0:
+            min_ml = min(requested_min_ml, cap)
+        else:
+            min_ml = max(0, cap - 6 if mode == "stat_search" else cap - 10)
         # owned_item_names constrains what the solver may SELECT for a
         # gearset — stat_search is a browse-the-whole-catalog feature (what's
         # possible in the game, not what you own), so it's deliberately

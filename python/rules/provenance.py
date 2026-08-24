@@ -232,3 +232,78 @@ def _resolve_is_raid(name, drop_location, raid_names, all_drop_locations, memo):
             return True
 
     return False
+
+
+# --- Pack closure (transitive pack requirements) ---------------------------
+#
+# Same ingredient signals as raid detection, same graph walk — the only
+# difference is what we're collecting: packs instead of raid-ness.
+#
+# One refinement over raid detection: tier-prefix edges ("Legendary X" → "X")
+# are only accepted when the item's own DropLocation contains crafting/upgrade
+# wording. Without that guard, items that drop directly from an end chest
+# (e.g. "Legendary Lucid Dreams" from Legendary Lord of Blades) would
+# incorrectly inherit a pack requirement from their heroic namesake. This is
+# the only known false-positive pattern — see the inference report.
+
+_TIER_PREFIX_CORROBORATION_KW = ('turn in', 'catalyst', 'crafting', 'version of', 'upgrade')
+
+
+def _corroborated_ingredient_names(name, drop_location, all_names):
+    """Like _raid_ingredient_names, but tier-prefix edges require
+    corroborating crafting wording in the drop location."""
+    found = set()
+    dl = drop_location or ''
+
+    m = _RAID_VERSION_OF_RE.search(dl)
+    if m:
+        tail = re.sub(r'\s*\([^)]*\)\s*$', '', m.group(1)).strip()
+        for part in re.split(r'\s+and\s+|\s*\+\s*', tail):
+            part = part.strip().rstrip('.')
+            if part in all_names:
+                found.add(part)
+
+    dl_lower = dl.lower()
+    if any(kw in dl_lower for kw in _RAID_CRAFTING_KEYWORDS):
+        for candidate in all_names:
+            if (candidate != name
+                    and len(candidate) >= _RAID_MIN_INGREDIENT_NAME_LEN
+                    and candidate in dl):
+                found.add(candidate)
+
+    has_crafting_wording = any(kw in dl_lower for kw in _TIER_PREFIX_CORROBORATION_KW)
+    if has_crafting_wording:
+        for prefix in RAID_UPGRADE_TIER_PREFIXES:
+            if name and name.startswith(prefix):
+                remainder = name[len(prefix):]
+                if remainder in all_names:
+                    found.add(remainder)
+
+    found.discard(name)
+    return found
+
+
+def _resolve_pack_closure(name, drop_location, all_drop_locations, pack_lookup, memo):
+    """The set of adventure-pack names this item transitively requires.
+
+    `pack_lookup` maps item name → pack name (or None). `all_drop_locations`
+    maps item name → drop location text. `memo` caches results and guards
+    against cycles."""
+    if name in memo:
+        return memo[name]
+    memo[name] = set()
+
+    packs = set()
+    own_pack = pack_lookup.get(name)
+    if own_pack:
+        packs.add(own_pack)
+
+    all_names = all_drop_locations.keys()
+    dl = drop_location or ''
+    for ingredient in _corroborated_ingredient_names(name, dl, all_names):
+        ingredient_dl = all_drop_locations.get(ingredient, '')
+        packs |= _resolve_pack_closure(
+            ingredient, ingredient_dl, all_drop_locations, pack_lookup, memo)
+
+    memo[name] = packs
+    return packs

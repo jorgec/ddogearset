@@ -44,6 +44,7 @@ from rules.constants import (
 )
 from rules.extract import COLORLESS_AUGMENT_NAME_PATTERN, wanted_weapon_stats_for
 from rules.naming import _is_proc_presence_flag_type, _proc_priority_match, normalize_stat_name
+from rules.provenance import _resolve_pack_closure
 
 # Set by app.go (replacing DDO_DATA_PATH). Falls back to a dev-local build so
 # `python solver.py` keeps working from a checkout, mirroring how base_dir
@@ -108,10 +109,10 @@ def _buff(raw_type, raw_target, bonus_type, value, priorities, wanted_weapon_sta
 def _load_items(conn) -> Dict[str, dict]:
     items: Dict[str, dict] = {}
     for (uuid_, name, source_file, ml, weapon_type, damage_type, armor_type,
-         is_minor, is_raid, craftable_family, pack) in conn.execute("""
+         is_minor, is_raid, craftable_family, pack, drop_loc) in conn.execute("""
         SELECT uuid, name, source_file, min_level, weapon_type, damage_type,
                armor_type, is_minor_artifact, is_raid, craftable_family,
-               adventure_pack
+               adventure_pack, drop_location
         FROM item
     """):
         items[uuid_] = {
@@ -119,7 +120,8 @@ def _load_items(conn) -> Dict[str, dict]:
             'weapon_type': weapon_type, 'damage_type': damage_type,
             'armor_type': armor_type, 'minor': bool(is_minor),
             'is_raid': bool(is_raid), 'craftable_family': bool(craftable_family),
-            'pack': pack, 'slots': [], 'augments': [], 'sets': [], 'raw_buffs': [],
+            'pack': pack, 'drop_location': drop_loc or '',
+            'slots': [], 'augments': [], 'sets': [], 'raw_buffs': [],
         }
 
     for item_uuid, slot in conn.execute("SELECT item_uuid, slot FROM item_slot"):
@@ -170,6 +172,18 @@ def parse_items(catalog, max_ml, priorities, allowed_armor, allowed_w1_list,
         if '(dino)' in art_slot_input:
             force_dino = True
             art_slot_input = art_slot_input.replace('(dino)', '').strip()
+
+    # Pack closure: build lookup dicts so _resolve_pack_closure can trace
+    # ingredient chains through items outside the current ML window.
+    pack_closure_memo = {}
+    excluded_packs_set = set(excluded_packs) if excluded_packs else set()
+    all_drop_locations = {}
+    pack_lookup = {}
+    if excluded_packs:
+        for it2 in raw_items.values():
+            all_drop_locations[it2['name']] = it2['drop_location']
+            if it2['pack']:
+                pack_lookup[it2['name']] = it2['pack']
 
     out = []
     for it in raw_items.values():
@@ -224,6 +238,12 @@ def parse_items(catalog, max_ml, priorities, allowed_armor, allowed_w1_list,
 
         if not is_pre_equipped and excluded_packs and it['pack'] in excluded_packs:
             continue
+        if not is_pre_equipped and excluded_packs and not it['pack']:
+            required_packs = _resolve_pack_closure(
+                name, it['drop_location'], all_drop_locations,
+                pack_lookup, pack_closure_memo)
+            if required_packs & excluded_packs_set:
+                continue
         if not is_pre_equipped and owned_names is not None and name not in owned_names:
             continue
 

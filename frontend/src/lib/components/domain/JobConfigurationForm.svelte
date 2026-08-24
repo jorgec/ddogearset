@@ -72,8 +72,21 @@
       // The cast mirrors store.ts: spreading a wails-generated class produces a
       // plain object without its convertValues method, which the generated
       // signature nominally requires but never calls on the request path.
+      // An optimize run asks the solver to pick the best items from scratch.
+      // pre_equipped/pre_filled from a PREVIOUS solve (hydrated by
+      // hydrateConfigFromSlots) must not carry over — they bypass the
+      // pack-exclusion and owned-items filters, so changing those filters
+      // between solves would have no effect on items the previous solve
+      // hydrated into pre_equipped.
+      const payload = {
+        ...$configStore,
+        mode: 'optimize',
+        pre_equipped: {},
+        pre_filled_augments: {},
+        pre_filled_filigrees: { weapon: [] as string[], artifact: [] as string[] },
+      };
       const result = await withTimeout(
-        RunOptimization({ ...$configStore, mode: 'optimize' } as unknown as main.OptimizationPayload),
+        RunOptimization(payload as unknown as main.OptimizationPayload),
         solveTimeoutMs($configStore.max_search_time),
         'Optimization',
       );

@@ -81,6 +81,7 @@ from rules.provenance import (
     _is_craftable_family_weapon,
     _raid_ingredient_names,
     _resolve_is_raid,
+    _resolve_pack_closure,
     weapon_types_for_damage_type,
 )
 from rules.extract import (
@@ -296,6 +297,20 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
     raid_all_drop_locations = _all_item_name_drop_locations(base_dir) if quests_lookup else {}
     raid_memo = {}
 
+    # Pack closure: build a name→pack lookup from the full unfiltered corpus,
+    # so _resolve_pack_closure can trace ingredient chains back through items
+    # that are below today's ML floor or otherwise filtered out.
+    pack_closure_memo = {}
+    pack_lookup = {}
+    if quests_lookup and excluded_packs:
+        for iname, idl in raid_all_drop_locations.items():
+            for qname, qinfo in quests_lookup.items():
+                if qname in idl:
+                    p = qinfo.get('AdventurePack')
+                    if p:
+                        pack_lookup[iname] = p
+                    break
+
     for item_file in glob.glob(os.path.join(base_dir, 'Items', '*.item')):
         try:
             tree = ET.parse(item_file)
@@ -366,6 +381,14 @@ def parse_items(base_dir, max_ml, priorities, allowed_armor, allowed_w1_list, al
 
                 if not is_pre_equipped and excluded_packs and item_pack in excluded_packs:
                     continue
+
+                if not is_pre_equipped and excluded_packs and not item_pack:
+                    item_dl = _drop_location or ''
+                    required_packs = _resolve_pack_closure(
+                        name, item_dl, raid_all_drop_locations,
+                        pack_lookup, pack_closure_memo)
+                    if required_packs & set(excluded_packs):
+                        continue
 
                 # docs/TROVE_INVENTORY_IMPORT_SPEC.md — exact-name membership
                 # only, no fuzzy matching; DDOBuilderV2 is the definitive

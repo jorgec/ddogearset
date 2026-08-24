@@ -114,8 +114,8 @@ export function SaveGearset(arg1, arg2) {
   return window['go']['main']['App']['SaveGearset'](arg1, arg2);
 }
 
-export function SearchItemsByStat(arg1, arg2) {
-  return window['go']['main']['App']['SearchItemsByStat'](arg1, arg2);
+export function SearchItems(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['SearchItems'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function VerifyGearsetChecksum(arg1) {

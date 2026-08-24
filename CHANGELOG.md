@@ -7,6 +7,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.6.0] — 2026-08-25
+
+### Added
+
+- **Transitive pack exclusion.** Excluding a pack now also excludes items that
+  require ingredients from that pack, even when the item itself has no direct
+  pack attribution. For example, catalyst-crafted items whose base components
+  come from Demon Sands are now correctly excluded when Demon Sands is excluded.
+  Tier-prefix inferences (e.g. "Legendary X" → "X") require corroborating
+  crafting wording in the drop location to avoid false positives.
+
+- **Independent item search.** The item search panel now supports searching by
+  name in addition to stat, with minimum level and equipment slot filters. The
+  search is fully independent of the build configuration panel.
+
+### Fixed
+
+- **Solver ignoring config changes on re-run.** After a solve, hydrated
+  pre-equipped items from the previous result bypassed pack exclusion, ML
+  window, and owned-items filters on subsequent solves. Optimize now sends a
+  clean payload so the solver picks items from scratch, respecting all current
+  filters.
+
 ## [0.5.5] — 2026-08-23
 
 ### Added

@@ -132,6 +132,11 @@ type XMLItem struct {
 	// --- acquisition enrichment: computed once at cache-load time by
 	// services.EnrichItemInPlace, never parsed from this item's own XML ---
 	PackID   string `xml:"-" json:"pack_id,omitempty"`
+	// AdventurePack is the catalog's own adventure_pack column (a display
+	// name like "Fables of the Feywild"), not the PackID slug above. It is
+	// what the item search reports, so a name search and a stat search — the
+	// latter answered by Python from the same column — agree on the wording.
+	AdventurePack string `xml:"-" json:"adventure_pack,omitempty"`
 	WikiURL  string `xml:"-" json:"wiki_url,omitempty"`
 	IsRaid   bool   `xml:"-" json:"is_raid,omitempty"`
 	RaidName string `xml:"-" json:"raid_name,omitempty"`

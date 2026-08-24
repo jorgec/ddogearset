@@ -723,6 +723,8 @@ export namespace main {
 	    ml: number;
 	    slots?: string[];
 	    pack?: string;
+	    stats?: string[];
+	    isRaid?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new StatSearchEntry(source);
@@ -737,10 +739,13 @@ export namespace main {
 	        this.ml = source["ml"];
 	        this.slots = source["slots"];
 	        this.pack = source["pack"];
+	        this.stats = source["stats"];
+	        this.isRaid = source["isRaid"];
 	    }
 	}
 	export class StatSearchResult {
 	    stat: string;
+	    mode?: string;
 	    results: StatSearchEntry[];
 	    success: boolean;
 	    errorMessage?: string;
@@ -752,6 +757,7 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.stat = source["stat"];
+	        this.mode = source["mode"];
 	        this.results = this.convertValues(source["results"], StatSearchEntry);
 	        this.success = source["success"];
 	        this.errorMessage = source["errorMessage"];
@@ -1234,6 +1240,7 @@ export namespace models {
 	    ArcaneSpellFailure: string;
 	    ArmorCheckPenalty: string;
 	    pack_id?: string;
+	    adventure_pack?: string;
 	    wiki_url?: string;
 	    is_raid?: boolean;
 	    raid_name?: string;
@@ -1271,6 +1278,7 @@ export namespace models {
 	        this.ArcaneSpellFailure = source["ArcaneSpellFailure"];
 	        this.ArmorCheckPenalty = source["ArmorCheckPenalty"];
 	        this.pack_id = source["pack_id"];
+	        this.adventure_pack = source["adventure_pack"];
 	        this.wiki_url = source["wiki_url"];
 	        this.is_raid = source["is_raid"];
 	        this.raid_name = source["raid_name"];

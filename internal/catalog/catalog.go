@@ -74,7 +74,7 @@ func ReadMeta(db *sql.DB) (Meta, error) {
 // are NOT applied here; this returns the full corpus, exactly as
 // services.ParseItems always did, and callers filter as before.
 func LoadItems(db *sql.DB) ([]models.XMLItem, []string, error) {
-	rows, err := db.Query(`SELECT name, is_raid, raw_xml FROM item`)
+	rows, err := db.Query(`SELECT name, is_raid, adventure_pack, raw_xml FROM item`)
 	if err != nil {
 		return nil, nil, fmt.Errorf("querying items: %w", err)
 	}
@@ -85,8 +85,9 @@ func LoadItems(db *sql.DB) ([]models.XMLItem, []string, error) {
 	for rows.Next() {
 		var name string
 		var isRaid bool
+		var pack sql.NullString
 		var rawXML string
-		if err := rows.Scan(&name, &isRaid, &rawXML); err != nil {
+		if err := rows.Scan(&name, &isRaid, &pack, &rawXML); err != nil {
 			return nil, nil, fmt.Errorf("scanning item row: %w", err)
 		}
 		var item models.XMLItem
@@ -98,6 +99,7 @@ func LoadItems(db *sql.DB) ([]models.XMLItem, []string, error) {
 		// Python's raid-chain walk — see docs/0.5.0/00_ETL_START_HERE.md
 		// Phase 4). Go no longer walks the chain itself; see enrichment.go.
 		item.IsRaid = isRaid
+		item.AdventurePack = pack.String
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {

@@ -60,6 +60,6 @@ export function RunOptimization(arg1:main.OptimizationPayload):Promise<main.Resu
 
 export function SaveGearset(arg1:main.OptimizationPayload,arg2:main.ResultPayload):Promise<string>;
 
-export function SearchItemsByStat(arg1:string,arg2:number):Promise<main.StatSearchResult>;
+export function SearchItems(arg1:string,arg2:string,arg3:number,arg4:number,arg5:string):Promise<main.StatSearchResult>;
 
 export function VerifyGearsetChecksum(arg1:string):Promise<main.GearsetChecksumResult>;

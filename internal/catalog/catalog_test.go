@@ -17,7 +17,7 @@ import (
 // test (that is scripts/parser_snapshot.py's verify-catalog job, run against
 // a real ETL-built catalog).
 const testDDL = `
-CREATE TABLE item (uuid TEXT PRIMARY KEY, name TEXT NOT NULL, is_raid INTEGER NOT NULL DEFAULT 0, raw_xml TEXT NOT NULL);
+CREATE TABLE item (uuid TEXT PRIMARY KEY, name TEXT NOT NULL, is_raid INTEGER NOT NULL DEFAULT 0, adventure_pack TEXT, raw_xml TEXT NOT NULL);
 CREATE TABLE augment (uuid TEXT PRIMARY KEY, name TEXT NOT NULL, raw_xml TEXT NOT NULL);
 CREATE TABLE filigree (uuid TEXT PRIMARY KEY, name TEXT NOT NULL, raw_xml TEXT NOT NULL);
 CREATE TABLE gear_set (uuid TEXT PRIMARY KEY, name TEXT NOT NULL, raw_xml TEXT);

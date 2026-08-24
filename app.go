@@ -62,7 +62,7 @@ var packMappingsJSON []byte
 // anywhere in this codebase) — this MUST be kept in sync by hand with
 // wails.json's "version"/"productVersion" on every version bump. There is no
 // automated check for drift between the two.
-const AppVersion = "0.5.5"
+const AppVersion = "0.6.0"
 
 // GetAppVersion returns the running app's release version (see AppVersion).
 func (a *App) GetAppVersion() string {
@@ -1679,6 +1679,10 @@ type StatSearchPayload struct {
 	Mode     string `json:"mode"`
 	Stat     string `json:"stat"`
 	MaxLevel int    `json:"max_level"`
+	// MinLevel is the ML floor for the search pool. The solver defaults it to
+	// max_level-6 for a stat search when it is 0, which is what the panel used
+	// to be hard-wired to; the search panel now sets it explicitly.
+	MinLevel int `json:"min_level,omitempty"`
 }
 
 type StatSearchEntry struct {
@@ -1689,35 +1693,235 @@ type StatSearchEntry struct {
 	ML         int      `json:"ml"`
 	Slots      []string `json:"slots,omitempty"`
 	Pack       *string  `json:"pack,omitempty"`
+
+	// Set by name searches only, which return one row per matching SOURCE
+	// rather than one per matching buff: BonusType/Value have no meaning
+	// there, so what the thing actually grants is summarised here instead.
+	Stats  []string `json:"stats,omitempty"`
+	IsRaid bool     `json:"isRaid,omitempty"`
 }
 
 type StatSearchResult struct {
 	Stat         string            `json:"stat"`
+	// Mode echoes back "stat" or "name" so the panel knows which shape of
+	// rows it is rendering without having to remember what it asked for.
+	Mode         string            `json:"mode,omitempty"`
 	Results      []StatSearchEntry `json:"results"`
 	Success      bool              `json:"success"`
 	ErrorMessage string            `json:"errorMessage,omitempty"`
 }
 
-func (a *App) SearchItemsByStat(stat string, maxLevel int) (StatSearchResult, error) {
+// SearchItems answers the Item Search panel. It is deliberately independent of
+// the configuration panel: every bound of the search — level window, slot,
+// mode, query — is passed in, so browsing the catalog never depends on, or
+// disturbs, what is currently being solved for.
+//
+//	mode "stat" — what the panel has always done: ask the solver which items,
+//	              augments and filigrees grant a stat, one row per buff. The ML
+//	              window is pushed down into the solver's parse (a narrower
+//	              window is a smaller pool, not just a smaller answer) and the
+//	              slot filter is applied here, to the rows it returns.
+//
+//	mode "name" — a substring match over the item, augment and filigree caches,
+//	              answered entirely in-process. No solver subprocess: name
+//	              matching needs no ILP, no stat normalisation and no XML
+//	              re-parse, and spawning Python to grep ~8,800 names the caches
+//	              already hold would make the fastest search the slowest.
+//
+// slot is a catalog slot name ("Helmet", "Ring", "Weapon1", …) or "" for any.
+// Augments and filigrees are not slotted items, so any slot filter drops them.
+func (a *App) SearchItems(mode, query string, minLevel, maxLevel int, slot string) (StatSearchResult, error) {
+	query = strings.TrimSpace(query)
+	if minLevel > maxLevel {
+		minLevel, maxLevel = maxLevel, minLevel
+	}
+	if minLevel < 0 {
+		minLevel = 0
+	}
+
+	if mode == "name" {
+		return a.searchItemsByName(query, minLevel, maxLevel, slot), nil
+	}
+
+	if query == "" {
+		return StatSearchResult{Success: false, Mode: "stat", ErrorMessage: "Pick a stat to search for."}, nil
+	}
+
 	payload := StatSearchPayload{
 		Mode:     "stat_search",
-		Stat:     stat,
+		Stat:     query,
 		MaxLevel: maxLevel,
+		MinLevel: minLevel,
 	}
 	raw, err := a.runSolver(payload)
 	if err != nil {
-		return StatSearchResult{Success: false, Stat: stat, ErrorMessage: err.Error()}, err
+		return StatSearchResult{Success: false, Mode: "stat", Stat: query, ErrorMessage: err.Error()}, err
 	}
 	var result StatSearchResult
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return StatSearchResult{Success: false, Stat: stat, ErrorMessage: "Could not read the solver's result: " + err.Error()}, err
+		return StatSearchResult{Success: false, Mode: "stat", Stat: query, ErrorMessage: "Could not read the solver's result: " + err.Error()}, err
 	}
+	result.Mode = "stat"
 	if result.ErrorMessage != "" && !result.Success {
 		return result, nil
 	}
 	result.Success = true
-	if result.Results == nil {
-		result.Results = []StatSearchEntry{}
+
+	filtered := make([]StatSearchEntry, 0, len(result.Results))
+	for _, entry := range result.Results {
+		// Filigrees have no minimum level at all, so the window says nothing
+		// about them and is not applied — filtering them out by an ML they do
+		// not have would just make them unfindable. Items and augments both
+		// have one and are held to it.
+		if entry.SourceType != "filigree" && (entry.ML < minLevel || entry.ML > maxLevel) {
+			continue
+		}
+		if !slotMatches(entry.Slots, slot, entry.SourceType) {
+			continue
+		}
+		filtered = append(filtered, entry)
 	}
+	result.Results = filtered
 	return result, nil
+}
+
+// slotMatches reports whether a result belongs in a slot-filtered answer.
+// An empty filter keeps everything; anything else keeps only slotted items,
+// because "show me Helmet results" is not a question an augment can answer.
+func slotMatches(slots []string, slot, sourceType string) bool {
+	if slot == "" {
+		return true
+	}
+	if sourceType != "item" {
+		return false
+	}
+	for _, s := range slots {
+		if strings.EqualFold(s, slot) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) searchItemsByName(query string, minLevel, maxLevel int, slot string) StatSearchResult {
+	result := StatSearchResult{Mode: "name", Stat: query, Results: []StatSearchEntry{}, Success: true}
+	if query == "" {
+		result.Success = false
+		result.ErrorMessage = "Type at least one character to search for."
+		return result
+	}
+	if !a.awaitCaches("SearchItems") {
+		result.Success = false
+		result.ErrorMessage = "The item catalog is still loading — try again in a moment."
+		return result
+	}
+
+	needle := strings.ToLower(query)
+
+	for i := range a.itemsCache {
+		item := &a.itemsCache[i]
+		if !strings.Contains(strings.ToLower(item.Name), needle) {
+			continue
+		}
+		if item.MinLevel < minLevel || item.MinLevel > maxLevel {
+			continue
+		}
+		slots := make([]string, 0, len(item.EquipmentSlot.Slots))
+		for _, s := range item.EquipmentSlot.Slots {
+			slots = append(slots, s.Local)
+		}
+		if !slotMatches(slots, slot, "item") {
+			continue
+		}
+		entry := StatSearchEntry{
+			SourceType: "item",
+			SourceName: item.Name,
+			ML:         item.MinLevel,
+			Slots:      slots,
+			Stats:      summariseBuffs(item.Buffs),
+			IsRaid:     item.IsRaid,
+		}
+		if item.AdventurePack != "" {
+			pack := item.AdventurePack
+			entry.Pack = &pack
+		}
+		result.Results = append(result.Results, entry)
+	}
+
+	if slot == "" {
+		for i := range a.augmentsCache {
+			aug := &a.augmentsCache[i]
+			if !strings.Contains(strings.ToLower(aug.Name), needle) {
+				continue
+			}
+			if aug.MinLevel < minLevel || aug.MinLevel > maxLevel {
+				continue
+			}
+			result.Results = append(result.Results, StatSearchEntry{
+				SourceType: "augment",
+				SourceName: aug.Name,
+				ML:         aug.MinLevel,
+				Slots:      append([]string(nil), aug.Types...),
+			})
+		}
+
+		// Filigrees have no minimum level at all, so a level window says
+		// nothing about them and is not applied — filtering them out by an ML
+		// they do not have would just make them unfindable.
+		for i := range a.filigreesCache {
+			fil := &a.filigreesCache[i]
+			if !strings.Contains(strings.ToLower(fil.Name), needle) {
+				continue
+			}
+			entry := StatSearchEntry{
+				SourceType: "filigree",
+				SourceName: fil.Name,
+			}
+			if fil.SetName != "" {
+				set := fil.SetName
+				entry.Pack = &set
+			}
+			result.Results = append(result.Results, entry)
+		}
+	}
+
+	sort.Slice(result.Results, func(i, j int) bool {
+		if result.Results[i].ML != result.Results[j].ML {
+			return result.Results[i].ML > result.Results[j].ML
+		}
+		return result.Results[i].SourceName < result.Results[j].SourceName
+	})
+	return result
+}
+
+// summariseBuffs renders an item's <Buff> list as short "Stat +N (Type)"
+// strings for the search table. Values stay verbatim: they are strings in the
+// catalog on purpose (models.XMLBuff), and the solver does its own, different
+// parsing — reformatting them here would invent precision this view does not
+// have.
+func summariseBuffs(buffs []models.XMLBuff) []string {
+	if len(buffs) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(buffs))
+	seen := make(map[string]bool, len(buffs))
+	for _, b := range buffs {
+		name := strings.TrimSpace(b.Type)
+		if name == "" {
+			continue
+		}
+		text := name
+		if v := strings.TrimSpace(b.Value1); v != "" && v != "0" {
+			text += " " + v
+		}
+		if bt := strings.TrimSpace(b.BonusType); bt != "" {
+			text += " (" + bt + ")"
+		}
+		if seen[text] {
+			continue
+		}
+		seen[text] = true
+		out = append(out, text)
+	}
+	return out
 }
