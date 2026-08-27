@@ -16,35 +16,70 @@
       TIER_META,
       canAddStat,
       cloneLanes,
+      emptyLanes,
       findTier,
       hydrateLanes,
       isValidCap,
       serializePriorities,
       CAP_ERROR,
   } from '$lib/data/statPriorities';
-  import type { Lanes, Tier } from '$lib/data/statPriorities';
+  import type { Lanes, StatChip, Tier } from '$lib/data/statPriorities';
   import { labelForStat, noteForStat } from '$lib/data/statTaxonomy';
+  import { dndzone } from 'svelte-dnd-action';
+  import { flip } from 'svelte/animate';
 
-  // Lanes are derived from the store rather than held as parallel state: the
-  // store stays the single source of truth, and hydrate(serialize(x)) === x by
-  // construction (§3.7), so a commit round-trips without drift or a loop.
+  interface DndChip extends StatChip {
+      id: string;
+  }
+
+  const FLIP_MS = 200;
+  const DND_DROP_STYLE = {
+      outline: '2px dashed hsl(var(--primary) / 0.4)',
+      outlineOffset: '2px',
+  };
+
   $: lanes = hydrateLanes($configStore.stat_priorities);
+
+  let dndItems: Record<Tier, DndChip[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+  let dragging = false;
+
+  // Sync dndItems from the store when not mid-drag. During drag, dndItems
+  // diverges from lanes (consider events update visual state only); finalize
+  // commits back to the store, which re-triggers this sync.
+  $: if (!dragging) {
+      dndItems = Object.fromEntries(
+          TIERS.map(t => [t, lanes[t].map(c => ({ ...c, id: c.stat }))])
+      ) as Record<Tier, DndChip[]>;
+  }
 
   let openPickerTier: Tier | null = null;
   let editingCapKey: string | null = null;
   let capDraft = '';
 
-  // Post-solve feedback loop for the static taxonomy (§4.1): the solver tells
-  // us which priorities matched nothing in the data files, and we badge the
-  // still-placed chips rather than pretending to validate names up front.
   $: unmatched = new Set(
       ($resultStore?.unmatchedPriorities ?? []).map((s: string) => s.toLowerCase())
   );
 
   function commit(next: Lanes, { fromStatSet = false } = {}) {
       $configStore.stat_priorities = serializePriorities(next);
-      // Any hand mutation invalidates the stat-set undo snapshot (§6.4).
       if (!fromStatSet) $statSetUndoSnapshot = null;
+  }
+
+  function handleConsider(tier: Tier, e: CustomEvent<{items: DndChip[]}>) {
+      dragging = true;
+      dndItems[tier] = e.detail.items;
+      dndItems = dndItems;
+  }
+
+  function handleFinalize(tier: Tier, e: CustomEvent<{items: DndChip[]}>) {
+      dndItems[tier] = e.detail.items;
+      dndItems = dndItems;
+      const next = emptyLanes();
+      for (const t of TIERS) {
+          next[t] = dndItems[t].map(({ id, ...rest }) => rest);
+      }
+      commit(next);
+      dragging = false;
   }
 
   function addStat(tier: Tier, stat: string) {
@@ -54,7 +89,7 @@
       const existing = findTier(lanes, trimmed);
       if (existing) {
           showToast(
-              `"${labelForStat(trimmed)}" is already in Tier ${existing}. Use "Move to tier" to change it.`,
+              `"${labelForStat(trimmed)}" is already in Tier ${existing}. Drag it to change its tier.`,
               'info'
           );
           return;
@@ -72,82 +107,58 @@
       openPickerTier = null;
   }
 
-  function removeStat(tier: Tier, index: number) {
+  function removeStat(tier: Tier, stat: string) {
       const next = cloneLanes(lanes);
-      next[tier].splice(index, 1);
+      const idx = next[tier].findIndex(c => c.stat === stat);
+      if (idx >= 0) next[tier].splice(idx, 1);
       commit(next);
   }
 
-  function move(tier: Tier, index: number, direction: 'up' | 'down') {
-      const target = direction === 'up' ? index - 1 : index + 1;
-      if (target < 0 || target >= lanes[tier].length) return;
-      const next = cloneLanes(lanes);
-      [next[tier][index], next[tier][target]] = [next[tier][target], next[tier][index]];
-      commit(next);
+  function capKey(tier: Tier, stat: string) {
+      return `${tier}:${stat}`;
   }
 
-  function moveToTier(fromTier: Tier, index: number, toTier: Tier) {
-      if (fromTier === toTier) return;
-      const next = cloneLanes(lanes);
-      const [chip] = next[fromTier].splice(index, 1);
-      next[toTier].push(chip);
-      commit(next);
+  function startCapEdit(tier: Tier, chip: DndChip) {
+      editingCapKey = capKey(tier, chip.id);
+      capDraft = chip.cap ? String(chip.cap) : '';
   }
 
-  function capKey(tier: Tier, index: number) {
-      return `${tier}:${index}`;
-  }
-
-  function startCapEdit(tier: Tier, index: number) {
-      editingCapKey = capKey(tier, index);
-      capDraft = lanes[tier][index].cap ? String(lanes[tier][index].cap) : '';
-  }
-
-  // Cancelable inline edit, not a live binding (EC-9): dismissing without
-  // submitting must leave the chip untouched.
   function cancelCapEdit() {
       editingCapKey = null;
       capDraft = '';
   }
 
-  function commitCapEdit(tier: Tier, index: number) {
+  function commitCapEdit(tier: Tier, stat: string) {
       const raw = capDraft.trim();
       const next = cloneLanes(lanes);
+      const idx = next[tier].findIndex(c => c.stat === stat);
+      if (idx < 0) { cancelCapEdit(); return; }
 
       if (raw === '') {
-          delete next[tier][index].cap;
+          delete next[tier][idx].cap;
           commit(next);
           cancelCapEdit();
           return;
       }
 
-      // Wording matches the server-side message verbatim so the two can never
-      // disagree about the same rule.
       if (!isValidCap(raw)) {
           showToast(CAP_ERROR, 'error');
           return;
       }
 
-      next[tier][index].cap = parseInt(raw, 10);
+      next[tier][idx].cap = parseInt(raw, 10);
       commit(next);
       cancelCapEdit();
   }
 
-  function handleCapKeydown(e: KeyboardEvent, tier: Tier, index: number) {
+  function handleCapKeydown(e: KeyboardEvent, tier: Tier, stat: string) {
       if (e.key === 'Enter') {
           e.preventDefault();
-          commitCapEdit(tier, index);
+          commitCapEdit(tier, stat);
       } else if (e.key === 'Escape') {
           e.preventDefault();
           cancelCapEdit();
       }
-  }
-
-  // Svelte 3's template parser rejects TS casts inside markup expressions, so
-  // the <select> handler unwraps its value here rather than inline.
-  function onTierSelect(e: Event, fromTier: Tier, index: number) {
-      const value = parseInt((e.target as HTMLSelectElement).value, 10) as Tier;
-      moveToTier(fromTier, index, value);
   }
 
   function togglePicker(tier: Tier) {
@@ -157,8 +168,7 @@
 
 <div class="space-y-4">
   <p class="text-xs text-muted-foreground">
-    Drop each stat into the tier that matches how much you care about it. Within a lane, higher
-    up means higher priority.
+    Drag stats between tiers or reorder within a tier. Higher up means higher priority.
   </p>
 
   {#each TIERS as tier (tier)}
@@ -170,8 +180,6 @@
           </h4>
           <p class="text-[11px] text-muted-foreground">{TIER_META[tier].sub}</p>
           {#if tier === 1}
-            <!-- Replaces the deleted computeFiligreeBias() readout (§7.1): the
-                 honest, actionable version of what that percentage gestured at. -->
             <p class="text-[11px] text-primary/80 mt-0.5">
               Filigrees are only counted toward Tier 1. Tiers 2–5 are optimized from items,
               augments and set bonuses only.
@@ -188,88 +196,70 @@
         </div>
       </div>
 
-      {#if lanes[tier].length === 0}
-        <div class="rounded border border-dashed border-border/70 px-3 py-2 text-[11px] text-muted-foreground">
-          No solve stage runs for an empty tier
-        </div>
-      {:else}
-        <div class="space-y-1.5">
-          {#each lanes[tier] as chip, i (chip.stat)}
-            <div
-              class="rounded-md border bg-card px-2 py-1.5 text-sm transition-colors {$highlightedStats.includes(chip.stat.toLowerCase()) ? 'border-primary ring-1 ring-primary' : 'border-border'}"
-            >
-              <div class="flex items-center gap-2">
-                <div class="flex flex-col space-y-0.5">
+      <div
+        use:dndzone={{items: dndItems[tier], type: 'stat-chip', flipDurationMs: FLIP_MS, dropTargetStyle: DND_DROP_STYLE}}
+        on:consider={(e) => handleConsider(tier, e)}
+        on:finalize={(e) => handleFinalize(tier, e)}
+        class="min-h-[2.5rem] space-y-1.5 rounded-md"
+      >
+        {#each dndItems[tier] as chip (chip.id)}
+          <div
+            animate:flip={{duration: FLIP_MS}}
+            class="rounded-md border bg-card px-2 py-1.5 text-sm transition-colors touch-none
+              {$highlightedStats.includes(chip.stat.toLowerCase()) ? 'border-primary ring-1 ring-primary' : 'border-border'}"
+          >
+            <div class="flex items-center gap-2">
+              <span
+                class="cursor-grab text-muted-foreground/50 hover:text-muted-foreground select-none text-xs leading-none"
+                aria-label="Drag to reorder"
+              >⠿</span>
+
+              <span class="font-medium truncate" title={chip.stat}>{labelForStat(chip.stat)}</span>
+
+              {#if unmatched.has(chip.stat.toLowerCase())}
+                <span
+                  class="shrink-0 rounded bg-destructive/20 text-destructive px-1.5 py-0.5 text-[10px] font-semibold"
+                  title="The last solve found no sources for this stat in the data files."
+                >no matches</span>
+              {/if}
+
+              <div class="ml-auto flex items-center gap-2 shrink-0">
+                {#if editingCapKey === capKey(tier, chip.id)}
+                  <input
+                    type="text"
+                    bind:value={capDraft}
+                    on:keydown={(e) => handleCapKeydown(e, tier, chip.id)}
+                    on:blur={cancelCapEdit}
+                    placeholder="cap"
+                    class="h-6 w-16 rounded border border-input bg-transparent px-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                {:else}
                   <button
                     type="button"
-                    class="text-[10px] leading-none hover:text-primary disabled:opacity-30"
-                    on:click={() => move(tier, i, 'up')}
-                    disabled={i === 0}
-                    aria-label="Move up">▲</button>
-                  <button
-                    type="button"
-                    class="text-[10px] leading-none hover:text-primary disabled:opacity-30"
-                    on:click={() => move(tier, i, 'down')}
-                    disabled={i === lanes[tier].length - 1}
-                    aria-label="Move down">▼</button>
-                </div>
-
-                <span class="font-medium truncate" title={chip.stat}>{labelForStat(chip.stat)}</span>
-
-                {#if unmatched.has(chip.stat.toLowerCase())}
-                  <span
-                    class="shrink-0 rounded bg-destructive/20 text-destructive px-1.5 py-0.5 text-[10px] font-semibold"
-                    title="The last solve found no sources for this stat in the data files."
-                  >no matches</span>
+                    class="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary transition-colors"
+                    on:click={() => startCapEdit(tier, chip)}
+                    title="Stop rewarding this stat past a value"
+                  >{chip.cap ? `cap ${chip.cap}` : '+ cap'}</button>
                 {/if}
 
-                <div class="ml-auto flex items-center gap-2 shrink-0">
-                  {#if editingCapKey === capKey(tier, i)}
-                    <input
-                      type="text"
-                      bind:value={capDraft}
-                      on:keydown={(e) => handleCapKeydown(e, tier, i)}
-                      on:blur={cancelCapEdit}
-                      placeholder="cap"
-                      class="h-6 w-16 rounded border border-input bg-transparent px-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
-                  {:else}
-                    <button
-                      type="button"
-                      class="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary transition-colors"
-                      on:click={() => startCapEdit(tier, i)}
-                      title="Stop rewarding this stat past a value"
-                    >{chip.cap ? `cap ${chip.cap}` : '+ cap'}</button>
-                  {/if}
-
-                  <select
-                    class="h-6 rounded border border-input bg-transparent text-[10px] px-1 focus-visible:outline-none"
-                    value={tier}
-                    on:change={(e) => onTierSelect(e, tier, i)}
-                    aria-label="Move to tier"
-                  >
-                    {#each TIERS as t}
-                      <option value={t} disabled={t === tier} class="bg-background text-foreground">
-                        Tier {t}
-                      </option>
-                    {/each}
-                  </select>
-
-                  <button
-                    type="button"
-                    class="text-destructive hover:text-destructive/80 font-bold"
-                    on:click={() => removeStat(tier, i)}
-                    aria-label="Remove">&times;</button>
-                </div>
+                <button
+                  type="button"
+                  class="text-destructive hover:text-destructive/80 font-bold"
+                  on:click={() => removeStat(tier, chip.id)}
+                  aria-label="Remove">&times;</button>
               </div>
-
-              <!-- EC-3: the caveat stays visible for as long as the chip does,
-                   not only at selection time in the picker. -->
-              {#if noteForStat(chip.stat)}
-                <p class="mt-1 pl-6 text-[10px] text-muted-foreground italic">{noteForStat(chip.stat)}</p>
-              {/if}
             </div>
-          {/each}
+
+            {#if noteForStat(chip.stat)}
+              <p class="mt-1 pl-6 text-[10px] text-muted-foreground italic">{noteForStat(chip.stat)}</p>
+            {/if}
+          </div>
+        {/each}
+      </div>
+
+      {#if dndItems[tier]?.length === 0 && !dragging}
+        <div class="rounded border border-dashed border-border/70 px-3 py-2 text-[11px] text-muted-foreground">
+          No solve stage runs for an empty tier
         </div>
       {/if}
     </div>

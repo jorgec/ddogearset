@@ -38,6 +38,7 @@ export function defaultConfig(): main.OptimizationPayload {
     owned_item_names: [] as string[],
     raid_item_limit: 2,
     maximize_colorless_first: false,
+    gear_preference: "balanced",
     max_search_time: 60,
     is_dino_artifact: false,
     output_filename: "",
@@ -303,6 +304,13 @@ export function showToast(
     }, actions && actions.length > 0 ? TOAST_ACTION_DURATION_MS : TOAST_DURATION_MS);
     return id;
 }
+
+// --- Hydrated-slot tracking --------------------------------------------------
+// Tracks slot names whose pre_equipped/pre_filled entries were added
+// automatically by hydrateConfigFromSlots (as opposed to being explicitly
+// chosen by the user). The optimize handler clears only these slots from
+// the payload, preserving the user's manual locks.
+export const hydratedSlots = writable<Set<string>>(new Set());
 
 // --- Shared picker / alternatives slot (Phase 12) ---------------------------
 // Both GearsetEditor and HarnessBoard open the same item-picker modal and

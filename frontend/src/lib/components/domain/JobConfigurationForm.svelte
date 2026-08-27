@@ -13,7 +13,7 @@
   // writes into the same stat_priorities array the rest of this form already
   // uses, with no standing binding to go stale.
 
-  import { configStore, isOptimizing, resultStore, drawerOpen, showToast, troveImportStore, troveImporting } from '$lib/store';
+  import { configStore, isOptimizing, resultStore, drawerOpen, showToast, troveImportStore, troveImporting, hydratedSlots } from '$lib/store';
   import { RunOptimization } from '../../../../wailsjs/go/main/App';
   import { withTimeout, solveTimeoutMs } from '$lib/services/rpc';
   import { hydrateConfigFromSlots } from '../../store';
@@ -72,17 +72,24 @@
       // The cast mirrors store.ts: spreading a wails-generated class produces a
       // plain object without its convertValues method, which the generated
       // signature nominally requires but never calls on the request path.
-      // An optimize run asks the solver to pick the best items from scratch.
-      // pre_equipped/pre_filled from a PREVIOUS solve (hydrated by
-      // hydrateConfigFromSlots) must not carry over — they bypass the
-      // pack-exclusion and owned-items filters, so changing those filters
-      // between solves would have no effect on items the previous solve
-      // hydrated into pre_equipped.
+      // Keep user-locked pre_equipped items (manually chosen or loaded from a
+      // gearset file) so the solver respects them. Only clear slots that were
+      // hydrated from a previous solve — those bypass pack-exclusion and
+      // owned-items filters and should not carry over.
+      const manualPE: Record<string, string> = {};
+      const manualAug: Record<string, Record<string, string>> = {};
+      for (const [slot, name] of Object.entries($configStore.pre_equipped)) {
+          if (name && !$hydratedSlots.has(slot)) {
+              manualPE[slot] = name;
+              const aug = $configStore.pre_filled_augments?.[slot];
+              if (aug) manualAug[slot] = aug as Record<string, string>;
+          }
+      }
       const payload = {
         ...$configStore,
         mode: 'optimize',
-        pre_equipped: {},
-        pre_filled_augments: {},
+        pre_equipped: manualPE,
+        pre_filled_augments: manualAug,
         pre_filled_filigrees: { weapon: [] as string[], artifact: [] as string[] },
       };
       const result = await withTimeout(
@@ -310,6 +317,19 @@
           For tier 3+ stats (Maximize If Free and below), prefer diamond/festive augments in
           colorless slots over items when the augment value is within 1 of the best item value.
           Frees up item slots for higher-priority stats.
+        </p>
+      </div>
+
+      <div class="space-y-2 col-span-2">
+        <label class="text-sm font-medium leading-none" for="gear-preference">Gear Preference</label>
+        <select id="gear-preference" bind:value={$configStore.gear_preference} class="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <option value="balanced" class="bg-background text-foreground">Balanced (default)</option>
+          <option value="set_bonuses" class="bg-background text-foreground">Favor Set Bonuses</option>
+          <option value="sun_moon_slots" class="bg-background text-foreground">Favor Sun/Moon Augment Slots</option>
+        </select>
+        <p class="text-[10px] text-muted-foreground">
+          When two gear combinations score similarly, break ties by preferring items that complete
+          named set bonuses or items with Sun/Moon augment slots.
         </p>
       </div>
     </div>

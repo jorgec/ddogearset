@@ -232,6 +232,7 @@ export namespace main {
 	    checklist_owned?: Record<string, boolean>;
 	    calculate_only: boolean;
 	    maximize_colorless_first?: boolean;
+	    gear_preference?: string;
 	    max_search_time?: number;
 	    mode?: string;
 	    target_slot: string;
@@ -272,6 +273,7 @@ export namespace main {
 	        this.checklist_owned = source["checklist_owned"];
 	        this.calculate_only = source["calculate_only"];
 	        this.maximize_colorless_first = source["maximize_colorless_first"];
+	        this.gear_preference = source["gear_preference"];
 	        this.max_search_time = source["max_search_time"];
 	        this.mode = source["mode"];
 	        this.target_slot = source["target_slot"];
@@ -435,6 +437,7 @@ export namespace main {
 	    checklist_owned?: Record<string, boolean>;
 	    calculate_only: boolean;
 	    maximize_colorless_first?: boolean;
+	    gear_preference?: string;
 	    max_search_time?: number;
 	    mode?: string;
 	
@@ -471,6 +474,7 @@ export namespace main {
 	        this.checklist_owned = source["checklist_owned"];
 	        this.calculate_only = source["calculate_only"];
 	        this.maximize_colorless_first = source["maximize_colorless_first"];
+	        this.gear_preference = source["gear_preference"];
 	        this.max_search_time = source["max_search_time"];
 	        this.mode = source["mode"];
 	    }

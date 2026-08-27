@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast,
-           troveImportStore, defaultConfig, pickerSlot, alternativesSlotStore } from '$lib/store';
+           troveImportStore, defaultConfig, pickerSlot, alternativesSlotStore,
+           hydratedSlots } from '$lib/store';
   import { GetAvailableItems, GetItemDetails, GetAvailableFiligrees, RecalculateGearset } from '../../../../wailsjs/go/main/App';
   import type { models, main } from '../../../../wailsjs/go/models';
   import { main as mainModels } from '../../../../wailsjs/go/models';
@@ -72,11 +73,17 @@
   let hydratedSlotsRef: Record<string, any> | undefined = undefined;
   $: if ($resultStore?.slots && $resultStore.slots !== hydratedSlotsRef) {
       hydratedSlotsRef = $resultStore.slots;
+      const before = new Set(Object.keys($configStore.pre_equipped));
       const hydrated = hydrateConfigFromSlots($configStore, $resultStore.slots);
       if (hydrated) {
           $configStore.pre_equipped = hydrated.pre_equipped;
           $configStore.pre_filled_augments = hydrated.pre_filled_augments;
           $configStore.pre_filled_filigrees = hydrated.pre_filled_filigrees;
+          const added = new Set<string>();
+          for (const slot of Object.keys(hydrated.pre_equipped)) {
+              if (!before.has(slot)) added.add(slot);
+          }
+          $hydratedSlots = added;
       }
   }
 
@@ -340,6 +347,7 @@
   function resetToNewBuild() {
       $configStore = defaultConfig();
       $resultStore = null as unknown as main.ResultPayload;
+      $hydratedSlots = new Set();
       selectedItemDetails = null;
       selectedSlot = null;
       availableItems = [];
@@ -358,6 +366,7 @@
       $configStore.pre_equipped = {};
       $configStore.pre_filled_augments = {};
       $configStore.pre_filled_filigrees = { weapon: [], artifact: [] };
+      $hydratedSlots = new Set();
       selectedItemDetails = null;
       selectedSlot = null;
       availableItems = [];

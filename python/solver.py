@@ -695,6 +695,7 @@ def main():
     pre_filled_filigrees = parsed_data.get('pre_filled_filigrees', {})
     max_search_time = parsed_data.get('max_search_time', optimizer.DEFAULT_SEARCH_TIME)
     maximize_colorless_first = parsed_data.get('maximize_colorless_first', False)
+    gear_preference = parsed_data.get('gear_preference', 'balanced')
 
     # DDO_CATALOG_DB is set by app.go's runSolver() to the same seeded
     # catalog.db path Go's own item/augment/filigree caches read (see
@@ -748,6 +749,8 @@ def main():
         out_file.write(f"Allow Gem of Many Facets: {allow_gomf}\n")
         out_file.write(f"Excluded Packs: {', '.join(excluded_packs) if excluded_packs else 'None'}\n")
         out_file.write(f"Raid Item Limit: {raid_item_limit}\n")
+        if gear_preference != 'balanced':
+            out_file.write(f"Gear Preference: {gear_preference}\n")
         for w in priority_warnings:
             out_file.write(f"WARNING: {w}\n")
         # excluded_packs matching is exact-string against AdventurePack values
@@ -855,7 +858,8 @@ def main():
             weapon1_eligible_types=weapon1_eligible_types,
             weapon2_eligible_types=weapon2_eligible_types,
             require_weapon2=require_weapon2,
-            maximize_colorless_first=maximize_colorless_first)
+            maximize_colorless_first=maximize_colorless_first,
+            gear_preference=gear_preference)
 
         if result and result.get('success') is not False:
             final_gearset = result

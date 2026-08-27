@@ -13,6 +13,7 @@
   import { GetSlotAlternatives } from '../../../../wailsjs/go/main/App';
   import type { main } from '../../../../wailsjs/go/models';
   import { fly, fade } from 'svelte/transition';
+  import ItemDetail from './ItemDetail.svelte';
 
   // Named targetSlot, NOT slot — "slot" is a reserved Svelte attribute for
   // named-slot content projection, and a prop called `slot` silently never
@@ -30,6 +31,7 @@
   // selectItem() flow, so a row click only stages a candidate; a second,
   // explicit click actually equips it.
   let pendingEquip: main.AlternativeItem | null = null;
+  let detailItemName: string | null = null;
 
   async function load() {
       loading = true;
@@ -212,23 +214,33 @@
       {#each alternatives as alt (alt.rank)}
         <div class="rounded-md border {pendingEquip === alt ? 'border-primary' : 'border-border'} {limitBorderClass(alt)} bg-card/40 p-3 space-y-2"
              title={limitTooltip(alt)}>
-          <button type="button" class="w-full text-left" on:click={() => selectForEquip(alt)}>
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-medium">#{alt.rank} {alt.itemName}</span>
-              <span class="text-xs text-muted-foreground shrink-0">
-                ML {alt.ml}{alt.isRaid ? ' · Raid' : ''}{alt.isMinor ? ' · Minor Artifact' : ''}
-              </span>
-            </div>
-            {#if alt.statDeltas && Object.keys(alt.statDeltas).length > 0}
-              <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">
-                {#each Object.entries(alt.statDeltas) as [stat, delta]}
-                  <span class="text-xs {delta > 0 ? 'text-primary' : delta < 0 ? 'text-destructive' : 'text-muted-foreground'}">
-                    {stat}: {formatDelta(delta)}
-                  </span>
-                {/each}
+          <div class="flex items-start gap-2">
+            <button type="button" class="flex-1 text-left" on:click={() => selectForEquip(alt)}>
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-medium">#{alt.rank} {alt.itemName}</span>
+                <span class="text-xs text-muted-foreground shrink-0">
+                  ML {alt.ml}{alt.isRaid ? ' · Raid' : ''}{alt.isMinor ? ' · Minor Artifact' : ''}
+                </span>
               </div>
-            {/if}
-          </button>
+              {#if alt.statDeltas && Object.keys(alt.statDeltas).length > 0}
+                <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                  {#each Object.entries(alt.statDeltas) as [stat, delta]}
+                    <span class="text-xs {delta > 0 ? 'text-primary' : delta < 0 ? 'text-destructive' : 'text-muted-foreground'}">
+                      {stat}: {formatDelta(delta)}
+                    </span>
+                  {/each}
+                </div>
+              {/if}
+            </button>
+            <button
+              type="button"
+              class="shrink-0 mt-0.5 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              title="View item details"
+              on:click|stopPropagation={() => (detailItemName = alt.itemName)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            </button>
+          </div>
 
           {#if pendingEquip === alt}
             <div class="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
@@ -245,3 +257,28 @@
     {/if}
   </div>
 </div>
+
+{#if detailItemName}
+  <div
+    class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-void/70 backdrop-blur-md"
+    role="button"
+    tabindex="-1"
+    on:click|self={() => (detailItemName = null)}
+    on:keydown={(e) => e.key === 'Escape' && (detailItemName = null)}
+    transition:fade={{ duration: 150 }}
+  >
+    <div class="panel w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="flex items-center justify-between px-4 py-3 shrink-0">
+        <h3 class="panel-title text-sm">{detailItemName}</h3>
+        <button on:click={() => (detailItemName = null)} class="p-1 rounded text-steel hover:text-vellum hover:bg-carved transition-colors" title="Close">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="gold-rule mx-4 shrink-0"></div>
+      <div class="flex-1 min-h-0 overflow-y-auto p-4">
+        <ItemDetail itemName={detailItemName} slot={null} slotDetail={null} mode="view" />
+      </div>
+    </div>
+  </div>
+{/if}

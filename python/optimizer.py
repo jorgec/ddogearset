@@ -137,6 +137,11 @@ LAMBDA_ITEM = 1.0
 LAMBDA_DUP = 0.1
 EPS_FIL = 1e-3
 
+# §3.11 — gear preference tiebreakers. Same scale as LAMBDA_ITEM_TIE so they
+# only break ties, never override a real stat difference.
+EPS_SET_PREF = 1e-6
+EPS_SUNMOON_PREF = 1e-6
+
 # §4.5 — time-budget split across tier stages. Tunable; nothing depends on the
 # exact values. Front-loaded because early tiers dominate the search space.
 TIER_SHARES = [0.35, 0.25, 0.18, 0.12, 0.10]
@@ -580,6 +585,7 @@ class Model:
     penalty_item: Any = None
     penalty_dup: Any = None
     filigree_tiebreak: Any = None
+    preference_bonus: Any = None
     # 4-tuples (tracked_var, val, source_name, origin) — §3.1
     sources_tracking: Dict[Tuple[str, str], list] = field(default_factory=dict)
     upper_bounds: Dict[str, float] = field(default_factory=dict)
@@ -858,7 +864,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
                  raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
                  pre_filled_filigrees=None,
                  weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False,
-                 maximize_colorless_first=False):
+                 maximize_colorless_first=False, gear_preference="balanced"):
     """Build the PuLP model once (INV-5). Sets NO objective — every stage does
     that itself via prob.setObjective().
 
@@ -1484,6 +1490,21 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
                 for idx, score in enumerate(scores) if score > 0
             ])
 
+    # ---- §3.11 gear preference bonus ----------------------------------------
+    preference_bonus = pulp.lpSum([])
+    if gear_preference == "set_bonuses" and w_vars:
+        preference_bonus = EPS_SET_PREF * pulp.lpSum(list(w_vars.values()))
+    elif gear_preference == "sun_moon_slots":
+        sun_moon_terms = []
+        for i, item in enumerate(items):
+            sm_count = sum(1 for c in item.get('augments', []) if c in ('Sun', 'Moon'))
+            if sm_count > 0:
+                for (item_idx, s), var in x.items():
+                    if item_idx == i:
+                        sun_moon_terms.append(sm_count * var)
+        if sun_moon_terms:
+            preference_bonus = EPS_SUNMOON_PREF * pulp.lpSum(sun_moon_terms)
+
     # create_model deliberately sets NO objective (INV-5): each stage installs
     # its own via prob.setObjective().
 
@@ -1493,6 +1514,7 @@ def create_model(items, sets, augments, filigrees, entries, art_slots, required_
         n=n, present=present, goals=goals,
         penalty_item=penalty_item, penalty_dup=penalty_dup,
         filigree_tiebreak=filigree_tiebreak,
+        preference_bonus=preference_bonus,
         sources_tracking=sources_tracking,
         upper_bounds=upper_bounds, weights=weights, unmatched=unmatched,
         items=items, sets=sets, augments=augments, filigrees=filigrees,
@@ -1651,7 +1673,9 @@ def _fold_objective(model, pending):
 
 
 def _tie_penalty(model):
-    return LAMBDA_ITEM_TIE * model.penalty_item + LAMBDA_DUP_TIE * model.penalty_dup
+    return (LAMBDA_ITEM_TIE * model.penalty_item
+            + LAMBDA_DUP_TIE * model.penalty_dup
+            - model.preference_bonus)
 
 
 def _stage_budgets(tiers, max_search_time):
@@ -1844,6 +1868,7 @@ def solve_tiered(model, max_search_time, out_file):
         prob.setObjective(
             -(LAMBDA_ITEM * model.penalty_item + LAMBDA_DUP * model.penalty_dup)
             + EPS_FIL * model.filigree_tiebreak
+            + model.preference_bonus
         )
         t0 = time.time()
         status = _solve(prob, cons_budget)
@@ -2407,7 +2432,7 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
                      raid_item_limit=None, pre_equipped=None, pre_filled_augments=None,
                      pre_filled_filigrees=None, mode="optimize", max_search_time=DEFAULT_SEARCH_TIME,
                      weapon1_eligible_types=None, weapon2_eligible_types=None, require_weapon2=False,
-                     maximize_colorless_first=False):
+                     maximize_colorless_first=False, gear_preference="balanced"):
     # Required slots based on available items
     available_slots = set()
     for item in items:
@@ -2427,7 +2452,8 @@ def run_optimization(items, sets, augments, filigrees, entries, out_file, cap, a
                          weapon1_eligible_types=weapon1_eligible_types,
                          weapon2_eligible_types=weapon2_eligible_types,
                          require_weapon2=require_weapon2,
-                         maximize_colorless_first=maximize_colorless_first)
+                         maximize_colorless_first=maximize_colorless_first,
+                         gear_preference=gear_preference)
 
     out_file.write(f"\n======================================\n")
     out_file.write(f"       RUNNING FOR MAX LEVEL {cap}\n")

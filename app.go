@@ -62,7 +62,7 @@ var packMappingsJSON []byte
 // anywhere in this codebase) — this MUST be kept in sync by hand with
 // wails.json's "version"/"productVersion" on every version bump. There is no
 // automated check for drift between the two.
-const AppVersion = "0.6.0"
+const AppVersion = "0.6.1"
 
 // GetAppVersion returns the running app's release version (see AppVersion).
 func (a *App) GetAppVersion() string {
@@ -725,6 +725,10 @@ type OptimizationPayload struct {
 	// MaximizeColorlessFirst tells the solver to prefer diamond/festive augments
 	// in colorless slots for tier 3+ stats rather than seeking items for them.
 	MaximizeColorlessFirst bool `json:"maximize_colorless_first,omitempty"`
+	// GearPreference controls a tie-breaking preference: "balanced" (default),
+	// "set_bonuses" (favor completing named sets), or "sun_moon_slots" (favor
+	// items with Sun/Moon augment slots).
+	GearPreference string `json:"gear_preference,omitempty"`
 	// MaxSearchTime is the TOTAL wall-clock budget in seconds shared across all
 	// solve stages (not a per-solve limit). The frontend has produced this value
 	// since Phase 9 but it was absent from this struct and therefore silently

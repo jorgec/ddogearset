@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast } from '$lib/store';
+  import { resultStore, configStore, isOptimizing, hydrateConfigFromSlots, showToast, hydratedSlots } from '$lib/store';
   import { pickFile, readTextFile } from '$lib/services/filePicker';
   import { withTimeout, solveTimeoutMs } from '$lib/services/rpc';
   import { RunOptimization, SaveGearset, GetAppVersion, VerifyGearsetChecksum, GetSetBonus,
@@ -15,6 +15,8 @@
   import Accordion from '../ui/Accordion.svelte';
   import { migrateLegacyCasterFields } from '$lib/data/statPriorities';
   import type { main } from '../../../../wailsjs/go/models';
+  import { computeLiveStats } from '$lib/services/liveStats';
+  import type { LiveStatEntry } from '$lib/services/liveStats';
 
   // Ordered by tier, then by array position within the tier — which IS the
   // intra-tier rank. The old sort keyed on `value`, a field the tiered model
@@ -23,6 +25,57 @@
   $: sortedPriorities = ($configStore.stat_priorities ?? [])
       .map((p, i) => ({ stat: p.stat, tier: p.tier ?? 1, cap: p.cap, i }))
       .sort((a, b) => (a.tier - b.tier) || (a.i - b.i));
+
+  // --- Live stat totals (running estimate from equipped items) ---------------
+  //
+  // Shown while no solver result is fresh. A solve/recalculate replaces these
+  // with exact values; changing gear afterward brings them back.
+
+  function gearHash(pe: Record<string, string>): string {
+      return Object.entries(pe)
+          .filter(([, v]) => v)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => `${k}=${v}`)
+          .join('|');
+  }
+
+  let solvedStatsRef: Record<string, number> | null | undefined;
+  let solvedGearHash = '';
+  let liveStats: LiveStatEntry[] = [];
+  let liveStatsGen = 0;
+
+  // Snapshot gear hash when a NEW solve result arrives (realizedStats is a
+  // fresh object each time; gear-only mutations leave it the same ref).
+  $: {
+      const rs = $resultStore?.realizedStats;
+      const hasStats = rs && Object.keys(rs).length > 0;
+      if (hasStats && rs !== solvedStatsRef) {
+          solvedStatsRef = rs;
+          solvedGearHash = gearHash($configStore.pre_equipped);
+      } else if (!hasStats) {
+          solvedStatsRef = undefined;
+          solvedGearHash = '';
+      }
+  }
+
+  $: currentGearHash = gearHash($configStore.pre_equipped);
+  $: hasEquippedGear = currentGearHash !== '';
+  $: resultFresh = !!solvedStatsRef && currentGearHash === solvedGearHash;
+
+  async function refreshLiveStats(equipped: Record<string, string>) {
+      const gen = ++liveStatsGen;
+      try {
+          const stats = await computeLiveStats(equipped);
+          if (gen === liveStatsGen) liveStats = stats;
+      } catch {
+          if (gen === liveStatsGen) liveStats = [];
+      }
+  }
+
+  $: if (hasEquippedGear && !resultFresh) {
+      void refreshLiveStats($configStore.pre_equipped);
+  }
+  $: if (!hasEquippedGear) liveStats = [];
 
   // A saved gearset's excluded_packs is matched server-side by EXACT string
   // against the real AdventurePack value (see python/optimizer.py's
@@ -258,6 +311,7 @@
           const updated = await AcceptAll(uuid);
           $configStore = migrateLegacyConfig(mainModels.OptimizationPayload.createFrom(
               { ...$configStore, ...updated.config, calculate_only: false }));
+          $hydratedSlots = new Set();
           await refreshBuilds();
           showToast('Equipped the suggested gearset.', 'success');
       } catch (e) {
@@ -352,6 +406,7 @@
       // configured and what you have equipped, and the numbers come from
       // recalculating them.
       $resultStore = null as any;
+      $hydratedSlots = new Set();
       $isOptimizing = false;
       showBuildBrowser = false;
       await calculateStats();
@@ -403,6 +458,7 @@
           }
 
           const data = JSON.parse(rawText);
+          $hydratedSlots = new Set();
           if (data.config && data.result) {
               // Full format: hydrate both config params and result
               const loadedConfig = {...$configStore, ...data.config, calculate_only: false};
@@ -593,13 +649,7 @@
               </table>
           {/if}
       </div>
-  {:else if !$resultStore || !$resultStore.success || !Object.keys($resultStore.gearSet || {}).length}
-      <div class="flex flex-col items-center justify-center h-64 text-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground mb-4 opacity-50"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-          <h3 class="text-lg font-medium text-foreground">No Gearset Computed</h3>
-          <p class="text-sm text-muted-foreground max-w-sm mt-1">Run the auto-solver or load a layout in the Gearset Editor to view the breakdown.</p>
-      </div>
-  {:else}
+  {:else if resultFresh}
       <!-- Active Sets and Filigrees Summary -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {#if activeSetRows.length > 0}
@@ -759,5 +809,35 @@
               </div>
           {/if}
       </section>
+
+  {:else if hasEquippedGear}
+      <section class="space-y-4">
+          <h3 class="text-lg font-semibold flex items-center text-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+              Running Stat Totals
+          </h3>
+          <p class="text-xs text-steel italic">
+              Estimated from equipped items (bonus-type stacking applied). Click Calculate for exact values including set bonuses and augments.
+          </p>
+          {#if liveStats.length > 0}
+              <div class="grid grid-cols-2 gap-1.5">
+                  {#each liveStats as { stat, total } (stat)}
+                      <div class="flex justify-between items-baseline px-3 py-1.5 rounded bg-card/40 border border-border/50 text-sm">
+                          <span class="text-foreground truncate mr-2">{stat}</span>
+                          <span class="font-semibold text-primary tabular-nums shrink-0">{total}</span>
+                      </div>
+                  {/each}
+              </div>
+          {:else}
+              <p class="text-sm text-muted-foreground animate-pulse">Loading stats…</p>
+          {/if}
+      </section>
+
+  {:else}
+      <div class="flex flex-col items-center justify-center h-64 text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground mb-4 opacity-50"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          <h3 class="text-lg font-medium text-foreground">No Gearset Computed</h3>
+          <p class="text-sm text-muted-foreground max-w-sm mt-1">Run the auto-solver or load a layout in the Gearset Editor to view the breakdown.</p>
+      </div>
   {/if}
 </div>
