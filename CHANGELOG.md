@@ -7,6 +7,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [0.6.1] — 2026-08-28
+
+### Added
+
+- **Gear preference toggle.** New "Gear Preference" dropdown in Equipment
+  Constraints with three options: Balanced (default, current behavior), Favor
+  Set Bonuses (tie-break toward completing named gear sets), and Favor Sun/Moon
+  Augment Slots (tie-break toward items with Sun or Moon augment slots). Acts
+  strictly as a tiebreaker at the same scale as the existing item-count penalty
+  (~1e-6), so it never overrides a real stat difference — only breaks ties when
+  two gear combinations score similarly.
+
+- **Live stat estimates.** The Summary panel now shows running stat totals
+  computed from the currently equipped items while no fresh solver result is
+  available. A solve or recalculate replaces these with exact values; changing
+  gear afterward brings the estimates back.
+
+- **Hydrated-slot tracking.** Slots whose pre-equipped entries were added
+  automatically by result hydration (as opposed to being explicitly locked by
+  the user) are now tracked separately. The optimize handler clears only these
+  slots from the payload, preserving the user's manual locks while still
+  letting the solver pick fresh items for auto-filled slots.
+
 ## [0.6.0] — 2026-08-25
 
 ### Added
