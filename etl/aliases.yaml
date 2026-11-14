@@ -26,4 +26,301 @@
 # gearset's item reference means, and unlike a missed rename, nothing later
 # catches it.
 
-# (no drift resolved yet)
+# Reviewed 2026-11-13 (DDOBuilder 2.0.0.87 / dfd96c44a44167655e46c278db1b7d3ed76b281b)
+# - 92 augments: <Type> reordered in source XML (Blue -> Colorless, Green/Orange -> Yellow).
+# - 6 Nearly Complete augments: +16 (Lamannia) corrected in upstream data to +15 (Live).
+
+- kind: augment
+  was: "Essence of the Cloak of StrahdGreen"
+  now: "Essence of the Cloak of StrahdYellow"
+- kind: augment
+  was: "Touch of PowerBlue"
+  now: "Touch of PowerColorless"
+- kind: augment
+  was: "Cunning ImpactBlue"
+  now: "Cunning ImpactColorless"
+- kind: augment
+  was: "Truthful BlowBlue"
+  now: "Truthful BlowColorless"
+- kind: augment
+  was: "Diamond of WisdomBlue"
+  now: "Diamond of WisdomColorless"
+- kind: augment
+  was: "Diamond of IntelligenceBlue"
+  now: "Diamond of IntelligenceColorless"
+- kind: augment
+  was: "+2 Festive DexterityBlue"
+  now: "+2 Festive DexterityColorless"
+- kind: augment
+  was: "Paragon GuardBlue"
+  now: "Paragon GuardColorless"
+- kind: augment
+  was: "Bold TacticianBlue"
+  now: "Bold TacticianColorless"
+- kind: augment
+  was: "Cruel CutBlue"
+  now: "Cruel CutColorless"
+- kind: augment
+  was: "Essence of the Cracked CoreGreen"
+  now: "Essence of the Cracked CoreYellow"
+- kind: augment
+  was: "Topaz of Quick MovementsGreen"
+  now: "Topaz of Quick MovementsYellow"
+- kind: augment
+  was: "Arcane BarrierBlue"
+  now: "Arcane BarrierColorless"
+- kind: augment
+  was: "+2 Festive ConstitutionBlue"
+  now: "+2 Festive ConstitutionColorless"
+- kind: augment
+  was: "Diamond of Exceptional WisdomBlue"
+  now: "Diamond of Exceptional WisdomColorless"
+- kind: augment
+  was: "Piercing MindBlue"
+  now: "Piercing MindColorless"
+- kind: augment
+  was: "Diamond of Insightful DexterityBlue"
+  now: "Diamond of Insightful DexterityColorless"
+- kind: augment
+  was: "Topaz of AnthemGreen"
+  now: "Topaz of AnthemYellow"
+- kind: augment
+  was: "Diamond of Exceptional StrengthBlue"
+  now: "Diamond of Exceptional StrengthColorless"
+- kind: augment
+  was: "Legendary BulwarkBlue"
+  now: "Legendary BulwarkColorless"
+- kind: augment
+  was: "Diamond of IntimidateBlue"
+  now: "Diamond of IntimidateColorless"
+- kind: augment
+  was: "Diamond of JumpBlue"
+  now: "Diamond of JumpColorless"
+- kind: augment
+  was: "Diamond of Insightful ConstitutionBlue"
+  now: "Diamond of Insightful ConstitutionColorless"
+- kind: augment
+  was: "Diamond of SpotBlue"
+  now: "Diamond of SpotColorless"
+- kind: augment
+  was: "Diamond of SearchBlue"
+  now: "Diamond of SearchColorless"
+- kind: augment
+  was: "Diamond of Exceptional ConstitutionBlue"
+  now: "Diamond of Exceptional ConstitutionColorless"
+- kind: augment
+  was: "Swordcrossed TopazOrange"
+  now: "Swordcrossed TopazYellow"
+- kind: augment
+  was: "Diamond of BluffBlue"
+  now: "Diamond of BluffColorless"
+- kind: augment
+  was: "Diamond of Exceptional CharismaBlue"
+  now: "Diamond of Exceptional CharismaColorless"
+- kind: augment
+  was: "Wild FortitudeBlue"
+  now: "Wild FortitudeColorless"
+- kind: augment
+  was: "Diamond of ListenBlue"
+  now: "Diamond of ListenColorless"
+- kind: augment
+  was: "Topaz of Minor RageGreen"
+  now: "Topaz of Minor RageYellow"
+- kind: augment
+  was: "Diamond of Open LockBlue"
+  now: "Diamond of Open LockColorless"
+- kind: augment
+  was: "Topaz of Melee PowerGreen"
+  now: "Topaz of Melee PowerYellow"
+- kind: augment
+  was: "Globe of True Imperial BloodBlue"
+  now: "Globe of True Imperial BloodColorless"
+- kind: augment
+  was: "Diamond of PerformBlue"
+  now: "Diamond of PerformColorless"
+- kind: augment
+  was: "+2 Festive IntelligenceBlue"
+  now: "+2 Festive IntelligenceColorless"
+- kind: augment
+  was: "Arcane GuardianBlue"
+  now: "Arcane GuardianColorless"
+- kind: augment
+  was: "+16 ConstitutionNearly Complete: Ability Score (Legendary)"
+  now: "+15 ConstitutionNearly Complete: Ability Score (Legendary)"
+- kind: augment
+  was: "+16 DexterityNearly Complete: Ability Score (Legendary)"
+  now: "+15 DexterityNearly Complete: Ability Score (Legendary)"
+- kind: augment
+  was: "The Art of Persuasion, Vol. 3Green"
+  now: "The Art of Persuasion, Vol. 3Yellow"
+- kind: augment
+  was: "Topaz of Minor SmitingGreen"
+  now: "Topaz of Minor SmitingYellow"
+- kind: augment
+  was: "Essence of Dark DiversionGreen"
+  now: "Essence of Dark DiversionYellow"
+- kind: augment
+  was: "Diamond of CharismaBlue"
+  now: "Diamond of CharismaColorless"
+- kind: augment
+  was: "The Master's GiftBlue"
+  now: "The Master's GiftColorless"
+- kind: augment
+  was: "EsotericaBlue"
+  now: "EsotericaColorless"
+- kind: augment
+  was: "Topaz of Lesser DragonmarksGreen"
+  now: "Topaz of Lesser DragonmarksYellow"
+- kind: augment
+  was: "Essence of the Epic Litany of the DeadBlue"
+  now: "Essence of the Epic Litany of the DeadColorless"
+- kind: augment
+  was: "Moment to MomentGreen"
+  now: "Moment to MomentYellow"
+- kind: augment
+  was: "Diamond of Exceptional DexterityBlue"
+  now: "Diamond of Exceptional DexterityColorless"
+- kind: augment
+  was: "Topaz of Augmented SummoningGreen"
+  now: "Topaz of Augmented SummoningYellow"
+- kind: augment
+  was: "Subtle BladeBlue"
+  now: "Subtle BladeColorless"
+- kind: augment
+  was: "Diamond of Vitality +20Blue"
+  now: "Diamond of Vitality +20Colorless"
+- kind: augment
+  was: "Dusk RaiderBlue"
+  now: "Dusk RaiderColorless"
+- kind: augment
+  was: "+2 Festive WisdomBlue"
+  now: "+2 Festive WisdomColorless"
+- kind: augment
+  was: "Globe of Cursed BloodBlue"
+  now: "Globe of Cursed BloodColorless"
+- kind: augment
+  was: "+16 IntelligenceNearly Complete: Ability Score (Legendary)"
+  now: "+15 IntelligenceNearly Complete: Ability Score (Legendary)"
+- kind: augment
+  was: "+2 Festive StrengthBlue"
+  now: "+2 Festive StrengthColorless"
+- kind: augment
+  was: "Legendary Guide to Animal HandlingGreen"
+  now: "Legendary Guide to Animal HandlingYellow"
+- kind: augment
+  was: "Diamond of ConstitutionBlue"
+  now: "Diamond of ConstitutionColorless"
+- kind: augment
+  was: "Tough ShieldsBlue"
+  now: "Tough ShieldsColorless"
+- kind: augment
+  was: "Imbued InfusionBlue"
+  now: "Imbued InfusionColorless"
+- kind: augment
+  was: "Diamond of Insightful CharismaBlue"
+  now: "Diamond of Insightful CharismaColorless"
+- kind: augment
+  was: "Diamond of Insightful WisdomBlue"
+  now: "Diamond of Insightful WisdomColorless"
+- kind: augment
+  was: "+16 StrengthNearly Complete: Ability Score (Legendary)"
+  now: "+15 StrengthNearly Complete: Ability Score (Legendary)"
+- kind: augment
+  was: "Diamond of Exceptional IntelligenceBlue"
+  now: "Diamond of Exceptional IntelligenceColorless"
+- kind: augment
+  was: "Diamond of Insightful StrengthBlue"
+  now: "Diamond of Insightful StrengthColorless"
+- kind: augment
+  was: "Diamond of HealBlue"
+  now: "Diamond of HealColorless"
+- kind: augment
+  was: "Diamond of TumbleBlue"
+  now: "Diamond of TumbleColorless"
+- kind: augment
+  was: "Diamond of Insightful IntelligenceBlue"
+  now: "Diamond of Insightful IntelligenceColorless"
+- kind: augment
+  was: "Diamond of SpellcraftBlue"
+  now: "Diamond of SpellcraftColorless"
+- kind: augment
+  was: "Diamond of Disable DeviceBlue"
+  now: "Diamond of Disable DeviceColorless"
+- kind: augment
+  was: "Alluring ElocutionBlue"
+  now: "Alluring ElocutionColorless"
+- kind: augment
+  was: "Diamond of StrengthBlue"
+  now: "Diamond of StrengthColorless"
+- kind: augment
+  was: "Perfect SilenceBlue"
+  now: "Perfect SilenceColorless"
+- kind: augment
+  was: "+2 Festive CharismaBlue"
+  now: "+2 Festive CharismaColorless"
+- kind: augment
+  was: "Ravil's Book of Legendary RecipesBlue"
+  now: "Ravil's Book of Legendary RecipesColorless"
+- kind: augment
+  was: "Legendary Swordcrossed TopazOrange"
+  now: "Legendary Swordcrossed TopazYellow"
+- kind: augment
+  was: "Visions of the BeyondBlue"
+  now: "Visions of the BeyondColorless"
+- kind: augment
+  was: "Topaz of Ranged PowerGreen"
+  now: "Topaz of Ranged PowerYellow"
+- kind: augment
+  was: "Diamond of the MagiBlue"
+  now: "Diamond of the MagiColorless"
+- kind: augment
+  was: "Essence of Nullscale ArmorGreen"
+  now: "Essence of Nullscale ArmorYellow"
+- kind: augment
+  was: "The Art of Sabotage, Vol. 3Green"
+  now: "The Art of Sabotage, Vol. 3Yellow"
+- kind: augment
+  was: "+16 WisdomNearly Complete: Ability Score (Legendary)"
+  now: "+15 WisdomNearly Complete: Ability Score (Legendary)"
+- kind: augment
+  was: "Legendary Moment to Legendary MomentGreen"
+  now: "Legendary Moment to Legendary MomentYellow"
+- kind: augment
+  was: "Brutal BlowsBlue"
+  now: "Brutal BlowsColorless"
+- kind: augment
+  was: "Diamond of HaggleBlue"
+  now: "Diamond of HaggleColorless"
+- kind: augment
+  was: "Diamond of SwimBlue"
+  now: "Diamond of SwimColorless"
+- kind: augment
+  was: "Clearwater DiamondBlue"
+  now: "Clearwater DiamondColorless"
+- kind: augment
+  was: "Diamond of BalanceBlue"
+  now: "Diamond of BalanceColorless"
+- kind: augment
+  was: "Diamond of Move SilentlyBlue"
+  now: "Diamond of Move SilentlyColorless"
+- kind: augment
+  was: "QuickbladeBlue"
+  now: "QuickbladeColorless"
+- kind: augment
+  was: "+16 CharismaNearly Complete: Ability Score (Legendary)"
+  now: "+15 CharismaNearly Complete: Ability Score (Legendary)"
+- kind: augment
+  was: "Diamond of HideBlue"
+  now: "Diamond of HideColorless"
+- kind: augment
+  was: "Diamond of DiplomacyBlue"
+  now: "Diamond of DiplomacyColorless"
+- kind: augment
+  was: "Diamond of ConcentrationBlue"
+  now: "Diamond of ConcentrationColorless"
+- kind: augment
+  was: "Diamond of DexterityBlue"
+  now: "Diamond of DexterityColorless"
+- kind: augment
+  was: "Diamond of RepairBlue"
+  now: "Diamond of RepairColorless"

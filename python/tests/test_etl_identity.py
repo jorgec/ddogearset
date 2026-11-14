@@ -306,10 +306,12 @@ def test_a_missing_aliases_file_is_not_an_error(tmp_path):
 
 
 def test_the_shipped_aliases_file_parses():
-    """It is all comments today, but a syntax error in it would fail every
-    build — including a release — and it is edited by hand under time pressure."""
+    """A syntax error in it would fail every build — including a release —
+    and it is edited by hand under time pressure."""
     shipped = Path(__file__).resolve().parents[2] / "etl" / "aliases.yaml"
-    assert load_aliases(shipped, NAMESPACES.keys()) == {k: {} for k in NAMESPACES}
+    loaded = load_aliases(shipped, NAMESPACES.keys())
+    assert set(loaded.keys()) == set(NAMESPACES.keys())
+    assert isinstance(loaded.get("augment"), dict)
 
 
 # ── the drift report ───────────────────────────────────────────────────────
